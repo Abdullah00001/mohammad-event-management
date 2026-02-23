@@ -145,3 +145,4 @@ dist
 /src/generated/prisma
 
 docker-compose.yaml
+/src/generated/prisma

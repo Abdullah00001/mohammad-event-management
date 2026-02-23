@@ -10,13 +10,14 @@ import { config } from 'dotenv';
 import type { Request, Response, NextFunction, RequestHandler } from 'express';
 
 import { TMailOption } from '@/app/@types/system.types';
+import { disconnectDatabase } from '@/app/configs/db.configs';
 import logger from '@/app/configs/logger.configs';
-import { env } from '@/env';
+import { disconnectRedis } from '@/app/configs/redis.config';
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-config({ path: path.resolve(__dirname, '../../.env') });
+config({ path: path.resolve(__dirname, '../../../.env') });
 
 type TShutdown = {
   reason: string;
@@ -59,6 +60,8 @@ export const shutdown = async ({
       });
     });
     // Close DB, Redis, queues here
+    await disconnectRedis()
+    await disconnectDatabase()
   } catch (err) {
     logger.error('Error during shutdown', err);
   } finally {
@@ -223,7 +226,7 @@ export function mailOption(
   html: string
 ): TMailOption {
   const option: TMailOption = {
-    from: env.SMTP_USER as string,
+    from: process.env.SMTP_USER as string,
     to,
     subject,
     html,
