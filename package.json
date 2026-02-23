@@ -12,7 +12,8 @@
     "start": "node ./dist/server.js",
     "dev": "nodemon",
     "format": "prettier --write \"src/**/*.ts\"",
-    "lint": "eslint \"src/**/*.{ts,js}\" --quiet"
+    "lint": "eslint \"src/**/*.{ts,js}\" --quiet",
+    "create:module": "node ./scripts/createModule.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.893.0",
