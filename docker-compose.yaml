@@ -1,0 +1,93 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: event_management_postgres_container
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: myStrongPostgresPassword
+      POSTGRES_DB: event_management
+    ports:
+      - 5432:5432
+    networks:
+      - backend_network
+    volumes:
+      - postgres_volume:/var/lib/postgresql/data
+  redis:
+    image: redis:latest
+    container_name: event_management_redis_container
+    command: redis-server --requirepass myStrongRedisPassword
+    ports:
+      - 6380:6379
+    networks:
+      - backend_network
+    volumes:
+      - redis_volume:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "myStrongRedisPassword", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+  redis-ui:
+    image: rediscommander/redis-commander:latest
+    container_name: event_management_redis_ui_container
+    environment:
+      # Format: connectionName:host:port:dbIndex:password
+      - REDIS_HOSTS=local:redis:6379:0:myStrongRedisPassword
+      # This helps the UI start even if it takes a second to find the redis container
+      - HTTP_USER=admin
+      - HTTP_PASSWORD=admin
+    ports:
+      - 8082:8081
+    networks:
+      - backend_network
+    depends_on:
+      - redis
+  queue-worker:
+    build:
+      context: ./
+      dockerfile: Dockerfile.queue
+    container_name: event_management_queue_worker
+    restart: unless-stopped
+    command: >
+      npx nodemon
+      --watch src
+      --watch worker
+      --ext ts
+      --exec "ts-node --transpile-only --require tsconfig-paths/register ./src/workers/index.ts"
+      --legacyWatch
+      --pollingInterval 1000
+    networks:
+      - backend_network # ← THIS was missing — can't reach redis without it
+    volumes:
+      - './:/usr/src/app' # ← THIS was missing — needed for hot reload
+      - /usr/src/app/node_modules
+
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  server:
+    build:
+      context: ./
+      dockerfile: Dockerfile.dev
+    container_name: event_management_server_container
+    ports:
+      - 5001:5000
+    networks:
+      - backend_network
+    volumes:
+      - './:/usr/src/app'
+      - /usr/src/app/node_modules
+    stop_grace_period: 8s
+    depends_on:
+      - redis
+      - queue-worker
+
+networks:
+  backend_network:
+    name: backend_network
+    driver: bridge
+
+volumes:
+  redis_volume:
+  postgres_volume:

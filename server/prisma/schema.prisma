@@ -1,0 +1,105 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AccountStatus {
+  ACTIVE
+  VIEW_ONLY
+  HIBERNATED
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum Provider {
+  MANUAL
+  GOOGLE
+  APPLE
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+model User{
+  id String @id @default(uuid())
+  email String @unique
+  password String
+  isVerified Boolean @default(false)
+  accountStatus AccountStatus @default(ACTIVE)
+  role Role @default(USER)
+  provider Provider @default(MANUAL)
+  providerId String?  
+  strikeCount Int @default(0)
+  penaltyEndDate DateTime?
+  lastEventAttendedDate DateTime?
+  isPremium Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  profile Profile?
+  userTraits UserTraits?
+  userPreference UserPreference?
+  @@index([role])
+}
+
+model Profile {
+  id String @id @default(uuid())
+  userId String @unique
+  user User @relation(fields: [userId],references: [id],onDelete: Cascade)
+  name String?
+  age Int?
+  gender Gender?
+  location String?
+  avatar String?
+  bio String?
+  countryVisited String[] @default([])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  interests ProfileInterest[]
+}
+
+model Interest {
+  id String @id @default(uuid())
+  interestName String
+  interestIcon String
+  profiles       ProfileInterest[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ProfileInterest {
+  profileId String
+  profile Profile @relation(fields: [profileId],references: [id],onDelete: Cascade)
+  interestId String 
+  interest Interest @relation(fields: [interestId],references: [id],onDelete: Cascade)
+  @@id([profileId,interestId])
+}
+
+model UserTraits {
+  id String @id @default(uuid())
+  userId String @unique
+  user User @relation(fields: [userId],references: [id],onDelete: Cascade)
+  energyScore Int
+  curiosityScore Int
+  rhythmScore Int
+  createdAt DateTime @default(now())
+  @@index([energyScore,curiosityScore,rhythmScore])
+}
+
+model UserPreference {
+  id String @id @default(uuid())
+  userId String @unique
+  user User @relation(fields: [userId],references: [id],onDelete: Cascade)
+  pushNotification Boolean @default(false)
+  emailNotification Boolean @default(false)
+  eventReminders Boolean @default(false)
+  friendRequest Boolean @default(false)
+}

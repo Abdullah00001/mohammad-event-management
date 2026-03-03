@@ -1,0 +1,124 @@
+-- CreateEnum
+CREATE TYPE "AccountStatus" AS ENUM ('ACTIVE', 'VIEW_ONLY', 'HIBERNATED');
+
+-- CreateEnum
+CREATE TYPE "Role" AS ENUM ('USER', 'ADMIN');
+
+-- CreateEnum
+CREATE TYPE "Provider" AS ENUM ('MANUAL', 'GOOGLE', 'APPLE');
+
+-- CreateEnum
+CREATE TYPE "Gender" AS ENUM ('MALE', 'FEMALE');
+
+-- CreateTable
+CREATE TABLE "User" (
+    "id" TEXT NOT NULL,
+    "email" TEXT NOT NULL,
+    "password" TEXT NOT NULL,
+    "isVerified" BOOLEAN NOT NULL DEFAULT false,
+    "accountStatus" "AccountStatus" NOT NULL DEFAULT 'ACTIVE',
+    "role" "Role" NOT NULL DEFAULT 'USER',
+    "provider" "Provider" NOT NULL DEFAULT 'MANUAL',
+    "providerId" TEXT,
+    "strikeCount" INTEGER NOT NULL DEFAULT 0,
+    "penaltyEndDate" TIMESTAMP(3),
+    "lastEventAttendedDate" TIMESTAMP(3),
+    "isPremium" BOOLEAN NOT NULL DEFAULT false,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "User_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Profile" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "age" INTEGER NOT NULL,
+    "gender" "Gender" NOT NULL,
+    "location" TEXT NOT NULL,
+    "avatar" TEXT,
+    "bio" TEXT,
+    "countryVisited" TEXT[],
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Profile_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Interest" (
+    "id" TEXT NOT NULL,
+    "interestName" TEXT NOT NULL,
+    "interestIcon" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Interest_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "ProfileInterest" (
+    "profileId" TEXT NOT NULL,
+    "interestId" TEXT NOT NULL,
+
+    CONSTRAINT "ProfileInterest_pkey" PRIMARY KEY ("profileId","interestId")
+);
+
+-- CreateTable
+CREATE TABLE "UserTraits" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "energyScore" INTEGER NOT NULL,
+    "curiosityScore" INTEGER NOT NULL,
+    "rhythmScore" INTEGER NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "UserTraits_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "UserPreference" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "pushNotification" BOOLEAN NOT NULL DEFAULT false,
+    "emailNotification" BOOLEAN NOT NULL DEFAULT false,
+    "eventReminders" BOOLEAN NOT NULL DEFAULT false,
+    "friendRequest" BOOLEAN NOT NULL DEFAULT false,
+
+    CONSTRAINT "UserPreference_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
+
+-- CreateIndex
+CREATE INDEX "User_role_idx" ON "User"("role");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Profile_userId_key" ON "Profile"("userId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "UserTraits_userId_key" ON "UserTraits"("userId");
+
+-- CreateIndex
+CREATE INDEX "UserTraits_energyScore_curiosityScore_rhythmScore_idx" ON "UserTraits"("energyScore", "curiosityScore", "rhythmScore");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "UserPreference_userId_key" ON "UserPreference"("userId");
+
+-- AddForeignKey
+ALTER TABLE "Profile" ADD CONSTRAINT "Profile_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ProfileInterest" ADD CONSTRAINT "ProfileInterest_profileId_fkey" FOREIGN KEY ("profileId") REFERENCES "Profile"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ProfileInterest" ADD CONSTRAINT "ProfileInterest_interestId_fkey" FOREIGN KEY ("interestId") REFERENCES "Interest"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "UserTraits" ADD CONSTRAINT "UserTraits_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "UserPreference" ADD CONSTRAINT "UserPreference_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
