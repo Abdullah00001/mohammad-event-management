@@ -15,3 +15,13 @@ export const signupSchema = z.object({
       'Password must contain at least one uppercase letter, one lowercase letter, and one number'
     ),
 });
+
+export const verifyOtpSchema = z
+  .object({
+    otp: z
+      .string()
+      .trim() // Remove accidental whitespace
+      .length(6, 'OTP must be exactly 6 digits') 
+      .regex(/^\d+$/, 'OTP must only contain numbers'),
+  })
+  .strict();

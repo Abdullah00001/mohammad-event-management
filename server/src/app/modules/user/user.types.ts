@@ -1,22 +1,8 @@
-import { AccountStatus, Provider, Role } from "@prisma/client";
-
-export interface IUser {
-  id: string;
-  email: string;
-  password: string;
-  isVerified: boolean;
-  accountStatus: AccountStatus;
-  role: Role;
-  provider: Provider;
-  providerId: string | null;
-  strikeCount: number;
-  penaltyEndDate: Date | null;
-  lastEventAttendedDate: Date | null;
-  isPremium: boolean;
-  createdAt: Date;
-  updatedAt: Date;
+export enum AuthErrorType {
+  TOKEN_EXPIRED = 'TOKEN_EXPIRED',
+  TOKEN_INVALID = 'TOKEN_INVALID',
+  TOKEN_BLACKLISTED = 'TOKEN_BLACKLISTED',
+  USER_BLOCKED = 'USER_BLOCKED',
 }
-
-
 
 

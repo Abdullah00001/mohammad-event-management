@@ -12,6 +12,11 @@ services:
       - backend_network
     volumes:
       - postgres_volume:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
   redis:
     image: redis:latest
     container_name: event_management_redis_container
@@ -27,6 +32,8 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+    depends_on:
+      - postgres
   redis-ui:
     image: rediscommander/redis-commander:latest
     container_name: event_management_redis_ui_container
@@ -42,33 +49,35 @@ services:
       - backend_network
     depends_on:
       - redis
-  queue-worker:
+  worker:
+    container_name: event_management_worker_container
     build:
-      context: ./
-      dockerfile: Dockerfile.queue
-    container_name: event_management_queue_worker
-    restart: unless-stopped
-    command: >
-      npx nodemon
-      --watch src
-      --watch worker
-      --ext ts
-      --exec "ts-node --transpile-only --require tsconfig-paths/register ./src/workers/index.ts"
-      --legacyWatch
-      --pollingInterval 1000
-    networks:
-      - backend_network # ← THIS was missing — can't reach redis without it
+      context: ./worker
+      dockerfile: Dockerfile
+    env_file:
+      - ./worker/.env
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: myStrongRedisPassword
+      DATABASE_URL: postgresql://postgres:myStrongPostgresPassword@postgres:5432/event_management
+      NODE_ENV: development
     volumes:
-      - './:/usr/src/app' # ← THIS was missing — needed for hot reload
-      - /usr/src/app/node_modules
-
+      - ./worker/src:/app/src
+      - ./worker/nodemon.json:/app/nodemon.json
+      - worker_node_modules:/app/node_modules
+      - ./worker/logs:/app/logs
+    networks:
+      - backend_network
     depends_on:
       redis:
         condition: service_healthy
-
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
   server:
     build:
-      context: ./
+      context: ./server
       dockerfile: Dockerfile.dev
     container_name: event_management_server_container
     ports:
@@ -76,12 +85,25 @@ services:
     networks:
       - backend_network
     volumes:
-      - './:/usr/src/app'
+      - "./server:/usr/src/app"
       - /usr/src/app/node_modules
+    env_file:
+      - ./server/.env
+    environment:
+      # Explicitly override so server always uses THIS compose's Redis —
+      # not whatever is in .env (which may point to localhost or the other project's Redis)
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: myStrongRedisPassword
+      DATABASE_URL: postgresql://postgres:myStrongPostgresPassword@postgres:5432/event_management
     stop_grace_period: 8s
     depends_on:
-      - redis
-      - queue-worker
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      worker:
+        condition: service_started
 
 networks:
   backend_network:
@@ -91,3 +113,4 @@ networks:
 volumes:
   redis_volume:
   postgres_volume:
+  worker_node_modules:

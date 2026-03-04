@@ -1,12 +1,15 @@
+import { JwtPayload } from 'jsonwebtoken';
 import { generate } from 'otp-generator';
 
-import { Role } from '@/app/@types/jwt.types';
 import prisma from '@/app/configs/db.configs';
 import { getRedisClient } from '@/app/configs/redis.config';
 import { getTraceId } from '@/app/configs/requestContext.configs';
 import { SignupResponseDTO } from '@/app/modules/user/user.dto';
 import { getEmailQueue } from '@/app/queues/queues';
-import { generateOtpPageToken } from '@/app/utils/jwt.utils';
+import {
+  generateAccessTokenForUser,
+  generateOtpPageToken,
+} from '@/app/utils/jwt.utils';
 import { hashOtp } from '@/app/utils/otp.utils';
 import { hashPassword } from '@/app/utils/password.utils';
 import { calculateMilliseconds } from '@/app/utils/system.utils';
@@ -45,7 +48,7 @@ export const signupService = async ({
     const hashedOtp = hashOtp({ otp });
     const jwtToken = generateOtpPageToken({
       sub: String(newUser.user.id),
-      role: newUser.user.role as Role,
+      role: newUser.user.role,
       isVerified: newUser.user.isVerified,
       accountStatus: newUser.user.accountStatus,
     });
@@ -68,5 +71,84 @@ export const signupService = async ({
   } catch (error) {
     if (error instanceof Error) throw error;
     throw new Error('Unexpected Error Occurred In Signup Service');
+  }
+};
+
+export const verifySignupUserOtp = async ({
+  token,
+  user,
+}: {
+  token: string;
+  user: JwtPayload;
+}): Promise<{ accessToken: string }> => {
+  const traceId = getTraceId();
+  try {
+    const updatedUser = await prisma.user.update({
+      data: { isVerified: true },
+      where: { id: user.sub },
+    });
+    const accessToken = generateAccessTokenForUser({
+      sub: String(updatedUser.id),
+      role: updatedUser.role,
+      isVerified: updatedUser.isVerified,
+      accountStatus: updatedUser.accountStatus,
+    });
+    const redisClient = getRedisClient();
+    const expirationTime = user.exp as number; // convert to seconds
+    const currentTime = Math.floor(Date.now() / 1000); // current time in seconds
+    const ttl = Math.floor(expirationTime - currentTime); // remaining time in seconds
+    if (ttl > 0)
+      await redisClient.set(
+        `blacklist:jwt:${token}`,
+        token as string,
+        'EX',
+        ttl
+      );
+    await redisClient.del(`user:${updatedUser.id}:otp`);
+    await getEmailQueue().add('send-signup-success-email', {
+      email: updatedUser.email,
+      traceId,
+    });
+    return { accessToken };
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error('Unknown error occurred in verify signup user otp service');
+  }
+};
+
+export const resendSignupUserOtp = async ({
+  user,
+}: {
+  user: JwtPayload;
+}): Promise<void> => {
+  const traceId = getTraceId();
+  try {
+    const otp = generate(6, {
+      digits: true,
+      lowerCaseAlphabets: false,
+      specialChars: false,
+      upperCaseAlphabets: false,
+    });
+    const hashedOtp = hashOtp({ otp });
+    const queriedUser = await prisma.user.findUnique({
+      where: { id: user.sub },
+    });
+    if (!queriedUser) throw new Error('User not found');
+    const emailData = {
+      email: queriedUser.email,
+      expirationTime: otpExpireAt,
+      otp,
+      traceId,
+    };
+    const redisClient = getRedisClient();
+    const ttl = calculateMilliseconds(otpExpireAt, 'minute');
+    await Promise.all([
+      redisClient.set(`user:${queriedUser.id}:otp`, hashedOtp, 'PX', ttl),
+      getEmailQueue().add('send-signup-user-verify-otp-email', emailData),
+    ]);
+    return;
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error('Unknown error occurred in resend signup user otp service');
   }
 };

@@ -42,27 +42,13 @@ export const signupSuccessfulEmailTemplate = `
                     <tr>
                         <td style="padding: 40px;">
                             <p style="margin: 0 0 20px 0; color: #333333; font-size: 16px; line-height: 24px;">
-                                Hello <strong>{{name}}</strong>,
+                                Hello,
                             </p>
                             
                             <p style="margin: 0 0 30px 0; color: #333333; font-size: 16px; line-height: 24px;">
                                 Congratulations! Your email has been successfully verified and your account is now active. Welcome aboard!
                             </p>
-                            
-                            <!-- Success Box -->
-                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-bottom: 30px;">
-                                <tr>
-                                    <td style="background-color: #d1fae5; border-left: 4px solid #059669; padding: 20px; border-radius: 4px;">
-                                        <p style="margin: 0 0 10px 0; color: #065f46; font-size: 16px; line-height: 22px; font-weight: bold;">
-                                            &#10004; Account verified successfully
-                                        </p>
-                                        <p style="margin: 0; color: #065f46; font-size: 14px; line-height: 20px;">
-                                            You can now access all features of your account.
-                                        </p>
-                                    </td>
-                                </tr>
-                            </table>
-                            
+    
                             <p style="margin: 0 0 20px 0; color: #333333; font-size: 16px; line-height: 24px;">
                                 You're all set to start using our platform. We're excited to have you with us!
                             </p>

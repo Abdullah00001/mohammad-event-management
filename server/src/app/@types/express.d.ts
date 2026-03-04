@@ -1,7 +1,5 @@
+import { User } from '@prisma/client';
 import { JwtPayload } from 'jsonwebtoken';
-
-import {IUser} from "@/app/modules/user/user.types"
-
 
 declare global {
   namespace Express {
@@ -12,7 +10,7 @@ declare global {
       allOptional?: boolean;
       fieldConfig?: FieldConfig[];
       files?: { [fieldname: string]: Express.Multer.File[] };
-      user: JwtPayload | IUser;
+      user: JwtPayload | User;
       validatedQuery?: unknown;
     }
   }
