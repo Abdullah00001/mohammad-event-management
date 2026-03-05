@@ -1,9 +1,10 @@
 import { Router } from 'express';
 
-import ProfileRoutes from "@/app/modules/profile/profile.routes";
-import UserRoutes from "@/app/modules/user/user.routes";
+import InterestRoutes from '@/app/modules/interest/interest.routes';
+import ProfileRoutes from '@/app/modules/profile/profile.routes';
+import UserRoutes from '@/app/modules/user/user.routes';
 
-const routes: Router[] = [UserRoutes,ProfileRoutes];
+const routes: Router[] = [UserRoutes, ProfileRoutes, InterestRoutes];
 
 const v1Routes = Router();
 
