@@ -7,6 +7,7 @@ import { getRedisClient } from '@/app/configs/redis.config';
 import { AuthErrorType } from '@/app/modules/user/user.types';
 import { extractToken, verifyOtpPageToken } from '@/app/utils/jwt.utils';
 import { compareOtp } from '@/app/utils/otp.utils';
+import { comparePassword } from '@/app/utils/password.utils';
 import { asyncHandler } from '@/app/utils/system.utils';
 
 export const findUserWithEmail = asyncHandler(
@@ -94,6 +95,23 @@ export const checkOtp = asyncHandler(
       res.status(401).json({
         success: false,
         message: 'Invalid OTP, please check and try again',
+      });
+      return;
+    }
+    next();
+  }
+);
+
+export const checkPassword = asyncHandler(
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const { password } = req.body;
+    const hashedPassword = (req.user as User).password;
+    const isMatched = await comparePassword(password, hashedPassword);
+    if (!isMatched) {
+      res.status(401).json({
+        success: false,
+        errorType: AuthErrorType.INVALID_CREDENTIALS,
+        message: 'Invalid Credential,Check Your Email And Password',
       });
       return;
     }

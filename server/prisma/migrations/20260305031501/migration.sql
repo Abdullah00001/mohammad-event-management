@@ -34,13 +34,13 @@ CREATE TABLE "User" (
 CREATE TABLE "Profile" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
-    "name" TEXT NOT NULL,
-    "age" INTEGER NOT NULL,
-    "gender" "Gender" NOT NULL,
-    "location" TEXT NOT NULL,
+    "name" TEXT,
+    "age" INTEGER,
+    "gender" "Gender",
+    "location" TEXT,
     "avatar" TEXT,
     "bio" TEXT,
-    "countryVisited" TEXT[],
+    "countryVisited" TEXT[] DEFAULT ARRAY[]::TEXT[],
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 

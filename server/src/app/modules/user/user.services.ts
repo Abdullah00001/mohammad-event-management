@@ -1,3 +1,4 @@
+import { User } from '@prisma/client';
 import { JwtPayload } from 'jsonwebtoken';
 import { generate } from 'otp-generator';
 
@@ -7,8 +8,10 @@ import { getTraceId } from '@/app/configs/requestContext.configs';
 import { SignupResponseDTO } from '@/app/modules/user/user.dto';
 import { getEmailQueue } from '@/app/queues/queues';
 import {
+  generateAccessTokenForAdmin,
   generateAccessTokenForUser,
   generateOtpPageToken,
+  generateRefreshToken,
 } from '@/app/utils/jwt.utils';
 import { hashOtp } from '@/app/utils/otp.utils';
 import { hashPassword } from '@/app/utils/password.utils';
@@ -150,5 +153,46 @@ export const resendSignupUserOtp = async ({
   } catch (error) {
     if (error instanceof Error) throw error;
     throw new Error('Unknown error occurred in resend signup user otp service');
+  }
+};
+
+export const loginService = async ({
+  isAdmin,
+  user,
+  rememberMe,
+}: {
+  isAdmin: boolean;
+  rememberMe: boolean;
+  user: User;
+}): Promise<{ accessToken: string; refreshToken?: string }> => {
+  try {
+    if (isAdmin) {
+      const accessToken = generateAccessTokenForAdmin({
+        isVerified: user.isVerified,
+        role: user.role,
+        sub: user.id,
+        rememberMe,
+        accountStatus: user.accountStatus,
+      });
+      const refreshToken = generateRefreshToken({
+        isVerified: user.isVerified,
+        role: user.role,
+        sub: user.id,
+        rememberMe,
+        accountStatus: user.accountStatus,
+      });
+      return { accessToken, refreshToken };
+    }
+    const accessToken = generateAccessTokenForUser({
+      isVerified: user.isVerified,
+      role: user.role,
+      sub: user.id,
+      rememberMe,
+      accountStatus: user.accountStatus,
+    });
+    return { accessToken };
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error('Unknown error occurred in login service');
   }
 };
