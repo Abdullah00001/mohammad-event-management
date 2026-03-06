@@ -1,4 +1,4 @@
-import { User } from '@prisma/client';
+import { Interest, User } from '@prisma/client';
 import { JwtPayload } from 'jsonwebtoken';
 
 declare global {
@@ -12,6 +12,7 @@ declare global {
       files?: { [fieldname: string]: Express.Multer.File[] };
       user: JwtPayload | User;
       validatedQuery?: unknown;
+      interest:Interest
     }
   }
 }
