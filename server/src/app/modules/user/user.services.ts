@@ -196,3 +196,24 @@ export const loginService = async ({
     throw new Error('Unknown error occurred in login service');
   }
 };
+
+export const adminRefreshToken = async ({
+  user,
+}: {
+  user: JwtPayload;
+}): Promise<{ jwt: string }> => {
+  try {
+    const accessToken = generateAccessTokenForAdmin({
+      sub: String(user.sub),
+      role: user.role,
+      isVerified: user.isVerified,
+      accountStatus: user.accountStatus,
+    });
+    return { jwt: accessToken };
+  } catch (error) {
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error('Unknown error occurred in admin refresh token service');
+  }
+};

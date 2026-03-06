@@ -10,7 +10,9 @@ import { env } from '@/env';
 
 const bucketName = env.S3_BUCKET_NAME;
 const regionName = env.S3_REGION;
-export async function singleUpload({
+
+
+export async function singleUploadToS3({
   filePath,
   key,
   mimeType,
@@ -38,7 +40,7 @@ export async function singleUpload({
   }
 }
 
-export async function singleDelete({ key }: { key: string }): Promise<void> {
+export async function singleDeleteToS3({ key }: { key: string }): Promise<void> {
   try {
     const command = new DeleteObjectCommand({
       Bucket: bucketName,

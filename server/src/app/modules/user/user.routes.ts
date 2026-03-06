@@ -1,12 +1,18 @@
 import { Router } from 'express';
 
 import {
+  adminRefreshTokenController,
+  checkAccessTokenController,
   loginController,
   resendSignupUserOtpController,
   signupController,
   verifySignupUserController,
 } from '@/app/modules/user/user.controllers';
 import {
+  checkAccessToken,
+  checkAccountStatus,
+  checkAdminAccessToken,
+  checkAdminRefreshToken,
   checkOtp,
   checkOtpPageToken,
   checkPassword,
@@ -20,6 +26,12 @@ import {
 import { validateReqBody } from '@/app/utils/system.utils';
 
 const router = Router();
+
+/**
+ * ==============================================
+ * =============== USER ENDPOINTS ===============
+ * ==============================================
+ */
 
 router
   .route('/auth/signup')
@@ -48,12 +60,30 @@ router
   );
 
 router
-  .route('/auth/admin/login')
+  .route('/auth/check')
+  .get(checkAccessToken, checkAccountStatus, checkAccessTokenController);
+
+/**
+ * ==============================================
+ * ============== ADMIN ENDPOINTS ===============
+ * ==============================================
+ */
+
+router
+  .route('/admin/auth/login')
   .post(
     validateReqBody(loginSchema),
     findUserWithEmail,
     checkPassword,
     loginController
   );
+
+router
+  .route('/admin/auth/check')
+  .get(checkAdminAccessToken, checkAccessTokenController);
+
+router
+  .route('/admin/auth/refresh')
+  .post(checkAdminRefreshToken, adminRefreshTokenController);
 
 export default router;

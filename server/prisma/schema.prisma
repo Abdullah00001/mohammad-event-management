@@ -11,6 +11,7 @@ enum AccountStatus {
   ACTIVE
   VIEW_ONLY
   HIBERNATED
+  BLOCKED
 }
 
 enum Role {
@@ -32,7 +33,7 @@ enum Gender {
 model User{
   id String @id @default(uuid())
   email String @unique
-  password String
+  password String?
   isVerified Boolean @default(false)
   accountStatus AccountStatus @default(ACTIVE)
   role Role @default(USER)

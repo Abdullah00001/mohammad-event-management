@@ -12,6 +12,7 @@ import { TMailOption } from '@/app/@types/system.types';
 import { disconnectDatabase } from '@/app/configs/db.configs';
 import logger from '@/app/configs/logger.configs';
 import { disconnectRedis } from '@/app/configs/redis.config';
+import { getTraceId } from '@/app/configs/requestContext.configs';
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -229,6 +230,7 @@ const ALLOWED_METHODS = ['POST', 'PUT', 'PATCH'] as const;
 export const validateReqBody =
   <T>(schema: ZodType<T>) =>
   async (req: Request, res: Response, next: NextFunction) => {
+    const traceId = getTraceId();
     if (!ALLOWED_METHODS.includes(req.method as any)) {
       return next();
     }
@@ -244,6 +246,7 @@ export const validateReqBody =
         success: false,
         message: 'Request body validation failed',
         errors,
+        traceId,
       });
       return;
     }

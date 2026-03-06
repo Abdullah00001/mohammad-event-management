@@ -1,8 +1,10 @@
 import { User } from '@prisma/client';
 import { Request, Response } from 'express';
+import { JwtPayload } from 'jsonwebtoken';
 
 import { getTraceId } from '@/app/configs/requestContext.configs';
 import {
+  adminRefreshToken,
   loginService,
   resendSignupUserOtp,
   signupService,
@@ -18,7 +20,7 @@ import {
 } from '@/const';
 
 export const signupController = asyncHandler(
-  async (req: Request, res: Response) => {
+  async (req: Request, res: Response): Promise<void> => {
     const traceId = getTraceId();
     const { email, password } = req.body;
     const data = await signupService({ email, password });
@@ -30,7 +32,7 @@ export const signupController = asyncHandler(
 );
 
 export const verifySignupUserController = asyncHandler(
-  async (req: Request, res: Response) => {
+  async (req: Request, res: Response): Promise<void> => {
     const traceId = getTraceId();
     const token = extractToken(req) as string;
     const user = req.user;
@@ -46,7 +48,7 @@ export const verifySignupUserController = asyncHandler(
 );
 
 export const resendSignupUserOtpController = asyncHandler(
-  async (req: Request, res: Response) => {
+  async (req: Request, res: Response): Promise<void> => {
     const traceId = getTraceId();
     const user = req.user;
     await resendSignupUserOtp({ user });
@@ -60,7 +62,7 @@ export const resendSignupUserOtpController = asyncHandler(
 );
 
 export const loginController = asyncHandler(
-  async (req: Request, res: Response) => {
+  async (req: Request, res: Response): Promise<void> => {
     const { rememberMe } = req.body;
     const path = req.path;
     const isAdminLogin = path.includes('/admin/login');
@@ -96,6 +98,25 @@ export const loginController = asyncHandler(
       data: { accessToken },
       traceId,
     });
+    return;
+  }
+);
+
+export const checkAccessTokenController = asyncHandler(
+  async (_req: Request, res: Response): Promise<void> => {
+    res.status(200).json({ success: true, message: 'User Is Authenticated' });
+    return;
+  }
+);
+
+export const adminRefreshTokenController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const user = req.user as JwtPayload;
+    const { jwt } = await adminRefreshToken({ user });
+    res.cookie('accesstoken', jwt, cookieOption(adminAccessTokenExpiresIn));
+    res
+      .status(200)
+      .json({ success: true, message: 'Token refresh successful' });
     return;
   }
 );
