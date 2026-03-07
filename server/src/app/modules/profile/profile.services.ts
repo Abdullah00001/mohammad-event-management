@@ -1,8 +1,7 @@
 import { Profile, User } from '@prisma/client';
 
+import prisma from '@/app/configs/db.configs';
 import { TProfileUpdatePayload } from '@/app/modules/profile/profile.schemas';
-
-import prisma from '../../configs/db.configs';
 
 export const updateProfile = async ({
   user,

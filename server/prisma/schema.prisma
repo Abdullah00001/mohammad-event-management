@@ -69,7 +69,7 @@ model Profile {
 
 model Interest {
   id String @id @default(uuid())
-  interestName String
+  interestName String @unique
   interestIcon String
   profiles ProfileInterest[]
   createdAt DateTime @default(now())

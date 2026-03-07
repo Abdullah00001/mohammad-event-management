@@ -1,7 +1,7 @@
 import { Router } from 'express';
 
 import { updateProfileController } from '@/app/modules/profile/profile.controllers';
-import { profileSetupSchema } from '@/app/modules/profile/profile.schemas';
+import { profileSetupSchema, profileUpdateSchema } from '@/app/modules/profile/profile.schemas';
 import {
   checkAccessToken,
   checkAccountStatus,
@@ -16,6 +16,12 @@ router
     checkAccessToken,
     checkAccountStatus,
     validateReqBody(profileSetupSchema),
+    updateProfileController
+  )
+  .patch(
+    checkAccessToken,
+    checkAccountStatus,
+    validateReqBody(profileUpdateSchema),
     updateProfileController
   );
 
