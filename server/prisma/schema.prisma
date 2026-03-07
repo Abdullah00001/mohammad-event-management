@@ -61,29 +61,21 @@ model Profile {
   location String?
   avatar String?
   bio String?
+  profileInterest String[] @default([])
   countryVisited String[] @default([])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  interests ProfileInterest[]
 }
 
 model Interest {
   id String @id @default(uuid())
   interestName String @unique
   interestIcon String
-  profiles ProfileInterest[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   @@index([interestName])
 }
 
-model ProfileInterest {
-  profileId String
-  profile Profile @relation(fields: [profileId],references: [id],onDelete: Cascade)
-  interestId String 
-  interest Interest @relation(fields: [interestId],references: [id],onDelete: Cascade)
-  @@id([profileId,interestId])
-}
 
 model UserTraits {
   id String @id @default(uuid())

@@ -17,6 +17,7 @@ export const profileUpdateSchema = z.object({
   gender: z.enum(Gender).optional(),
   location: z.string().min(1).optional(),
   bio: z.string().min(1).optional(),
+  profileInterest: z.array(z.uuid()).optional(),
 });
 
 export type TProfileUpdatePayload = z.infer<typeof profileUpdateSchema>;

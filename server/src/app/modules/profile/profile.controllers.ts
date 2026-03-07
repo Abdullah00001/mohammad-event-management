@@ -17,3 +17,15 @@ export const updateProfileController = async (req: Request, res: Response) => {
   });
   return;
 };
+
+export const uploadAvatarController = async (req: Request, res: Response) => {
+  const traceId = getTraceId();
+  const user = req.user as User;
+
+  res.status(200).json({
+    success: true,
+    message: 'Profile avatar upload successful',
+    traceId,
+  });
+  return;
+};

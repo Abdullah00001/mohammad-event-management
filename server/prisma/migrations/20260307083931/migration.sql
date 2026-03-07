@@ -1,5 +1,5 @@
 -- CreateEnum
-CREATE TYPE "AccountStatus" AS ENUM ('ACTIVE', 'VIEW_ONLY', 'HIBERNATED');
+CREATE TYPE "AccountStatus" AS ENUM ('ACTIVE', 'VIEW_ONLY', 'HIBERNATED', 'BLOCKED');
 
 -- CreateEnum
 CREATE TYPE "Role" AS ENUM ('USER', 'ADMIN');
@@ -14,7 +14,7 @@ CREATE TYPE "Gender" AS ENUM ('MALE', 'FEMALE');
 CREATE TABLE "User" (
     "id" TEXT NOT NULL,
     "email" TEXT NOT NULL,
-    "password" TEXT NOT NULL,
+    "password" TEXT,
     "isVerified" BOOLEAN NOT NULL DEFAULT false,
     "accountStatus" "AccountStatus" NOT NULL DEFAULT 'ACTIVE',
     "role" "Role" NOT NULL DEFAULT 'USER',
@@ -40,6 +40,7 @@ CREATE TABLE "Profile" (
     "location" TEXT,
     "avatar" TEXT,
     "bio" TEXT,
+    "profileInterest" TEXT[] DEFAULT ARRAY[]::TEXT[],
     "countryVisited" TEXT[] DEFAULT ARRAY[]::TEXT[],
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -56,14 +57,6 @@ CREATE TABLE "Interest" (
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "Interest_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "ProfileInterest" (
-    "profileId" TEXT NOT NULL,
-    "interestId" TEXT NOT NULL,
-
-    CONSTRAINT "ProfileInterest_pkey" PRIMARY KEY ("profileId","interestId")
 );
 
 -- CreateTable
@@ -100,6 +93,12 @@ CREATE INDEX "User_role_idx" ON "User"("role");
 CREATE UNIQUE INDEX "Profile_userId_key" ON "Profile"("userId");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "Interest_interestName_key" ON "Interest"("interestName");
+
+-- CreateIndex
+CREATE INDEX "Interest_interestName_idx" ON "Interest"("interestName");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "UserTraits_userId_key" ON "UserTraits"("userId");
 
 -- CreateIndex
@@ -110,12 +109,6 @@ CREATE UNIQUE INDEX "UserPreference_userId_key" ON "UserPreference"("userId");
 
 -- AddForeignKey
 ALTER TABLE "Profile" ADD CONSTRAINT "Profile_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "ProfileInterest" ADD CONSTRAINT "ProfileInterest_profileId_fkey" FOREIGN KEY ("profileId") REFERENCES "Profile"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "ProfileInterest" ADD CONSTRAINT "ProfileInterest_interestId_fkey" FOREIGN KEY ("interestId") REFERENCES "Interest"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "UserTraits" ADD CONSTRAINT "UserTraits_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;

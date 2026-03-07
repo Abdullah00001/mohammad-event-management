@@ -7,6 +7,7 @@ import {
   checkAccountStatus,
 } from '@/app/modules/user/user.middlewares';
 import { validateReqBody } from '@/app/utils/system.utils';
+import {uploadSingle,handleMulterError} from "@/app/middlewares/multer.middlewares"
 
 const router = Router();
 
@@ -24,5 +25,9 @@ router
     validateReqBody(profileUpdateSchema),
     updateProfileController
   );
+
+router
+  .route('/profile/avatar')
+  .post(checkAccessToken, checkAccountStatus, uploadSingle('avatar'), handleMulterError);
 
 export default router;
