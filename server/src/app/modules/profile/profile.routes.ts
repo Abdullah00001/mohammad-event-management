@@ -4,10 +4,17 @@ import {
   uploadSingle,
   handleMulterError,
 } from '@/app/middlewares/multer.middlewares';
-import { updateProfileController, uploadAvatarController } from '@/app/modules/profile/profile.controllers';
+import {
+  changePasswordController,
+  changeUserPreferenceController,
+  updateProfileController,
+  uploadAvatarController,
+} from '@/app/modules/profile/profile.controllers';
+import { checkCurrentPassword } from '@/app/modules/profile/profile.middlewares';
 import {
   profileSetupSchema,
   profileUpdateSchema,
+  UserPreferenceSchema,
 } from '@/app/modules/profile/profile.schemas';
 import {
   checkAccessToken,
@@ -18,11 +25,20 @@ import { validateReqBody } from '@/app/utils/system.utils';
 const router = Router();
 
 router
-  .route('/profile')
+  .route('/profile/setup')
   .post(
     checkAccessToken,
     checkAccountStatus,
     validateReqBody(profileSetupSchema),
+    updateProfileController
+  );
+
+router
+  .route('/profile')
+  .post(
+    checkAccessToken,
+    checkAccountStatus,
+    validateReqBody(profileUpdateSchema),
     updateProfileController
   )
   .patch(
@@ -37,9 +53,27 @@ router
   .post(
     checkAccessToken,
     checkAccountStatus,
-    uploadSingle('avatar',true),
+    uploadSingle('avatar', true),
     handleMulterError,
     uploadAvatarController
+  );
+
+router
+  .route('/profile/password')
+  .patch(
+    checkAccessToken,
+    checkAccountStatus,
+    checkCurrentPassword,
+    changePasswordController
+  );
+
+router
+  .route('/profile/preference')
+  .patch(
+    checkAccessToken,
+    checkAccountStatus,
+    validateReqBody(UserPreferenceSchema),
+    changeUserPreferenceController
   );
 
 export default router;
