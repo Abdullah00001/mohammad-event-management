@@ -5,6 +5,8 @@ import logger from '@/app/configs/logger.configs';
 import mailTransporter from '@/app/configs/nodemailer.config';
 import { getRedisClient } from '@/app/configs/redis.configs';
 import { requestContext } from '@/app/configs/requestContext.configs';
+import { passwordResetSuccessEmailTemplate } from '@/app/templates/passwordResetSuccessEmail.template';
+import { recoverUserOtpEmailTemplate } from '@/app/templates/recoverUserOtpEmail.template';
 import { signupSuccessfulEmailTemplate } from '@/app/templates/signupSuccessfulEmail.template';
 import { signupUserVerifyOtpEmailTemplate } from '@/app/templates/signupUserVerifyOtpEmail.template';
 import { mailOption } from '@/app/utils/system.utils';
@@ -47,6 +49,43 @@ export const createEmailWorker = (): Worker => {
                 mailOption(
                   email,
                   `Welcome to NowOr! We're glad you're here.`,
+                  personalizedTemplate
+                )
+              );
+              return;
+            }
+            case 'send-find-recover-user-email-otp': {
+              const { email, otp } = data as {
+                email: string;
+                otp: string;
+              };
+              const template = compile(recoverUserOtpEmailTemplate);
+              const personalizedTemplate = template({
+                email,
+                otp,
+                otpExpireAt,
+              });
+              await mailTransporter.sendMail(
+                mailOption(
+                  email,
+                  'Security: Password reset requested for NowOR',
+                  personalizedTemplate
+                )
+              );
+              return;
+            }
+            case 'send-reset-successful-recover-user-email': {
+              const { email } = data as {
+                email: string;
+              };
+              const template = compile(passwordResetSuccessEmailTemplate);
+              const personalizedTemplate = template({
+                email,
+              });
+              await mailTransporter.sendMail(
+                mailOption(
+                  email,
+                  'Security Alert: Your password was changed',
                   personalizedTemplate
                 )
               );

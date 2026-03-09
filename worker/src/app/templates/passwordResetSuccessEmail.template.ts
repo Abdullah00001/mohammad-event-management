@@ -42,7 +42,7 @@ export const passwordResetSuccessEmailTemplate = `
                     <tr>
                         <td style="padding: 40px;">
                             <p style="margin: 0 0 20px 0; color: #333333; font-size: 16px; line-height: 24px;">
-                                Hello <strong>{{name}}</strong>,
+                                Hello <strong>there</strong>,
                             </p>
                             
                             <p style="margin: 0 0 30px 0; color: #333333; font-size: 16px; line-height: 24px;">
