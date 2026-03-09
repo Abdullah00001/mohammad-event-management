@@ -120,19 +120,51 @@ export const uploadFields = (
 // SINGLE / ARRAY HELPERS
 // ===========================================
 
-export const uploadArray = (fieldName: string, maxCount: number) => {
+export const uploadArray = (
+  fieldName: string,
+  maxCount: number,
+  required: boolean = false
+) => {
   return (req: Request, res: Response, next: NextFunction) => {
     req.fileLimit = maxCount;
     req.fieldName = fieldName;
-    baseUpload.array(fieldName, maxCount)(req, res, next);
+    req.fileRequired = required;
+    baseUpload.array(fieldName, maxCount)(req, res, (err: unknown) => {
+      if (err) return next(err);
+
+      const files = req.files as Express.Multer.File[] | undefined;
+      const hasFiles = files && files.length > 0;
+
+      if (required && !hasFiles) {
+        return next(
+          Object.assign(new Error(`'${fieldName}' file is required.`), {
+            code: 'LIMIT_FILE_REQUIRED',
+            field: fieldName,
+          })
+        );
+      }
+      next();
+    });
   };
 };
 
-export const uploadSingle = (fieldName: string) => {
+export const uploadSingle = (fieldName: string, required: boolean = false) => {
   return (req: Request, res: Response, next: NextFunction) => {
     req.fileLimit = 1;
     req.fieldName = fieldName;
-    baseUpload.single(fieldName)(req, res, next);
+    baseUpload.single(fieldName)(req, res, (err: unknown) => {
+      if (err) return next(err);
+
+      if (required && !req.file) {
+        return next(
+          Object.assign(new Error(`'${fieldName}' file is required.`), {
+            code: 'LIMIT_FILE_REQUIRED',
+            field: fieldName,
+          })
+        );
+      }
+      next();
+    });
   };
 };
 
@@ -182,7 +214,15 @@ export const handleMulterError = (
     });
     return;
   }
-
+  // Handle required file missing error
+  if (err?.code === 'LIMIT_FILE_REQUIRED') {
+    res.status(400).json({
+      success: false,
+      status: 400,
+      message: err.message,
+    });
+    return;
+  }
   if (err?.message?.includes('Only .jpeg')) {
     res.status(400).json({
       success: false,

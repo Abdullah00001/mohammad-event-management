@@ -1,4 +1,4 @@
-import { AccountStatus, User } from '@prisma/client';
+import { AccountStatus, Profile, User } from '@prisma/client';
 import { Request, Response, NextFunction } from 'express';
 import { JwtPayload } from 'jsonwebtoken';
 
@@ -114,7 +114,7 @@ export const checkOtp = asyncHandler(
 export const checkPassword = asyncHandler(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const { password } = req.body;
-    const hashedPassword = (req.user as User).password;
+    const hashedPassword = (req.user as User).password as string;
     const isMatched = await comparePassword(password, hashedPassword);
     if (!isMatched) {
       res.status(401).json({
@@ -247,6 +247,8 @@ export const checkAccountStatus = asyncHandler(
       return;
     }
     const isLogoutRoute = route.startsWith('/auth/logout');
+    const profile = await prisma.profile.findUnique({ where: { userId: sub } });
+    req.profile = profile as Profile;
     if (!isLogoutRoute) req.user = user as User;
     next();
   }
