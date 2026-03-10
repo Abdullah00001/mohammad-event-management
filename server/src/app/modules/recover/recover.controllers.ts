@@ -9,14 +9,31 @@ import {
   resetRecoverUserPassword,
   verifyRecoverUserOtp,
 } from '@/app/modules/recover/recover.services';
+import { cookieOption } from '@/app/utils/cookie.utils';
 import { extractToken } from '@/app/utils/jwt.utils';
 import { asyncHandler } from '@/app/utils/system.utils';
+import { otpPageTokenExpireIn } from '@/const';
 
 export const findRecoverUserController = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
+    const path = req.path;
+    const isAdmin = path.includes('/admin/recover');
     const traceId = getTraceId();
     const user = req.user as User;
     const token = await findRecoverUSer({ user, traceId });
+    if (isAdmin) {
+      res.cookie(
+        'otp_page_token',
+        token.jwt,
+        cookieOption(otpPageTokenExpireIn)
+      );
+      res.status(200).json({
+        success: true,
+        message: 'Recover user found and otp send successfully',
+        traceId,
+      });
+      return;
+    }
     res.status(200).json({
       success: true,
       message: 'Recover user found and otp send successfully',
@@ -43,6 +60,8 @@ export const verifyRecoverUserOtpController = asyncHandler(
 
 export const resetRecoverUserPasswordController = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
+    const path = req.path;
+    const isAdmin = path.includes('/admin/recover');
     const traceId = getTraceId();
     const user = req.user as JwtPayload;
     const token = extractToken(req);
@@ -53,6 +72,9 @@ export const resetRecoverUserPasswordController = asyncHandler(
       user,
       traceId,
     });
+    if (isAdmin) {
+      res.clearCookie('otp_page_token');
+    }
     res.status(200).json({
       success: true,
       message: 'Password reset successful',

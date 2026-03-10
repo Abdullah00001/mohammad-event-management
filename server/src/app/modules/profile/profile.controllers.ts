@@ -73,7 +73,7 @@ export const changeUserPreferenceController = asyncHandler(
     });
     res.status(200).json({
       success: true,
-      message: 'Password change successful',
+      message: 'User preference updated successfully',
       data,
       traceId,
     });

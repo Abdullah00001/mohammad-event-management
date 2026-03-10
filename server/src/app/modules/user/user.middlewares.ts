@@ -1,4 +1,4 @@
-import { AccountStatus, Profile, User } from '@prisma/client';
+import { AccountStatus, Profile, Role, User } from '@prisma/client';
 import { Request, Response, NextFunction } from 'express';
 import { JwtPayload } from 'jsonwebtoken';
 
@@ -45,6 +45,21 @@ export const findUserWithEmail = asyncHandler(
     req.user = user as User;
     next();
     return;
+  }
+);
+
+export const isAdmin = asyncHandler(
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const user = req.user;
+    if (user.role !== Role.ADMIN) {
+      res.status(403).json({
+        success: false,
+        message: 'Access denied, admin privileges required',
+        errorType: AuthErrorType.ACCESS_DENIED,
+      });
+      return;
+    }
+    next();
   }
 );
 

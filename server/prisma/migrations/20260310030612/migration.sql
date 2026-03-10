@@ -10,6 +10,9 @@ CREATE TYPE "Provider" AS ENUM ('MANUAL', 'GOOGLE', 'APPLE');
 -- CreateEnum
 CREATE TYPE "Gender" AS ENUM ('MALE', 'FEMALE');
 
+-- CreateEnum
+CREATE TYPE "FriendshipStatus" AS ENUM ('ACCEPTED', 'PENDING');
+
 -- CreateTable
 CREATE TABLE "User" (
     "id" TEXT NOT NULL,
@@ -83,6 +86,25 @@ CREATE TABLE "UserPreference" (
     CONSTRAINT "UserPreference_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "Connections" (
+    "id" TEXT NOT NULL,
+    "senderId" TEXT NOT NULL,
+    "status" "FriendshipStatus" NOT NULL,
+    "receiverId" TEXT NOT NULL,
+
+    CONSTRAINT "Connections_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "BlockList" (
+    "id" TEXT NOT NULL,
+    "blockerId" TEXT NOT NULL,
+    "blockedUserId" TEXT NOT NULL,
+
+    CONSTRAINT "BlockList_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
 
@@ -107,6 +129,12 @@ CREATE INDEX "UserTraits_energyScore_curiosityScore_rhythmScore_idx" ON "UserTra
 -- CreateIndex
 CREATE UNIQUE INDEX "UserPreference_userId_key" ON "UserPreference"("userId");
 
+-- CreateIndex
+CREATE UNIQUE INDEX "Connections_senderId_receiverId_key" ON "Connections"("senderId", "receiverId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "BlockList_blockerId_blockedUserId_key" ON "BlockList"("blockerId", "blockedUserId");
+
 -- AddForeignKey
 ALTER TABLE "Profile" ADD CONSTRAINT "Profile_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
@@ -115,3 +143,15 @@ ALTER TABLE "UserTraits" ADD CONSTRAINT "UserTraits_userId_fkey" FOREIGN KEY ("u
 
 -- AddForeignKey
 ALTER TABLE "UserPreference" ADD CONSTRAINT "UserPreference_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Connections" ADD CONSTRAINT "Connections_senderId_fkey" FOREIGN KEY ("senderId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Connections" ADD CONSTRAINT "Connections_receiverId_fkey" FOREIGN KEY ("receiverId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "BlockList" ADD CONSTRAINT "BlockList_blockerId_fkey" FOREIGN KEY ("blockerId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "BlockList" ADD CONSTRAINT "BlockList_blockedUserId_fkey" FOREIGN KEY ("blockedUserId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;

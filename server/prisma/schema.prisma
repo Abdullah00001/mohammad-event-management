@@ -30,6 +30,11 @@ enum Gender {
   FEMALE
 }
 
+enum FriendshipStatus {
+  ACCEPTED
+  PENDING
+}
+
 model User{
   id String @id @default(uuid())
   email String @unique
@@ -45,6 +50,10 @@ model User{
   isPremium Boolean @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  sentRequests          Connections[]    @relation("SenderRelation")
+  receivedRequests      Connections[]    @relation("ReceiverRelation")
+  blockedUsers          BlockList[]   @relation("BlockerRelation")
+  blockedBy             BlockList[]   @relation("BlockedRelation")
   profile Profile?
   userTraits UserTraits?
   userPreference UserPreference?
@@ -92,8 +101,27 @@ model UserPreference {
   id String @id @default(uuid())
   userId String @unique
   user User @relation(fields: [userId],references: [id],onDelete: Cascade)
-  pushNotification Boolean @default(false)
-  emailNotification Boolean @default(false)
-  eventReminders Boolean @default(false)
-  friendRequest Boolean @default(false)
+  pushNotification Boolean @default(true)
+  emailNotification Boolean @default(true)
+  eventReminders Boolean @default(true)
+  friendRequest Boolean @default(true)
+}
+
+model Connections{
+  id String @id @default(uuid())
+  senderId String
+  sender User @relation("SenderRelation",fields: [senderId],references: [id],onDelete: Cascade)
+  status FriendshipStatus
+  receiverId String
+  receiver   User     @relation("ReceiverRelation", fields: [receiverId], references: [id], onDelete: Cascade)
+  @@unique([senderId, receiverId])
+}
+
+model BlockList{
+  id String @id @default(uuid())
+  blockerId String
+  blocker User @relation("BlockerRelation",fields: [blockerId],references: [id],onDelete: Cascade)
+  blockedUserId String
+  blockedUser   User     @relation("BlockedRelation", fields: [blockedUserId], references: [id], onDelete: Cascade)
+  @@unique([blockerId, blockedUserId])
 }

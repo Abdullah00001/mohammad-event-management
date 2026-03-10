@@ -40,6 +40,11 @@ export const signupService = async ({
           userId: user?.id,
         },
       });
+      await tx.userPreference.create({
+        data: {
+          userId: user?.id,
+        },
+      });
       return { user };
     });
     const otp = generate(6, {

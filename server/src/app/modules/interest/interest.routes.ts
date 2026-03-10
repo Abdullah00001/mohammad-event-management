@@ -16,6 +16,7 @@ import { interestSchema } from '@/app/modules/interest/interest.schemas';
 import {
   checkAccessToken,
   checkAdminAccessToken,
+  isAdmin,
 } from '@/app/modules/user/user.middlewares';
 import { validateReqBody } from '@/app/utils/system.utils';
 
@@ -43,6 +44,7 @@ router
   .route('/admin/interest')
   .post(
     checkAdminAccessToken,
+    isAdmin,
     uploadSingle('interestIcon'),
     handleMulterError,
     validateReqBody(interestSchema),
@@ -54,16 +56,22 @@ router
   .route('/admin/interest/:id')
   .put(
     checkAdminAccessToken,
+    isAdmin,
     findInterestById,
     uploadSingle('interestIcon'),
     handleMulterError,
     validateReqBody(interestSchema),
     updateInterestController
   )
-  .delete(checkAdminAccessToken, findInterestById, deleteOneInterestController);
+  .delete(
+    checkAdminAccessToken,
+    isAdmin,
+    findInterestById,
+    deleteOneInterestController
+  );
 
 router
   .route('/admin/interest/search')
-  .get(checkAdminAccessToken, searchInterestController);
+  .get(checkAdminAccessToken, isAdmin, searchInterestController);
 
 export default router;

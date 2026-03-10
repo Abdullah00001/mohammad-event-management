@@ -17,6 +17,7 @@ import {
   checkOtpPageToken,
   checkPassword,
   findUserWithEmail,
+  isAdmin,
 } from '@/app/modules/user/user.middlewares';
 import {
   loginSchema,
@@ -74,16 +75,17 @@ router
   .post(
     validateReqBody(loginSchema),
     findUserWithEmail,
+    isAdmin,
     checkPassword,
     loginController
   );
 
 router
   .route('/admin/auth/check')
-  .get(checkAdminAccessToken, checkAccessTokenController);
+  .get(checkAdminAccessToken, isAdmin,checkAccessTokenController);
 
 router
   .route('/admin/auth/refresh')
-  .post(checkAdminRefreshToken, adminRefreshTokenController);
+  .post(checkAdminRefreshToken, isAdmin,adminRefreshTokenController);
 
 export default router;
