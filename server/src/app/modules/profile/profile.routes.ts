@@ -19,10 +19,18 @@ import {
 import {
   checkAccessToken,
   checkAccountStatus,
+  checkAdminAccessToken,
+  isAdmin,
 } from '@/app/modules/user/user.middlewares';
 import { validateReqBody } from '@/app/utils/system.utils';
 
 const router = Router();
+
+/**
+ * ==================================================
+ * ================== User Routed ===================
+ * ==================================================
+ */
 
 router
   .route('/profile/setup')
@@ -74,6 +82,43 @@ router
     checkAccountStatus,
     validateReqBody(UserPreferenceSchema),
     changeUserPreferenceController
+  );
+
+/**
+ * ==================================================
+ * ================= Admin Routed ===================
+ * ==================================================
+ */
+
+router
+  .route('/admin/profile')
+  .patch(
+    checkAdminAccessToken,
+    isAdmin,
+    checkAccountStatus,
+    validateReqBody(profileUpdateSchema),
+    updateProfileController
+  );
+
+router
+  .route('/admin/profile/avatar')
+  .post(
+    checkAdminAccessToken,
+    isAdmin,
+    checkAccountStatus,
+    uploadSingle('avatar', true),
+    handleMulterError,
+    uploadAvatarController
+  );
+
+router
+  .route('/admin/profile/password')
+  .patch(
+    checkAdminAccessToken,
+    isAdmin,
+    checkAccountStatus,
+    checkCurrentPassword,
+    changePasswordController
   );
 
 export default router;
