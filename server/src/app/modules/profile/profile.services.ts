@@ -1,6 +1,6 @@
 import { extname, join } from 'path';
 
-import { Profile, User, UserPreference } from '@prisma/client';
+import { Profile, Role, User, UserPreference } from '@prisma/client';
 
 import prisma from '@/app/configs/db.configs';
 import {
@@ -99,6 +99,48 @@ export const changeUserPreference = async ({
     return data;
   } catch (error) {
     if (error instanceof Error) throw error;
-    throw new Error('Unknown error occurred in chnage password service');
+    throw new Error('Unknown error occurred in change password service');
+  }
+};
+
+export const getAdminProfileInformation = async ({
+  userId,
+}: {
+  userId: string;
+}): Promise<{
+  id: string;
+  name: string | null;
+  email: string;
+  role: Role;
+  avatar: string | null;
+}> => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        profile: {
+          select: {
+            name: true,
+            avatar: true,
+          },
+        },
+      },
+    });
+
+    if (!user) throw new Error('User not found');
+
+    return {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      name: user.profile?.name ?? null,
+      avatar: user.profile?.avatar ?? null,
+    };
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error('Unknown error occurred in change password service');
   }
 };

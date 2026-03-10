@@ -7,6 +7,7 @@ import {
 import {
   changePasswordController,
   changeUserPreferenceController,
+  getAdminProfileInformationController,
   updateProfileController,
   uploadAvatarController,
 } from '@/app/modules/profile/profile.controllers';
@@ -89,6 +90,10 @@ router
  * ================= Admin Routed ===================
  * ==================================================
  */
+
+router
+  .route('/admin/profile')
+  .get(checkAdminAccessToken, isAdmin, getAdminProfileInformationController);
 
 router
   .route('/admin/profile')

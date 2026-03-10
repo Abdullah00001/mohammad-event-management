@@ -1,10 +1,12 @@
 import { Profile, User } from '@prisma/client';
 import { Request, Response } from 'express';
+import { JwtPayload } from 'jsonwebtoken';
 
 import { getTraceId } from '@/app/configs/requestContext.configs';
 import {
   changePassword,
   changeUserPreference,
+  getAdminProfileInformation,
   updateProfile,
   uploadAvatar,
 } from '@/app/modules/profile/profile.services';
@@ -74,6 +76,21 @@ export const changeUserPreferenceController = asyncHandler(
     res.status(200).json({
       success: true,
       message: 'User preference updated successfully',
+      data,
+      traceId,
+    });
+    return;
+  }
+);
+
+export const getAdminProfileInformationController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const traceId = getTraceId();
+    const { sub } = req.user as JwtPayload;
+    const data = await getAdminProfileInformation({ userId: sub as string });
+    res.status(200).json({
+      success: true,
+      message: 'User profile retrieve successfully',
       data,
       traceId,
     });
