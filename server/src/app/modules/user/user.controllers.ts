@@ -9,6 +9,7 @@ import {
   resendSignupUserOtp,
   signupService,
   verifySignupUserOtp,
+  retrieveUserList,
 } from '@/app/modules/user/user.services';
 import { cookieOption } from '@/app/utils/cookie.utils';
 import { extractToken } from '@/app/utils/jwt.utils';
@@ -104,19 +105,46 @@ export const loginController = asyncHandler(
 
 export const checkAccessTokenController = asyncHandler(
   async (_req: Request, res: Response): Promise<void> => {
-    res.status(200).json({ success: true, message: 'User Is Authenticated' });
+    const traceId = getTraceId();
+    res
+      .status(200)
+      .json({ success: true, message: 'User Is Authenticated', traceId });
     return;
   }
 );
 
 export const adminRefreshTokenController = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
+    const traceId = getTraceId();
     const user = req.user as JwtPayload;
     const { jwt } = await adminRefreshToken({ user });
     res.cookie('accesstoken', jwt, cookieOption(adminAccessTokenExpiresIn));
     res
       .status(200)
-      .json({ success: true, message: 'Token refresh successful' });
+      .json({ success: true, message: 'Token refresh successful', traceId });
+    return;
+  }
+);
+
+export const retrieveUserListController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const traceId = getTraceId();
+    const { page, limit, sortBy } = req.query as {
+      page: string;
+      limit: string;
+      sortBy: string;
+    };
+    const user = req.user as JwtPayload;
+    const path = req.path;
+    const data = await retrieveUserList({ page, limit, sortBy, user, path });
+    res
+      .status(200)
+      .json({
+        success: true,
+        message: 'User retrieved successful',
+        ...data,
+        traceId,
+      });
     return;
   }
 );

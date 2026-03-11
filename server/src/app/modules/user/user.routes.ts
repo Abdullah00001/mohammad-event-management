@@ -5,6 +5,7 @@ import {
   checkAccessTokenController,
   loginController,
   resendSignupUserOtpController,
+  retrieveUserListController,
   signupController,
   verifySignupUserController,
 } from '@/app/modules/user/user.controllers';
@@ -82,10 +83,14 @@ router
 
 router
   .route('/admin/auth/check')
-  .get(checkAdminAccessToken, isAdmin,checkAccessTokenController);
+  .get(checkAdminAccessToken, isAdmin, checkAccessTokenController);
 
 router
   .route('/admin/auth/refresh')
-  .post(checkAdminRefreshToken, isAdmin,adminRefreshTokenController);
+  .post(checkAdminRefreshToken, isAdmin, adminRefreshTokenController);
+
+router
+  .route('/admin/users')
+  .get(checkAdminAccessToken, isAdmin, retrieveUserListController);
 
 export default router;

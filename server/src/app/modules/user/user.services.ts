@@ -16,7 +16,7 @@ import {
 import { hashOtp } from '@/app/utils/otp.utils';
 import { hashPassword } from '@/app/utils/password.utils';
 import { calculateMilliseconds } from '@/app/utils/system.utils';
-import { otpExpireAt } from '@/const';
+import { baseUrl, otpExpireAt } from '@/const';
 
 export const signupService = async ({
   email,
@@ -220,5 +220,96 @@ export const adminRefreshToken = async ({
       throw error;
     }
     throw new Error('Unknown error occurred in admin refresh token service');
+  }
+};
+
+export const retrieveUserList = async ({
+  page,
+  limit,
+  sortBy,
+  user,
+  path,
+}: {
+  page: string;
+  limit: string;
+  sortBy: string;
+  user: JwtPayload;
+  path: string;
+}): Promise<object> => {
+  try {
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 10));
+    const skip = (pageNum - 1) * limitNum;
+    const order = sortBy === '1' ? 'asc' : 'desc';
+    const url = `${baseUrl.v1}${path}`;
+    const [users, totalCount] = await Promise.all([
+      prisma.user.findMany({
+        where: { id: { not: user.sub } },
+        skip,
+        take: limitNum,
+        orderBy: { createdAt: order },
+        select: {
+          email: true,
+          accountStatus: true,
+          createdAt: true,
+          profile: {
+            select: {
+              name: true,
+              avatar: true,
+            },
+          },
+        },
+      }),
+      prisma.user.count({
+        where: { id: { not: user.sub } },
+      }),
+    ]);
+    const totalPages = Math.ceil(totalCount / limitNum);
+    const from = skip + 1;
+    const to = Math.min(skip + limitNum, totalCount);
+    const showing = `Showing ${from} to ${to} of ${totalCount} results`;
+    const data = users.map((u) => ({
+      name: u.profile?.name ?? null,
+      email: u.email,
+      avatar: u.profile?.avatar ?? null,
+      createdAt: u.createdAt,
+      accountStatus: u.accountStatus,
+    }));
+    const links = (targetPage: number): string => {
+      const params = new URLSearchParams();
+      params.set('page', String(targetPage));
+      params.set('limit', String(limitNum));
+      if (sortBy) params.set('sortBy', sortBy);
+      return `${url}?${params.toString()}`;
+    };
+
+    const currentLink = (): string => {
+      const params = new URLSearchParams();
+      if (page) params.set('page', page);
+      if (limit) params.set('limit', limit);
+      if (sortBy) params.set('sortBy', sortBy);
+      const query = params.toString();
+      return query ? `${url}?${query}` : url;
+    };
+
+    return {
+      data,
+      links: {
+        firstPage: links(1),
+        lastPage: links(totalPages),
+        currentPage: currentLink(),
+        nextPage: pageNum < totalPages ? links(pageNum + 1) : null,
+        previousPage: pageNum > 1 ? links(pageNum - 1) : null,
+      },
+      meta: {
+        totalCount,
+        totalPages,
+        limit: limitNum,
+        showing,
+      },
+    };
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error('Unknown error occurred in retrieve users service');
   }
 };
