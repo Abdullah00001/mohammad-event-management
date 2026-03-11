@@ -10,6 +10,8 @@ import {
   signupService,
   verifySignupUserOtp,
   retrieveUserList,
+  retrieveSingleUser,
+  changeUserAccountStatusService,
 } from '@/app/modules/user/user.services';
 import { cookieOption } from '@/app/utils/cookie.utils';
 import { extractToken } from '@/app/utils/jwt.utils';
@@ -137,14 +139,61 @@ export const retrieveUserListController = asyncHandler(
     const user = req.user as JwtPayload;
     const path = req.path;
     const data = await retrieveUserList({ page, limit, sortBy, user, path });
-    res
-      .status(200)
-      .json({
-        success: true,
-        message: 'User retrieved successful',
-        ...data,
+    res.status(200).json({
+      success: true,
+      message: 'Users retrieved successful',
+      ...data,
+      traceId,
+    });
+    return;
+  }
+);
+
+export const retrieveSingleUserController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const traceId = getTraceId();
+    const { id } = req.params;
+    const data = await retrieveSingleUser(id as string);
+    if (!data) {
+      res.status(404).json({
+        success: false,
+        message: `User with this ${id} not found`,
         traceId,
       });
+      return;
+    }
+    res.status(200).json({
+      success: true,
+      message: 'User retrieved successful',
+      data,
+      traceId,
+    });
     return;
+  }
+);
+
+export const changeUserAccountStatus = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const { id } = req.params;
+    const { accountStatus } = req.body;
+
+    const data = await changeUserAccountStatusService({
+      id: id as string,
+      accountStatus,
+    });
+
+    if (!data) {
+      res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'User account status updated successfully',
+      data,
+    });
   }
 );

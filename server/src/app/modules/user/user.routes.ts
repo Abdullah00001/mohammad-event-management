@@ -2,9 +2,11 @@ import { Router } from 'express';
 
 import {
   adminRefreshTokenController,
+  changeUserAccountStatus,
   checkAccessTokenController,
   loginController,
   resendSignupUserOtpController,
+  retrieveSingleUserController,
   retrieveUserListController,
   signupController,
   verifySignupUserController,
@@ -92,5 +94,10 @@ router
 router
   .route('/admin/users')
   .get(checkAdminAccessToken, isAdmin, retrieveUserListController);
+
+router
+  .route('/admin/users/:id')
+  .get(checkAdminAccessToken, isAdmin, retrieveSingleUserController)
+  .patch(checkAdminAccessToken, isAdmin, changeUserAccountStatus);
 
 export default router;

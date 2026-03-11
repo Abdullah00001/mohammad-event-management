@@ -1,4 +1,4 @@
-import { User } from '@prisma/client';
+import { AccountStatus, User } from '@prisma/client';
 import { JwtPayload } from 'jsonwebtoken';
 import { generate } from 'otp-generator';
 
@@ -249,6 +249,7 @@ export const retrieveUserList = async ({
         take: limitNum,
         orderBy: { createdAt: order },
         select: {
+          id: true,
           email: true,
           accountStatus: true,
           createdAt: true,
@@ -269,6 +270,7 @@ export const retrieveUserList = async ({
     const to = Math.min(skip + limitNum, totalCount);
     const showing = `Showing ${from} to ${to} of ${totalCount} results`;
     const data = users.map((u) => ({
+      id: u.id,
       name: u.profile?.name ?? null,
       email: u.email,
       avatar: u.profile?.avatar ?? null,
@@ -311,5 +313,70 @@ export const retrieveUserList = async ({
   } catch (error) {
     if (error instanceof Error) throw error;
     throw new Error('Unknown error occurred in retrieve users service');
+  }
+};
+
+export const retrieveSingleUser = async (
+  id: string
+): Promise<object | null> => {
+  try {
+    const data = await prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        email: true,
+        profile: {
+          select: {
+            name: true,
+            avatar: true,
+            location: true,
+          },
+        },
+      },
+    });
+
+    if (!data) return null;
+
+    return {
+      id: data.id,
+      email: data.email,
+      name: data.profile?.name ?? null,
+      avatar: data.profile?.avatar ?? null,
+      location: data.profile?.location ?? null,
+    };
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error('Unknown error occurred in retrieve users service');
+  }
+};
+
+export const changeUserAccountStatusService = async ({
+  id,
+  accountStatus,
+}: {
+  id: string;
+  accountStatus: AccountStatus;
+}): Promise<object | null> => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id } });
+
+    if (!user) return null;
+
+    const data = await prisma.user.update({
+      where: { id },
+      data: { accountStatus },
+      select: {
+        id: true,
+        email: true,
+        accountStatus: true,
+      },
+    });
+
+    return data;
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error(
+      'Unknown error occurred in change user account status service'
+    );
   }
 };
