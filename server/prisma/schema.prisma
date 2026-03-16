@@ -19,6 +19,11 @@ enum Role {
   ADMIN
 }
 
+enum EventRole {
+  HOST
+  TRAVELER
+}
+
 enum Provider {
   MANUAL
   GOOGLE
@@ -33,6 +38,13 @@ enum Gender {
 enum FriendshipStatus {
   ACCEPTED
   PENDING
+}
+
+enum EventStatus {
+  UPCOMING
+  ONGOING
+  COMPLETED
+  DELETED
 }
 
 model User{
@@ -50,13 +62,20 @@ model User{
   isPremium Boolean @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  sentRequests          Connections[]    @relation("SenderRelation")
-  receivedRequests      Connections[]    @relation("ReceiverRelation")
+  sentRequests          Friends[]    @relation("SenderRelation")
+  receivedRequests      Friends[]    @relation("ReceiverRelation")
   blockedUsers          BlockList[]   @relation("BlockerRelation")
   blockedBy             BlockList[]   @relation("BlockedRelation")
   profile Profile?
   userTraits UserTraits?
   userPreference UserPreference?
+  eventParticipants EventParticipants[] 
+  conversationsAsA     Conversation[]         @relation("ConversationUserA")
+  conversationsAsB     Conversation[]         @relation("ConversationUserB")
+  conversationSettings ConversationSettings[]
+  sentMessages         Message[]              @relation("SentMessages")
+  sentEventMessages    EventMessage[]         @relation("SentEventMessages")
+  notifications         Notification[]
   @@index([role])
 }
 
@@ -107,13 +126,15 @@ model UserPreference {
   friendRequest Boolean @default(true)
 }
 
-model Connections{
+model Friends{
   id String @id @default(uuid())
   senderId String
   sender User @relation("SenderRelation",fields: [senderId],references: [id],onDelete: Cascade)
   status FriendshipStatus
   receiverId String
   receiver   User     @relation("ReceiverRelation", fields: [receiverId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
   @@unique([senderId, receiverId])
 }
 
@@ -123,5 +144,122 @@ model BlockList{
   blocker User @relation("BlockerRelation",fields: [blockerId],references: [id],onDelete: Cascade)
   blockedUserId String
   blockedUser   User     @relation("BlockedRelation", fields: [blockedUserId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
   @@unique([blockerId, blockedUserId])
+}
+
+model Event { 
+  id String @id @default(uuid())
+  eventName String
+  description String
+  startAt DateTime
+  endAt DateTime
+  maxParticipantsCount Int @default(10)
+  eventStatus EventStatus @default(UPCOMING)
+  lat Float
+  long Float
+  deletedAt DateTime?
+  activityTypes String[] @default([])
+  eventParticipants EventParticipants[]
+  messages             EventMessage[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model EventParticipants {
+  id String @id @default(uuid())
+  eventId       String
+  event         Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  participantId String
+  user          User       @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  role EventRole
+  joinedAt DateTime @default(now())
+}
+
+model Notification {
+  id String @id @default(uuid())
+  userId String
+  user User @relation(fields: [userId],references: [id],onDelete: Cascade)
+  notificationTitle String
+  notificationDescription String
+  isRead Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([userId])
+}
+
+// ─── 1-to-1 Friend Chat ───────────────────────────────────────────
+
+model Conversation {
+  id        String   @id @default(uuid())
+  userAId   String
+  userA     User     @relation("ConversationUserA", fields: [userAId], references: [id], onDelete: Cascade)
+  userBId   String
+  userB     User     @relation("ConversationUserB", fields: [userBId], references: [id], onDelete: Cascade)
+  messages  Message[]
+  settings  ConversationSettings[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userAId, userBId])
+  @@index([userAId])
+  @@index([userBId])
+}
+
+// Per-user settings: powers "clear chat" and "delete conversation"
+model ConversationSettings {
+  id             String       @id @default(uuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Clear chat (one-sided): user only sees messages sent AFTER this timestamp
+  clearedAt      DateTime?
+
+  // Delete conversation (one-sided): hide this chat from user's inbox entirely
+  deletedAt      DateTime?
+
+  createdAt      DateTime     @default(now())
+
+  @@unique([conversationId, userId])
+}
+
+model Message {
+  id             String       @id @default(uuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       String
+  sender         User         @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  content        String
+  isEdited       Boolean      @default(false)
+
+  // Soft delete: sender can unsend/delete their own message
+  deletedAt      DateTime?
+
+  createdAt      DateTime     @default(now())
+
+  @@index([conversationId, createdAt])
+  @@index([senderId])
+}
+
+// ─── Event Group Chat ─────────────────────────────────────────────
+
+model EventMessage {
+  id        String   @id @default(uuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  senderId  String
+  sender    User     @relation("SentEventMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  content   String
+  isEdited  Boolean  @default(false)
+
+  // Soft delete: host or sender can remove a message
+  deletedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([eventId, createdAt])
+  @@index([senderId])
 }

@@ -1,6 +1,5 @@
 import crypto from 'crypto';
 import { unlink } from 'fs/promises';
-import { Server } from 'node:http';
 
 import dayjs from 'dayjs';
 import timezone from 'dayjs/plugin/timezone';
@@ -9,72 +8,10 @@ import type { Request, Response, NextFunction, RequestHandler } from 'express';
 import { ZodType } from 'zod';
 
 import { TMailOption } from '@/app/@types/system.types';
-import { disconnectDatabase } from '@/app/configs/db.configs';
-import logger from '@/app/configs/logger.configs';
-import { disconnectRedis } from '@/app/configs/redis.config';
 import { getTraceId } from '@/app/configs/requestContext.configs';
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
-
-type TShutdown = {
-  reason: string;
-  server: Server;
-  error?: unknown;
-};
-
-let isShuttingDown = false;
-
-export const shutdown = async ({
-  reason,
-  server,
-  error,
-}: TShutdown): Promise<void> => {
-  if (isShuttingDown) return;
-  isShuttingDown = true;
-
-  logger.warn(`Shutdown started: ${reason}`);
-
-  if (error) {
-    logger.error(error);
-  }
-
-  /**
-   * Force exit after timeout (Docker / K8s safety)
-   */
-  const forceExitTimer = setTimeout(() => {
-    logger.error('Forcing shutdown after timeout');
-    process.exit(1);
-  }, 30_000);
-
-  try {
-    /**
-     * Stop accepting new connections
-     */
-    await new Promise<void>((resolve) => {
-      server.close(() => {
-        logger.info('HTTP server closed');
-        resolve();
-      });
-    });
-    // Close DB, Redis, queues here
-    await disconnectRedis();
-    await disconnectDatabase();
-  } catch (err) {
-    logger.error('Error during shutdown', err);
-  } finally {
-    clearTimeout(forceExitTimer);
-
-    /**
-     * Exit code matters:
-     * - 0 = graceful (SIGTERM, SIGINT)
-     * - 1 = crash (exceptions)
-     */
-    const exitCode = reason === 'SIGINT' || reason === 'SIGTERM' ? 0 : 1;
-
-    process.exit(exitCode);
-  }
-};
 
 /**
  * Wraps an async Express route handler and forwards
