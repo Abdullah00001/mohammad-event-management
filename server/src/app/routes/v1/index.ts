@@ -1,5 +1,6 @@
 import { Router } from 'express';
 
+import EventTypes from '@/app/modules/eventType/eventType.routes';
 import InterestRoutes from '@/app/modules/interest/interest.routes';
 import ProfileRoutes from '@/app/modules/profile/profile.routes';
 import RecoverRoutes from '@/app/modules/recover/recover.routes';
@@ -12,6 +13,7 @@ const routes: Router[] = [
   InterestRoutes,
   UserTraits,
   RecoverRoutes,
+  EventTypes,
 ];
 
 const v1Routes = Router();
