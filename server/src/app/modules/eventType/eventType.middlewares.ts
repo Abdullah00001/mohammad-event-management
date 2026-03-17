@@ -7,7 +7,7 @@ export const findEventTypeById = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
     const { id } = req.params;
     const data = await prisma.eventType.findUnique({
-      where: { id: id as string },
+      where: { id: id as string, isDeleted: false },
     });
     if (!data) {
       res.status(404).json({

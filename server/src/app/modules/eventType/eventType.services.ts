@@ -54,7 +54,7 @@ export const updateEventType = async ({
     }
 
     const data = await prisma.eventType.update({
-      where: { id },
+      where: { id, isDeleted: false },
       data: {
         ...(title && { title }),
         ...(thumbnailUrl && { thumbnail: thumbnailUrl }),
@@ -74,7 +74,7 @@ export const deleteEventType = async ({
   id: string;
 }): Promise<void> => {
   try {
-    await prisma.eventType.delete({ where: { id } });
+    await prisma.eventType.update({ data: { isDeleted: true }, where: { id } });
     return;
   } catch (error) {
     if (error instanceof Error) throw error;
@@ -84,7 +84,9 @@ export const deleteEventType = async ({
 
 export const getEventTypes = async (): Promise<EventType[]> => {
   try {
-    const data = await prisma.eventType.findMany();
+    const data = await prisma.eventType.findMany({
+      where: { isDeleted: false },
+    });
     return data;
   } catch (error) {
     if (error instanceof Error) throw error;

@@ -154,8 +154,8 @@ model Event {
   id String @id @default(uuid())
   eventName String
   description String
-  startAt DateTime
-  endAt DateTime
+  startDate DateTime
+  startTime String
   maxParticipantsCount Int @default(10)
   eventStatus EventStatus @default(UPCOMING)
   lat Float
@@ -163,10 +163,20 @@ model Event {
   deletedAt DateTime?
   activityTypes String[] @default([])
   eventParticipants EventParticipants[]
-  messages             EventMessage[]
-  eventTypes  EventType[]  @relation("EventToEventType")
+  messages EventMessage[]
+  eventTypes EventEventType[] 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model EventEventType {
+  eventId     String
+  event       Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  eventTypeId String
+  eventType   EventType @relation(fields: [eventTypeId], references: [id], onDelete: Cascade)
+  assignedAt  DateTime  @default(now())
+
+  @@id([eventId, eventTypeId])
 }
 
 model EventParticipants {
@@ -270,7 +280,7 @@ model EventType {
   id String @id @default(uuid())
   title String
   thumbnail String
-  events    Event[]  @relation("EventToEventType")
+  events EventEventType[] 
   isDeleted Boolean @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
