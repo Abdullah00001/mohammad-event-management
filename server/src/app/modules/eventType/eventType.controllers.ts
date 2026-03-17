@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 
 import {
   createEventType,
+  deleteEventType,
   updateEventType,
 } from '@/app/modules/eventType/eventType.services';
 import { asyncHandler } from '@/app/utils/system.utils';
@@ -11,9 +12,9 @@ export const createEventTypeController = asyncHandler(
     const { title } = req.body;
     const file = req.file as Express.Multer.File;
     const data = await createEventType({ fileName: file.filename, title });
-    res.status(200).json({
+    res.status(201).json({
       success: true,
-      status: 200,
+      status: 201,
       message: 'Event type creation successful',
       data,
     });
@@ -34,8 +35,21 @@ export const updateEventTypeController = asyncHandler(
     res.status(200).json({
       success: true,
       status: 200,
-      message: 'Event type creation successful',
+      message: 'Event type deletion successful',
       data,
+    });
+    return;
+  }
+);
+
+export const deleteEventTypeController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const { id } = req.params;
+    await deleteEventType({ id: id as string });
+    res.status(200).json({
+      success: true,
+      status: 200,
+      message: 'Event type creation successful',
     });
     return;
   }

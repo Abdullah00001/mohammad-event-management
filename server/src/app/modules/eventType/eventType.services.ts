@@ -1,5 +1,6 @@
 import { join, extname } from 'path';
 
+import { EventType } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 
 import prisma from '@/app/configs/db.configs';
@@ -41,7 +42,7 @@ export const updateEventType = async ({
   title: string;
   fileName?: string;
   id: string;
-}) => {
+}): Promise<EventType> => {
   try {
     let thumbnailUrl: string | undefined = undefined;
 
@@ -64,5 +65,19 @@ export const updateEventType = async ({
   } catch (error) {
     if (error instanceof Error) throw error;
     throw new Error('Unknown error occurred in update event type service');
+  }
+};
+
+export const deleteEventType = async ({
+  id,
+}: {
+  id: string;
+}): Promise<void> => {
+  try {
+    await prisma.eventType.delete({ where: { id } });
+    return;
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error('Unknown error occurred in delete event type service');
   }
 };

@@ -4,7 +4,11 @@ import {
   handleMulterError,
   uploadSingle,
 } from '@/app/middlewares/multer.middlewares';
-import { createEventTypeController } from '@/app/modules/eventType/eventType.controllers';
+import {
+  createEventTypeController,
+  deleteEventTypeController,
+  updateEventTypeController,
+} from '@/app/modules/eventType/eventType.controllers';
 import { createEventTypeSchema } from '@/app/modules/eventType/eventType.schemas';
 import { checkAdminAccessToken } from '@/app/modules/user/user.middlewares';
 import { validateReqBody } from '@/app/utils/system.utils';
@@ -34,7 +38,8 @@ router
     uploadSingle('thumbnail'),
     handleMulterError,
     validateReqBody(createEventTypeSchema),
-    createEventTypeController
-  );
+    updateEventTypeController
+  )
+  .delete(checkAdminAccessToken, deleteEventTypeController);
 
 export default router;
