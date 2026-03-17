@@ -81,3 +81,13 @@ export const deleteEventType = async ({
     throw new Error('Unknown error occurred in delete event type service');
   }
 };
+
+export const getEventTypes = async (): Promise<EventType[]> => {
+  try {
+    const data = await prisma.eventType.findMany();
+    return data;
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error('Unknown error occurred in get event types service');
+  }
+};

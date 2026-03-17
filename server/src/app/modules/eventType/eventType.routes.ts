@@ -7,17 +7,30 @@ import {
 import {
   createEventTypeController,
   deleteEventTypeController,
+  getManyEventTypesController,
+  getSingleEventTypeController,
   updateEventTypeController,
 } from '@/app/modules/eventType/eventType.controllers';
+import { findEventTypeById } from '@/app/modules/eventType/eventType.middlewares';
 import { createEventTypeSchema } from '@/app/modules/eventType/eventType.schemas';
-import { checkAdminAccessToken } from '@/app/modules/user/user.middlewares';
+import {
+  checkAccessToken,
+  checkAdminAccessToken,
+} from '@/app/modules/user/user.middlewares';
 import { validateReqBody } from '@/app/utils/system.utils';
 
 const router = Router();
+/**
+ * =====================================
+ * ----------- USER ROUTES -------------
+ * =====================================
+ */
+
+router.route('/admin').get(checkAccessToken, getManyEventTypesController);
 
 /**
  * =====================================
- * -----------ADMIN ROUTES--------------
+ * ---------- ADMIN ROUTES -------------
  * =====================================
  */
 
@@ -29,17 +42,20 @@ router
     handleMulterError,
     validateReqBody(createEventTypeSchema),
     createEventTypeController
-  );
+  )
+  .get(checkAdminAccessToken, getManyEventTypesController);
 
 router
   .route('/admin/eventType/:id')
+  .get(checkAdminAccessToken, findEventTypeById, getSingleEventTypeController)
   .post(
     checkAdminAccessToken,
+    findEventTypeById,
     uploadSingle('thumbnail'),
     handleMulterError,
     validateReqBody(createEventTypeSchema),
     updateEventTypeController
   )
-  .delete(checkAdminAccessToken, deleteEventTypeController);
+  .delete(checkAdminAccessToken, findEventTypeById, deleteEventTypeController);
 
 export default router;

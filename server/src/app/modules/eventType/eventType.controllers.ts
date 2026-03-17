@@ -3,6 +3,7 @@ import { Request, Response } from 'express';
 import {
   createEventType,
   deleteEventType,
+  getEventTypes,
   updateEventType,
 } from '@/app/modules/eventType/eventType.services';
 import { asyncHandler } from '@/app/utils/system.utils';
@@ -35,7 +36,7 @@ export const updateEventTypeController = asyncHandler(
     res.status(200).json({
       success: true,
       status: 200,
-      message: 'Event type deletion successful',
+      message: 'Event type update successful',
       data,
     });
     return;
@@ -49,8 +50,32 @@ export const deleteEventTypeController = asyncHandler(
     res.status(200).json({
       success: true,
       status: 200,
-      message: 'Event type creation successful',
+      message: 'Event type deletion successful',
     });
     return;
   }
 );
+
+export const getSingleEventTypeController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const data = req.eventType;
+    res.status(200).json({
+      success: true,
+      status: 200,
+      message: 'Event type retrieve successful',
+      data,
+    });
+    return;
+  }
+);
+
+export const getManyEventTypesController=asyncHandler(async (_req: Request, res: Response): Promise<void> => {
+  const data=await getEventTypes()
+  res.status(200).json({
+    success: true,
+    status: 200,
+    message: 'Event type retrieve successful',
+    data,
+  });
+  return;
+})
