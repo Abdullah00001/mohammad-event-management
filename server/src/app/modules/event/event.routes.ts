@@ -1,7 +1,10 @@
 import { Router } from 'express';
 
 import { EventCreateSchema } from '@/app/modules/event/event.schemas';
-import { checkAccessToken } from '@/app/modules/user/user.middlewares';
+import {
+  checkAccessToken,
+  checkAccountStatus,
+} from '@/app/modules/user/user.middlewares';
 import { validateReqBody } from '@/app/utils/system.utils';
 
 const router = Router();
@@ -14,6 +17,11 @@ const router = Router();
 
 router
   .route('/event')
-  .post(checkAccessToken, validateReqBody(EventCreateSchema));
+  .post(
+    checkAccessToken,
+    checkAccountStatus,
+    validateReqBody(EventCreateSchema)
+  )
+  .get(checkAccessToken, checkAccountStatus);
 
 export default router;

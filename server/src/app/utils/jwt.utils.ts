@@ -1,7 +1,7 @@
 import { type Request } from 'express';
 import { type JwtPayload, sign, verify } from 'jsonwebtoken';
 
-import { ITokenPayload } from '@/app/@types/jwt.types';
+import { AuthenticatedSocket, ITokenPayload } from '@/app/@types/jwt.types';
 import logger from '@/app/configs/logger.configs';
 import {
   refreshTokenExpiresInWithOutRememberMe,
@@ -114,4 +114,17 @@ export function extractToken(req: Request): string | null {
   }
 
   return parts[1];
+}
+
+export function extractTokenFromSocketHeader(
+  socket: AuthenticatedSocket
+): string | null {
+  const token =
+    socket.handshake.auth?.token || socket.handshake.headers?.authorization;
+
+  if (!token) return null;
+  if (typeof token === 'string' && token.startsWith('Bearer ')) {
+    return token.slice(7).trim();
+  }
+  return null;
 }
