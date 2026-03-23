@@ -28,15 +28,39 @@ const seedFeature = async () => {
     console.log('Add Subscription Feature');
     console.log('------------------------\n');
 
-    // --- Feature Title ---
+    // --- Feature Title (min 3, max 48) ---
     let featureTitle = '';
-    while (!featureTitle || featureTitle.length < 3) {
-      featureTitle = await question('Feature Title (e.g. Travel Mode): ');
-      if (!featureTitle) {
+    while (!featureTitle) {
+      const input = (await question('Feature Title (max 48 chars): ')).trim();
+      if (!input) {
         console.log('⚠ Feature title cannot be empty!');
-      } else if (featureTitle.length < 3) {
+      } else if (input.length < 3) {
         console.log('⚠ Feature title must be at least 3 characters!');
-        featureTitle = '';
+      } else if (input.length > 48) {
+        console.log(
+          `⚠ Feature title too long — ${input.length}/48 chars used. Please shorten it.`
+        );
+      } else {
+        featureTitle = input;
+      }
+    }
+
+    // --- Feature Description (max 180) ---
+    let featureDescription = '';
+    while (!featureDescription) {
+      const input = (
+        await question('Feature Description (max 180 chars): ')
+      ).trim();
+      if (!input) {
+        console.log('⚠ Feature description cannot be empty!');
+      } else if (input.length < 10) {
+        console.log('⚠ Feature description must be at least 10 characters!');
+      } else if (input.length > 180) {
+        console.log(
+          `⚠ Feature description too long — ${input.length}/180 chars used. Please shorten it.`
+        );
+      } else {
+        featureDescription = input;
       }
     }
 
@@ -55,14 +79,15 @@ const seedFeature = async () => {
 
     if (existing) {
       console.log(`\n⚠ Feature key "${featureKey}" already exists.`);
-      console.log(`  Title:    ${existing.featureTitle}`);
-      console.log(`  Active:   ${existing.isActive}`);
+      console.log(`  Title:       ${existing.featureTitle}`);
+      console.log(`  Description: ${existing.featureDescription}`);
+      console.log(`  Active:      ${existing.isActive}`);
       console.log(
-        `  Created:  ${existing.createdAt.toISOString().split('T')[0]}`
+        `  Created:     ${existing.createdAt.toISOString().split('T')[0]}`
       );
 
       const overwrite = await question(
-        '\nUpdate the title for this key? (y/N): '
+        '\nUpdate title and description for this key? (y/N): '
       );
       if (overwrite.trim().toLowerCase() !== 'y') {
         console.log('\n✗ Aborted. No changes made.');
@@ -73,12 +98,13 @@ const seedFeature = async () => {
 
       const updated = await prisma.subscriptionFeature.update({
         where: { featureKey },
-        data: { featureTitle },
+        data: { featureTitle, featureDescription },
       });
 
       console.log(`\n✓ Feature updated successfully!`);
-      console.log(`  Key:   ${updated.featureKey}`);
-      console.log(`  Title: ${updated.featureTitle}`);
+      console.log(`  Key:         ${updated.featureKey}`);
+      console.log(`  Title:       ${updated.featureTitle}`);
+      console.log(`  Description: ${updated.featureDescription}`);
 
       rl.close();
       await prisma.$disconnect();
@@ -87,8 +113,9 @@ const seedFeature = async () => {
 
     // --- Confirm before saving ---
     console.log('\n--- Review ---');
-    console.log(`  Key:   ${featureKey}`);
-    console.log(`  Title: ${featureTitle}`);
+    console.log(`  Key:         ${featureKey}`);
+    console.log(`  Title:       ${featureTitle}`);
+    console.log(`  Description: ${featureDescription}`);
     const confirm = await question('\nSave this feature? (Y/n): ');
     if (confirm.trim().toLowerCase() === 'n') {
       console.log('\n✗ Aborted. No changes made.');
@@ -102,14 +129,16 @@ const seedFeature = async () => {
       data: {
         featureKey,
         featureTitle,
+        featureDescription,
         isActive: true,
       },
     });
 
     console.log('\n✓ Feature created successfully!');
-    console.log(`  ID:    ${feature.id}`);
-    console.log(`  Key:   ${feature.featureKey}`);
-    console.log(`  Title: ${feature.featureTitle}`);
+    console.log(`  ID:          ${feature.id}`);
+    console.log(`  Key:         ${feature.featureKey}`);
+    console.log(`  Title:       ${feature.featureTitle}`);
+    console.log(`  Description: ${feature.featureDescription}`);
 
     rl.close();
     await prisma.$disconnect();

@@ -377,7 +377,7 @@ model SubscriptionFeature {
   id           String   @id @default(uuid())
   featureKey   String   @unique
   featureTitle String @db.VarChar(48)
-  featureDescription String @db.VarChar(180)
+  featureDescription String? @db.VarChar(180)
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
