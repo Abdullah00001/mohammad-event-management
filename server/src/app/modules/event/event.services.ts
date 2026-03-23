@@ -1,7 +1,12 @@
 import { EventRole, User } from '@prisma/client';
 
 import prisma from '@/app/configs/db.configs';
-import { TEventCreatePayload } from '@/app/modules/event/event.schemas';
+import {
+  EventQueryParams,
+  TEventCreatePayload,
+} from '@/app/modules/event/event.schemas';
+import { getCountryFromCoords } from '@/app/utils/system.utils';
+import { DEFAULT_LIMIT, DEFAULT_PAGE } from '@/const';
 
 export const createEventService = async ({
   payload,
@@ -53,5 +58,56 @@ export const createEventService = async ({
   } catch (error) {
     if (error instanceof Error) throw error;
     throw new Error('Unknown error occurred in create event service');
+  }
+};
+
+export const getEventListingService = async ({
+  query,
+}: {
+  query: EventQueryParams;
+}): Promise<void> => {
+  try {
+    const {
+      date,
+      distance,
+      eventType,
+      lng,
+      lat,
+      limit = DEFAULT_LIMIT,
+      maxOrcas,
+      page = DEFAULT_PAGE,
+      time,
+    } = query;
+    const offset = (page - 1) * limit;
+    const isNearbyMode = distance !== undefined;
+    const countryCode = await getCountryFromCoords(lat, lng);
+    console.log(countryCode);
+    /**
+     * [ ] if theres any none required query than its will retrieve the events from his country with default page 1 limit 10
+     * query look like /events?lat=&lng=
+     * response look like
+     *
+     * {
+     * success: true
+     * status: 200
+     * message:
+     * data:[]
+     * meta:
+     * totalEvents:
+     * totalPages:
+     * links:{
+     *    currentPage:
+     *    nextPage:
+     *    previousPage:
+     *    firstPage:
+     *    lastPage:
+     * }
+     * }
+     *
+     */
+    return;
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error('Unknown error occurred in get events service');
   }
 };

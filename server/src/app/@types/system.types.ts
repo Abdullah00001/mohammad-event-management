@@ -23,3 +23,10 @@ export type TMailOption = {
   subject: string;
   html: string;
 };
+
+export enum PremiumFeature {
+  TRAVEL_MODE = 'TRAVEL_MODE',
+  ORCA_GRACE_TOKEN = 'ORCA_GRACE_TOKEN',
+  PASSPORT_BADGE = 'PASSPORT_BADGE',
+  PRIVATE_PODS = 'PRIVATE_PODS',
+}

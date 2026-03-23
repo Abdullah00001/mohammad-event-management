@@ -8,7 +8,9 @@ import type { Request, Response, NextFunction, RequestHandler } from 'express';
 import { ZodType } from 'zod';
 
 import { TMailOption } from '@/app/@types/system.types';
+import logger from '@/app/configs/logger.configs';
 import { getTraceId } from '@/app/configs/requestContext.configs';
+import { NOMINATIM_URL } from '@/const';
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -162,13 +164,13 @@ export function mailOption(
   return option;
 }
 
-const ALLOWED_METHODS = ['POST', 'PUT', 'PATCH'] as const;
+const ALLOWED_WRITE_METHODS = ['POST', 'PUT', 'PATCH'] as const;
 
 export const validateReqBody =
   <T>(schema: ZodType<T>) =>
   async (req: Request, res: Response, next: NextFunction) => {
     const traceId = getTraceId();
-    if (!ALLOWED_METHODS.includes(req.method as any)) {
+    if (!ALLOWED_WRITE_METHODS.includes(req.method as any)) {
       return next();
     }
 
@@ -191,3 +193,68 @@ export const validateReqBody =
 
     next();
   };
+
+const ALLOWED_METHODS = ['GET'] as const;
+
+export const validateReqQuery =
+  <T>(schema: ZodType<T>) =>
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (
+        !ALLOWED_METHODS.includes(
+          req.method as (typeof ALLOWED_METHODS)[number]
+        )
+      ) {
+        return next();
+      }
+
+      // Convert null prototype object to regular object
+      const queryObj = { ...req.query };
+      const result = schema.safeParse(queryObj);
+
+      if (!result.success) {
+        const errors = result.error.issues.map((issue) => ({
+          field: issue.path.join('.') || 'query',
+          message: issue.message,
+        }));
+        res.status(422).json({
+          success: false,
+          message: 'Request query validation failed',
+          errors,
+        });
+        return;
+      }
+      // Assign validated data to req.query
+      req.validatedQuery = result.data;
+      next();
+    } catch (error) {
+      logger.error('CAUGHT ERROR in validateReqQuery middleware:', error);
+      logger.error(
+        'Error stack:',
+        error instanceof Error ? error.stack : 'No stack'
+      );
+      next(error);
+    }
+  };
+
+export async function getCountryFromCoords(
+  lat: number,
+  lng: number
+): Promise<string | null> {
+  const url = `${NOMINATIM_URL}?lat=${lat}&lon=${lng}&format=json`;
+
+  const res = await fetch(url, {
+    headers: {
+      // Nominatim policy requires a User-Agent identifying your app
+      'User-Agent': 'YourAppName/1.0 (your@email.com)',
+    },
+  });
+
+  if (!res.ok) return null;
+
+  const data = (await res.json()) as {
+    address?: { country_code?: string };
+  };
+
+  return data.address?.country_code?.toUpperCase() ?? null; // "BD", "US" …
+}

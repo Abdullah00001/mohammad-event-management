@@ -10,3 +10,6 @@ export const adminAccessTokenExpiresIn = '15m';
 export const refreshTokenExpiresInWithOutRememberMe = '3d';
 export const refreshTokenExpiresInWithRememberMe = '30d';
 export const otpExpireAt = 4;
+export const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/reverse';
+export const DEFAULT_PAGE = 1;
+export const DEFAULT_LIMIT = 10;

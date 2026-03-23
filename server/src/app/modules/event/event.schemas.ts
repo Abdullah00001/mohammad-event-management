@@ -30,9 +30,9 @@ export const EventCreateSchema = z.object({
 
   // HH:mm format — stored as string in Prisma
   startTime: z
-    .string({ error: 'startTime is required' })
-    .regex(/^([01]\d|2[0-3]):([0-5]\d)$/, {
-      message: 'startTime must be in HH:mm 24-hour format (e.g. 14:30)',
+    .string({ error: 'time is required' })
+    .regex(/^(0[1-9]|1[0-2]):([0-5]\d)\s(AM|PM)$/, {
+      message: 'time must be in HH:MM AM/PM format (e.g. 02:30 PM)',
     }),
 
   maxParticipantsCount: z
@@ -62,3 +62,81 @@ export const EventUpdateSchema = EventCreateSchema.partial().extend({
 });
 
 export type TEventUpdatePayload = z.infer<typeof EventUpdateSchema>;
+
+export const querySchema = z.object({
+  // Pagination
+  page: z
+    .string()
+    .transform((val) => parseInt(val, 10))
+    .pipe(z.number().int().min(1, 'Page must be at least 1'))
+    .optional(),
+
+  limit: z
+    .string()
+    .transform((val) => parseInt(val, 10))
+    .pipe(z.number().int().min(1).max(100, 'Limit must be between 1 and 100'))
+    .optional(),
+
+  // Location
+  distance: z
+    .string()
+    .transform((val) => parseFloat(val))
+    .pipe(z.number().positive('Distance must be a positive number'))
+    .optional(),
+
+  lng: z
+    .string()
+    .transform((val) => parseFloat(val))
+    .pipe(
+      z
+        .number()
+        .min(-180, 'Longitude must be >= -180')
+        .max(180, 'Longitude must be <= 180')
+    ),
+
+  lat: z
+    .string()
+    .transform((val) => parseFloat(val))
+    .pipe(
+      z
+        .number()
+        .min(-90, 'Latitude must be >= -90')
+        .max(90, 'Latitude must be <= 90')
+    ),
+
+  // Date: DD/MM/YY
+  date: z
+    .string()
+    .regex(/^\d{2}\/\d{2}\/\d{2}$/, 'Date must be in DD/MM/YY format')
+    .refine((val) => {
+      const [dd, mm, yy] = val.split('/').map(Number);
+      const fullYear = 2000 + yy;
+      const parsed = new Date(fullYear, mm - 1, dd);
+      return (
+        parsed.getFullYear() === fullYear &&
+        parsed.getMonth() === mm - 1 &&
+        parsed.getDate() === dd
+      );
+    }, 'Date must be a valid calendar date')
+    .optional(),
+
+  // Time: HH/MM in 24-hour format
+  time: z
+    .string({ error: 'time is required' })
+    .regex(/^(0[1-9]|1[0-2]):([0-5]\d)\s(AM|PM)$/, {
+      message: 'time must be in HH:MM AM/PM format (e.g. 02:30 PM)',
+    })
+    .optional(),
+
+  // Max Orcas
+  maxOrcas: z
+    .string()
+    .transform((val) => parseInt(val, 10))
+    .pipe(z.number().int().min(1, 'maxOrcas must be at least 1'))
+    .optional(),
+
+  // eventType as UUID
+  eventType: z.uuid({ message: 'eventType must be a valid UUID' }).optional(),
+});
+
+export type EventQueryParams = z.infer<typeof querySchema>;

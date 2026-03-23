@@ -26,7 +26,7 @@ const router = Router();
  * =====================================
  */
 
-router.route('/admin').get(checkAccessToken, getManyEventTypesController);
+router.route('/eventType').get(checkAccessToken, getManyEventTypesController);
 
 /**
  * =====================================
