@@ -21,6 +21,27 @@ const toFeatureKey = (input) => {
   return input.trim().toUpperCase().replace(/\s+/g, '_');
 };
 
+// Returns null if user leaves blank, validated string otherwise
+const askOptionalDescription = async () => {
+  while (true) {
+    const input = (
+      await question('Feature Description (optional, max 180 chars): ')
+    ).trim();
+    if (!input) return null;
+    if (input.length < 10) {
+      console.log('⚠ Description must be at least 10 characters if provided!');
+      continue;
+    }
+    if (input.length > 180) {
+      console.log(
+        `⚠ Description too long — ${input.length}/180 chars used. Please shorten it.`
+      );
+      continue;
+    }
+    return input;
+  }
+};
+
 const seedFeature = async () => {
   try {
     await prisma.$connect();
@@ -45,24 +66,8 @@ const seedFeature = async () => {
       }
     }
 
-    // --- Feature Description (max 180) ---
-    let featureDescription = '';
-    while (!featureDescription) {
-      const input = (
-        await question('Feature Description (max 180 chars): ')
-      ).trim();
-      if (!input) {
-        console.log('⚠ Feature description cannot be empty!');
-      } else if (input.length < 10) {
-        console.log('⚠ Feature description must be at least 10 characters!');
-      } else if (input.length > 180) {
-        console.log(
-          `⚠ Feature description too long — ${input.length}/180 chars used. Please shorten it.`
-        );
-      } else {
-        featureDescription = input;
-      }
-    }
+    // --- Feature Description (optional, max 180) ---
+    const featureDescription = await askOptionalDescription();
 
     // --- Feature Key (auto-suggested, overridable) ---
     const suggested = toFeatureKey(featureTitle);
@@ -80,7 +85,7 @@ const seedFeature = async () => {
     if (existing) {
       console.log(`\n⚠ Feature key "${featureKey}" already exists.`);
       console.log(`  Title:       ${existing.featureTitle}`);
-      console.log(`  Description: ${existing.featureDescription}`);
+      console.log(`  Description: ${existing.featureDescription ?? '—'}`);
       console.log(`  Active:      ${existing.isActive}`);
       console.log(
         `  Created:     ${existing.createdAt.toISOString().split('T')[0]}`
@@ -104,7 +109,7 @@ const seedFeature = async () => {
       console.log(`\n✓ Feature updated successfully!`);
       console.log(`  Key:         ${updated.featureKey}`);
       console.log(`  Title:       ${updated.featureTitle}`);
-      console.log(`  Description: ${updated.featureDescription}`);
+      console.log(`  Description: ${updated.featureDescription ?? '—'}`);
 
       rl.close();
       await prisma.$disconnect();
@@ -115,7 +120,7 @@ const seedFeature = async () => {
     console.log('\n--- Review ---');
     console.log(`  Key:         ${featureKey}`);
     console.log(`  Title:       ${featureTitle}`);
-    console.log(`  Description: ${featureDescription}`);
+    console.log(`  Description: ${featureDescription ?? '—'}`);
     const confirm = await question('\nSave this feature? (Y/n): ');
     if (confirm.trim().toLowerCase() === 'n') {
       console.log('\n✗ Aborted. No changes made.');
@@ -138,7 +143,7 @@ const seedFeature = async () => {
     console.log(`  ID:          ${feature.id}`);
     console.log(`  Key:         ${feature.featureKey}`);
     console.log(`  Title:       ${feature.featureTitle}`);
-    console.log(`  Description: ${feature.featureDescription}`);
+    console.log(`  Description: ${feature.featureDescription ?? '—'}`);
 
     rl.close();
     await prisma.$disconnect();

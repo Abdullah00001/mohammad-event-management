@@ -6,7 +6,7 @@ import { checkAdminAccessToken } from '@/app/modules/user/user.middlewares';
 const router = Router();
 
 router
-  .route('/admin/subscriptions/features')
+  .route('/subscriptions/features')
   .get(checkAdminAccessToken, retrieveSubscriptionFeaturesController);
 
 router

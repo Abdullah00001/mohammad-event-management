@@ -1,14 +1,19 @@
 import { Request, Response } from 'express';
 
-import { createSubscriptionPlanService } from '@/app/modules/subscription/subscription.services';
+import {
+  createSubscriptionPlanService,
+  retrieveSubscriptionFeaturesService,
+} from '@/app/modules/subscription/subscription.services';
 import { asyncHandler } from '@/app/utils/system.utils';
 
 export const retrieveSubscriptionFeaturesController = asyncHandler(
   async (_req: Request, res: Response): Promise<void> => {
+    const data = await retrieveSubscriptionFeaturesService();
     res.status(200).json({
       success: true,
       status: 201,
       message: 'Subscription feature retrieve Successful',
+      data,
     });
     return;
   }
