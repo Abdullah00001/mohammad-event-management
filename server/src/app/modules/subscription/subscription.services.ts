@@ -1,7 +1,9 @@
 import { SubscriptionFeature } from '@prisma/client';
+import { JwtPayload } from 'jsonwebtoken';
 
 import prisma from '@/app/configs/db.configs';
 import { getRedisClient } from '@/app/configs/redis.config';
+import { TPlan } from '@/app/modules/subscription/subscription.schemas';
 import { expiresInTimeUnitToMs } from '@/app/utils/system.utils';
 import { SUBSCRIPTION_FEATURE_CACHE_EXPIRY } from '@/const';
 
@@ -40,11 +42,29 @@ export const retrieveSubscriptionFeaturesService = async (): Promise<
 
 export const createSubscriptionPlanService = async ({
   requestBodyPayload,
+  user,
 }: {
-  requestBodyPayload: unknown;
+  requestBodyPayload: TPlan;
+  user: JwtPayload;
 }): Promise<void> => {
+  const { duration, features, price, title } = requestBodyPayload;
   try {
-    console.log(requestBodyPayload);
+    await prisma.$transaction(async (tx) => {
+      const plan = await tx.subscriptionPlan.create({
+        data: {
+          price,
+          title,
+          createdById: user.sub as string,
+          intervalDays: duration,
+        },
+      });
+      await tx.subscriptionPlanFeature.createMany({
+        data: features.map((feature) => ({
+          planId: plan.id,
+          subscriptionFeatureId: feature,
+        })),
+      });
+    });
     return;
   } catch (error) {
     if (error instanceof Error) throw error;

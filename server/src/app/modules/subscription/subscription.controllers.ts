@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
+import { JwtPayload } from 'jsonwebtoken';
 
+import { TPlan } from '@/app/modules/subscription/subscription.schemas';
 import {
   createSubscriptionPlanService,
   retrieveSubscriptionFeaturesService,
@@ -21,12 +23,13 @@ export const retrieveSubscriptionFeaturesController = asyncHandler(
 
 export const createSubscriptionPlanController = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
-    const requestBodyPayload = req.body;
-    await createSubscriptionPlanService(requestBodyPayload);
+    const user = req.user as JwtPayload;
+    const requestBodyPayload = req.body as TPlan;
+    await createSubscriptionPlanService({ requestBodyPayload, user });
     res.status(201).json({
       success: true,
       status: 201,
-      message: 'Subscription Creation Successful',
+      message: 'Subscription Plan Creation Successful',
     });
     return;
   }

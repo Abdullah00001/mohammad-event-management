@@ -1,10 +1,20 @@
 const { PrismaClient } = require('@prisma/client');
+const Redis = require('ioredis');
 require('dotenv').config({
   path: require('path').join(__dirname, '..', '.env'),
 });
 const readline = require('readline');
 
 const prisma = new PrismaClient();
+
+const redis = new Redis({
+  host: process.env.REDIS_HOST,
+  port: parseInt(process.env.REDIS_PORT),
+  password: process.env.REDIS_PASSWORD,
+  lazyConnect: true,
+});
+
+const CACHE_KEY = 'subscriptions:features';
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -21,7 +31,15 @@ const toFeatureKey = (input) => {
   return input.trim().toUpperCase().replace(/\s+/g, '_');
 };
 
-// Returns null if user leaves blank, validated string otherwise
+const invalidateCache = async () => {
+  const deleted = await redis.del(CACHE_KEY);
+  if (deleted) {
+    console.log(`  cache: "${CACHE_KEY}" invalidated`);
+  } else {
+    console.log(`  cache: "${CACHE_KEY}" was not cached — skipped`);
+  }
+};
+
 const askOptionalDescription = async () => {
   while (true) {
     const input = (
@@ -42,10 +60,18 @@ const askOptionalDescription = async () => {
   }
 };
 
+const cleanup = async () => {
+  rl.close();
+  await redis.quit();
+  await prisma.$disconnect();
+};
+
 const seedFeature = async () => {
   try {
     await prisma.$connect();
-    console.log('✓ Connected to PostgreSQL\n');
+    await redis.connect();
+    console.log('✓ Connected to PostgreSQL');
+    console.log('✓ Connected to Redis\n');
     console.log('Add Subscription Feature');
     console.log('------------------------\n');
 
@@ -96,8 +122,7 @@ const seedFeature = async () => {
       );
       if (overwrite.trim().toLowerCase() !== 'y') {
         console.log('\n✗ Aborted. No changes made.');
-        rl.close();
-        await prisma.$disconnect();
+        await cleanup();
         process.exit(0);
       }
 
@@ -106,13 +131,14 @@ const seedFeature = async () => {
         data: { featureTitle, featureDescription },
       });
 
+      await invalidateCache();
+
       console.log(`\n✓ Feature updated successfully!`);
       console.log(`  Key:         ${updated.featureKey}`);
       console.log(`  Title:       ${updated.featureTitle}`);
       console.log(`  Description: ${updated.featureDescription ?? '—'}`);
 
-      rl.close();
-      await prisma.$disconnect();
+      await cleanup();
       process.exit(0);
     }
 
@@ -124,8 +150,7 @@ const seedFeature = async () => {
     const confirm = await question('\nSave this feature? (Y/n): ');
     if (confirm.trim().toLowerCase() === 'n') {
       console.log('\n✗ Aborted. No changes made.');
-      rl.close();
-      await prisma.$disconnect();
+      await cleanup();
       process.exit(0);
     }
 
@@ -139,19 +164,19 @@ const seedFeature = async () => {
       },
     });
 
+    await invalidateCache();
+
     console.log('\n✓ Feature created successfully!');
     console.log(`  ID:          ${feature.id}`);
     console.log(`  Key:         ${feature.featureKey}`);
     console.log(`  Title:       ${feature.featureTitle}`);
     console.log(`  Description: ${feature.featureDescription ?? '—'}`);
 
-    rl.close();
-    await prisma.$disconnect();
+    await cleanup();
     process.exit(0);
   } catch (error) {
     console.error('\n✗ Error:', error.message);
-    rl.close();
-    await prisma.$disconnect();
+    await cleanup();
     process.exit(1);
   }
 };
