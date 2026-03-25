@@ -10,6 +10,8 @@ import {
   retrieveSingleSubscriptionPlanService,
   retrieveSubscriptionFeaturesService,
   retrieveSubscriptionPlansService,
+  stripePaymentIntentService,
+  stripeWebhookService,
   updateSubscriptionPlanService,
 } from '@/app/modules/subscription/subscription.services';
 import { asyncHandler } from '@/app/utils/system.utils';
@@ -128,17 +130,37 @@ export const deleteSubscriptionPlanController = asyncHandler(
   }
 );
 
+
+// ─── Intent Controller ────────────────────────────────────────────
+// replace your empty stripePaymentIntentController
+
 export const stripePaymentIntentController = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
     const traceId = getTraceId();
     const user = req.user as User;
+    const plan = req.plan;
+
+    const data = await stripePaymentIntentService({ user, plan });
 
     res.status(200).json({
       success: true,
       status: 200,
-      message: 'Subscription Plan Deleted Successfully',
+      message: 'Payment Intent Created Successfully',
+      data, // { clientSecret }
       traceId,
     });
-    return;
+  }
+);
+
+// ─── Webhook Controller ───────────────────────────────────────────
+
+export const stripeWebhookController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const signature = req.headers['stripe-signature'] as string;
+
+    // req.body must be raw Buffer — see router note below
+    await stripeWebhookService(req.body as Buffer, signature);
+
+    res.status(200).json({ received: true });
   }
 );

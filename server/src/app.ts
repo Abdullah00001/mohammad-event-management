@@ -23,7 +23,13 @@ import { baseUrl } from '@/const';
 const app: Application = express();
 
 app.use(traceMiddleware);
-app.use(json());
+app.use((req, res, next) => {
+  if (req.originalUrl.includes('/webhooks/payment/stripe')) {
+    next(); // skip json() — raw() in the route handles it
+  } else {
+    json()(req, res, next);
+  }
+});
 app.use(urlencoded({ extended: true }));
 app.set('trust proxy', 1);
 app.use(cookieParser());

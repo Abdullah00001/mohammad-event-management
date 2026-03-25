@@ -107,7 +107,6 @@ class StripeService {
     }
   }
 
-
   public async createCustomer(
     email: string,
     name?: string,
@@ -123,7 +122,51 @@ class StripeService {
       this.handleError(error, 'Error creating Stripe customer');
     }
   }
-  
+
+  public async createSubscription(
+    customerId: string,
+    priceId: string,
+    internalUserId: string,
+    internalPlanId: string
+  ) {
+    try {
+      const subscription = await this.stripeClient().subscriptions.create({
+        customer: customerId,
+        items: [{ price: priceId }],
+        payment_behavior: 'default_incomplete',
+        payment_settings: { save_default_payment_method: 'on_subscription' },
+        expand: ['latest_invoice.payment_intent'],
+        metadata: { internalUserId, internalPlanId },
+      });
+
+      const invoice = subscription.latest_invoice as Stripe.Invoice & {
+        payment_intent: Stripe.PaymentIntent | null;
+      };
+
+      if (!invoice?.payment_intent?.client_secret) {
+        throw new Error('Failed to retrieve payment intent client secret');
+      }
+
+      return {
+        subscriptionId: subscription.id,
+        clientSecret: invoice.payment_intent.client_secret!,
+      };
+    } catch (error) {
+      this.handleError(error, 'Error creating Stripe subscription');
+    }
+  }
+
+  public constructWebhookEvent(
+    payload: Buffer,
+    signature: string,
+    secret: string
+  ): Stripe.Event {
+    return this.stripeClient().webhooks.constructEvent(
+      payload,
+      signature,
+      secret
+    );
+  }
 
   public getStripe() {
     return this.stripeClient();

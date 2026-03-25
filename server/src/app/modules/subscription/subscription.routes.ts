@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, raw } from 'express';
 
 import {
   createSubscriptionPlanController,
@@ -6,6 +6,8 @@ import {
   retrieveSingleSubscriptionPlanController,
   retrieveSubscriptionFeaturesController,
   retrieveSubscriptionPlansController,
+  stripePaymentIntentController,
+  stripeWebhookController,
   updateSubscriptionPlanController,
 } from '@/app/modules/subscription/subscription.controllers';
 import { findPlanById } from '@/app/modules/subscription/subscription.middlewares';
@@ -25,7 +27,10 @@ const router = Router();
  * =============================================
  */
 
-router.route('/webhooks/payment/stripe').post();
+router.route('/webhooks/payment/stripe').post(
+  raw({ type: 'application/json' }), // ← raw body REQUIRED for signature check
+  stripeWebhookController
+);
 
 /**
  * =============================================
@@ -36,8 +41,13 @@ router.route('/webhooks/payment/stripe').post();
 router.route('/subscriptions/plan').get(retrieveSubscriptionPlansController);
 
 router
-  .route('/subscriptions/intent')
-  .post(checkAccessToken, checkAccountStatus);
+  .route('/subscriptions/intent/:planId')
+  .post(
+    checkAccessToken,
+    checkAccountStatus,
+    findPlanById,
+    stripePaymentIntentController
+  );
 
 /**
  * =============================================
