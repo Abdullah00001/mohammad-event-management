@@ -100,6 +100,7 @@ model User {
 
   createdAt            DateTime    @default(now())
   updatedAt            DateTime    @updatedAt
+  stripeCustomerId String? @unique
 
   // Relations
   profile              Profile?
@@ -412,6 +413,8 @@ model SubscriptionPlan {
   createdById  String
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+  stripePriceId   String?  @unique
+  stripeProductId String?  @unique
 
   planFeatures  SubscriptionPlanFeature[]
   subscriptions UserSubscription[]
@@ -443,6 +446,7 @@ model UserSubscription {
   endDate      DateTime
   createdAt    DateTime           @default(now())
   updatedAt    DateTime           @updatedAt
+  stripeSubscriptionId String? @unique
 
   activeFeatures UserActiveFeature[]
   orcaGraceToken OrcaGraceToken?

@@ -1,8 +1,14 @@
-import { SubscriptionFeature } from '@prisma/client';
+import {
+  PlanChangeType,
+  SubscriptionFeature,
+  SubscriptionPlan,
+  User,
+} from '@prisma/client';
 import { JwtPayload } from 'jsonwebtoken';
 
 import prisma from '@/app/configs/db.configs';
 import { getRedisClient } from '@/app/configs/redis.config';
+import stripeService from '@/app/configs/stripe.configs';
 import { SubscriptionPlanDTO } from '@/app/modules/subscription/subscription.dto';
 import { TPlan } from '@/app/modules/subscription/subscription.schemas';
 import { expiresInTimeUnitToMs } from '@/app/utils/system.utils';
@@ -50,7 +56,7 @@ export const createSubscriptionPlanService = async ({
 }): Promise<void> => {
   const { duration, features, price, title } = requestBodyPayload;
   try {
-    await prisma.$transaction(async (tx) => {
+    const plan = await prisma.$transaction(async (tx) => {
       const plan = await tx.subscriptionPlan.create({
         data: {
           price,
@@ -65,7 +71,31 @@ export const createSubscriptionPlanService = async ({
           subscriptionFeatureId: feature,
         })),
       });
+      return plan;
     });
+    const { stripePriceId, stripeProductId } =
+      await stripeService.createProductAndPrice(
+        plan.id,
+        plan.title,
+        plan.price,
+        plan.currency,
+        plan.intervalDays
+      );
+
+    await prisma.$transaction([
+      prisma.subscriptionPlan.update({
+        where: { id: plan.id },
+        data: { stripeProductId, stripePriceId },
+      }),
+      prisma.subscriptionPlanHistory.create({
+        data: {
+          planId: plan.id,
+          snapshot: { ...plan, stripeProductId, stripePriceId },
+          changeType: PlanChangeType.CREATED,
+          changedById: user.id,
+        },
+      }),
+    ]);
     return;
   } catch (error) {
     if (error instanceof Error) throw error;
@@ -129,14 +159,14 @@ export const retrieveSubscriptionPlansService = async (): Promise<
 };
 
 export const retrieveSingleSubscriptionPlanService = async ({
-  planId,
+  plan,
 }: {
-  planId: string;
+  plan: SubscriptionPlan;
 }): Promise<SubscriptionPlanDTO | null> => {
   try {
-    const plan = await prisma.subscriptionPlan.findFirst({
+    const foundedPlan = await prisma.subscriptionPlan.findFirst({
       where: {
-        id: planId,
+        id: plan.id,
         isActive: true,
         deletedAt: null,
       },
@@ -170,9 +200,9 @@ export const retrieveSingleSubscriptionPlanService = async ({
       },
     });
 
-    if (!plan) return null;
+    if (!foundedPlan) return null;
 
-    return SubscriptionPlanDTO.fromEntity(plan);
+    return SubscriptionPlanDTO.fromEntity(foundedPlan);
   } catch (error) {
     if (error instanceof Error) throw error;
     throw new Error(
@@ -182,52 +212,78 @@ export const retrieveSingleSubscriptionPlanService = async ({
 };
 
 export const updateSubscriptionPlanService = async ({
-  planId,
+  plan,
   requestBodyPayload,
   user,
 }: {
-  planId: string;
+  plan: SubscriptionPlan;
   requestBodyPayload: TPlan;
   user: JwtPayload;
 }): Promise<void> => {
   const { duration, features, price, title } = requestBodyPayload;
-
   try {
     await prisma.$transaction(async (tx) => {
-      // 1. Verify plan exists and belongs to this user
-      const existing = await tx.subscriptionPlan.findFirst({
-        where: {
-          id: planId,
-          createdById: user.sub as string,
-          deletedAt: null,
-        },
-      });
-
-      if (!existing) throw new Error('Subscription plan not found');
-
-      // 2. Update plan fields
       await tx.subscriptionPlan.update({
-        where: { id: planId },
+        where: { id: plan.id },
         data: {
           title,
           price,
           intervalDays: duration,
         },
       });
-
-      // 3. Replace features — delete old junction rows, insert new ones
       await tx.subscriptionPlanFeature.deleteMany({
-        where: { planId },
+        where: { planId: plan.id },
       });
 
       await tx.subscriptionPlanFeature.createMany({
         data: features.map((featureId) => ({
-          planId,
+          planId: plan.id,
           subscriptionFeatureId: featureId,
         })),
       });
     });
+    if (plan.stripePriceId && plan.stripeProductId) {
+      await stripeService.updateProduct(plan.stripeProductId, title);
 
+      const priceChanged = plan.price !== price;
+      const intervalChanged = plan.intervalDays !== duration;
+
+      if (priceChanged || intervalChanged) {
+        const { stripePriceId: newPriceId } =
+          await stripeService.rotatePriceOnPlan(
+            plan.stripeProductId,
+            plan.stripePriceId,
+            price,
+            plan.currency,
+            duration
+          );
+        await prisma.subscriptionPlan.update({
+          where: { id: plan.id },
+          data: { stripePriceId: newPriceId },
+        });
+      }
+    } else {
+      const { stripeProductId, stripePriceId } =
+        await stripeService.createProductAndPrice(
+          plan.id,
+          title,
+          price,
+          plan.currency,
+          duration
+        );
+      await prisma.subscriptionPlan.update({
+        where: { id: plan.id },
+        data: { stripeProductId, stripePriceId },
+      });
+    }
+    await prisma.subscriptionPlanHistory.create({
+      data: {
+        planId: plan.id,
+        snapshot: { ...plan, title, price, intervalDays: duration },
+        changeType: PlanChangeType.UPDATED,
+        changedById: user.sub as string,
+      },
+    });
     return;
   } catch (error) {
     if (error instanceof Error) throw error;
@@ -238,27 +294,26 @@ export const updateSubscriptionPlanService = async ({
 };
 
 export const deleteSubscriptionPlanService = async ({
-  planId,
+  plan,
   user,
 }: {
-  planId: string;
+  plan: SubscriptionPlan;
   user: JwtPayload;
 }): Promise<void> => {
   try {
-    const existing = await prisma.subscriptionPlan.findFirst({
-      where: {
-        id: planId,
-        createdById: user.sub as string,
-        deletedAt: null,
-      },
-    });
-
-    if (!existing) throw new Error('Subscription plan not found');
-
-    // Soft delete
-    await prisma.subscriptionPlan.update({
-      where: { id: planId },
-      data: { deletedAt: new Date(), isActive: false },
+    await prisma.$transaction(async (tx) => {
+      await tx.subscriptionPlan.update({
+        where: { id: plan.id },
+        data: { deletedAt: new Date(), isActive: false },
+      });
+      await tx.subscriptionPlanHistory.create({
+        data: {
+          planId: plan.id,
+          snapshot: { ...plan },
+          changeType: PlanChangeType.DELETED,
+          changedById: user.sub as string,
+        },
+      });
     });
 
     return;
@@ -267,5 +322,20 @@ export const deleteSubscriptionPlanService = async ({
     throw new Error(
       'Unknown error occurred in delete subscription plan service'
     );
+  }
+};
+
+export const stripePaymentIntentService = async ({
+  user,
+  plan,
+}: {
+  user: User;
+  plan: SubscriptionPlan;
+}): Promise<void> => {
+  try {
+    return;
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error('Unknown error occurred in stripe payment intent service');
   }
 };

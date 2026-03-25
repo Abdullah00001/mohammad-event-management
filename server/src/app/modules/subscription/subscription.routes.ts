@@ -8,11 +8,24 @@ import {
   retrieveSubscriptionPlansController,
   updateSubscriptionPlanController,
 } from '@/app/modules/subscription/subscription.controllers';
+import { findPlanById } from '@/app/modules/subscription/subscription.middlewares';
 import { PlanSchema } from '@/app/modules/subscription/subscription.schemas';
-import { checkAdminAccessToken } from '@/app/modules/user/user.middlewares';
+import {
+  checkAccessToken,
+  checkAccountStatus,
+  checkAdminAccessToken,
+} from '@/app/modules/user/user.middlewares';
 import { validateReqBody } from '@/app/utils/system.utils';
 
 const router = Router();
+
+/**
+ * =============================================
+ * ------------- PAYMENT WEBHOOKS --------------
+ * =============================================
+ */
+
+router.route('/webhooks/payment/stripe').post();
 
 /**
  * =============================================
@@ -21,6 +34,10 @@ const router = Router();
  */
 
 router.route('/subscriptions/plan').get(retrieveSubscriptionPlansController);
+
+router
+  .route('/subscriptions/intent')
+  .post(checkAccessToken, checkAccountStatus);
 
 /**
  * =============================================
@@ -43,8 +60,16 @@ router
 
 router
   .route('/admin/subscriptions/plan/:planId')
-  .get(checkAdminAccessToken, retrieveSingleSubscriptionPlanController)
-  .put(checkAdminAccessToken, updateSubscriptionPlanController)
-  .delete(checkAdminAccessToken, deleteSubscriptionPlanController);
+  .get(
+    checkAdminAccessToken,
+    findPlanById,
+    retrieveSingleSubscriptionPlanController
+  )
+  .put(checkAdminAccessToken, findPlanById, updateSubscriptionPlanController)
+  .delete(
+    checkAdminAccessToken,
+    findPlanById,
+    deleteSubscriptionPlanController
+  );
 
 export default router;
