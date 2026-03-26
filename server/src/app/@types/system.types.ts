@@ -16,7 +16,9 @@ export type TEnv = {
   S3_REGION: string;
   S3_BUCKET_NAME: string;
   STRIPE_API_SECRET_KEY: string;
-  STRIPE_WEBHOOK_SECRET:string;
+  STRIPE_WEBHOOK_SECRET_KEY: string;
+  // GOOGLE_CLIENT_ID: string;
+  // APPLE_CLIENT_ID: string;
 };
 
 export type TMailOption = {

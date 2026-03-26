@@ -20,7 +20,7 @@ CREATE TYPE "FriendshipStatus" AS ENUM ('ACCEPTED', 'PENDING');
 CREATE TYPE "EventStatus" AS ENUM ('UPCOMING', 'ONGOING', 'COMPLETED', 'DELETED');
 
 -- CreateEnum
-CREATE TYPE "SubscriptionStatus" AS ENUM ('ACTIVE', 'EXPIRED', 'CANCELLED', 'PAYMENT_FAILED');
+CREATE TYPE "SubscriptionStatus" AS ENUM ('ACTIVE', 'EXPIRED', 'PAYMENT_FAILED');
 
 -- CreateEnum
 CREATE TYPE "PaymentStatus" AS ENUM ('PENDING', 'SUCCESS', 'FAILED', 'REFUNDED');
@@ -49,6 +49,7 @@ CREATE TABLE "User" (
     "premiumUntil" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    "stripeCustomerId" TEXT,
 
     CONSTRAINT "User_pkey" PRIMARY KEY ("id")
 );
@@ -142,7 +143,7 @@ CREATE TABLE "Event" (
     "lat" DOUBLE PRECISION NOT NULL,
     "long" DOUBLE PRECISION NOT NULL,
     "deletedAt" TIMESTAMP(3),
-    "activityTypes" TEXT[] DEFAULT ARRAY[]::TEXT[],
+    "interests" TEXT[] DEFAULT ARRAY[]::TEXT[],
     "isPrivate" BOOLEAN NOT NULL DEFAULT false,
     "inviteLink" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -262,20 +263,68 @@ CREATE TABLE "EventMessage" (
 );
 
 -- CreateTable
+CREATE TABLE "SubscriptionFeature" (
+    "id" TEXT NOT NULL,
+    "featureKey" TEXT NOT NULL,
+    "featureTitle" VARCHAR(48) NOT NULL,
+    "featureDescription" VARCHAR(180),
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "SubscriptionFeature_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "SubscriptionPlanFeature" (
+    "planId" TEXT NOT NULL,
+    "subscriptionFeatureId" TEXT NOT NULL,
+
+    CONSTRAINT "SubscriptionPlanFeature_pkey" PRIMARY KEY ("planId","subscriptionFeatureId")
+);
+
+-- CreateTable
 CREATE TABLE "SubscriptionPlan" (
     "id" TEXT NOT NULL,
     "title" TEXT NOT NULL,
     "price" DOUBLE PRECISION NOT NULL,
     "currency" TEXT NOT NULL DEFAULT 'USD',
     "intervalDays" INTEGER NOT NULL DEFAULT 30,
-    "features" TEXT[] DEFAULT ARRAY[]::TEXT[],
     "isActive" BOOLEAN NOT NULL DEFAULT true,
     "deletedAt" TIMESTAMP(3),
     "createdById" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    "stripePriceId" TEXT,
+    "stripeProductId" TEXT,
 
     CONSTRAINT "SubscriptionPlan_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "UserActiveFeature" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "subscriptionFeatureId" TEXT NOT NULL,
+    "subscriptionId" TEXT NOT NULL,
+
+    CONSTRAINT "UserActiveFeature_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "UserSubscription" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "planId" TEXT NOT NULL,
+    "planSnapshot" JSONB NOT NULL,
+    "status" "SubscriptionStatus" NOT NULL DEFAULT 'ACTIVE',
+    "startDate" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "endDate" TIMESTAMP(3) NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "stripeSubscriptionId" TEXT,
+
+    CONSTRAINT "UserSubscription_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -288,23 +337,6 @@ CREATE TABLE "SubscriptionPlanHistory" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "SubscriptionPlanHistory_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "UserSubscription" (
-    "id" TEXT NOT NULL,
-    "userId" TEXT NOT NULL,
-    "planId" TEXT NOT NULL,
-    "planSnapshot" JSONB NOT NULL,
-    "status" "SubscriptionStatus" NOT NULL DEFAULT 'ACTIVE',
-    "startDate" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "endDate" TIMESTAMP(3) NOT NULL,
-    "cancelledAt" TIMESTAMP(3),
-    "autoRenew" BOOLEAN NOT NULL DEFAULT true,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "UserSubscription_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -343,6 +375,7 @@ CREATE TABLE "UserTravelMode" (
 CREATE TABLE "OrcaGraceToken" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
+    "subscriptionId" TEXT NOT NULL,
     "isUsed" BOOLEAN NOT NULL DEFAULT false,
     "usedAt" TIMESTAMP(3),
     "resetsAt" TIMESTAMP(3) NOT NULL,
@@ -354,6 +387,9 @@ CREATE TABLE "OrcaGraceToken" (
 
 -- CreateIndex
 CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "User_stripeCustomerId_key" ON "User"("stripeCustomerId");
 
 -- CreateIndex
 CREATE INDEX "User_role_idx" ON "User"("role");
@@ -428,16 +464,40 @@ CREATE INDEX "EventMessage_eventId_createdAt_idx" ON "EventMessage"("eventId", "
 CREATE INDEX "EventMessage_senderId_idx" ON "EventMessage"("senderId");
 
 -- CreateIndex
-CREATE INDEX "SubscriptionPlan_isActive_idx" ON "SubscriptionPlan"("isActive");
+CREATE UNIQUE INDEX "SubscriptionFeature_featureKey_key" ON "SubscriptionFeature"("featureKey");
 
 -- CreateIndex
-CREATE INDEX "SubscriptionPlanHistory_planId_idx" ON "SubscriptionPlanHistory"("planId");
+CREATE INDEX "SubscriptionFeature_featureKey_idx" ON "SubscriptionFeature"("featureKey");
+
+-- CreateIndex
+CREATE INDEX "SubscriptionFeature_isActive_idx" ON "SubscriptionFeature"("isActive");
+
+-- CreateIndex
+CREATE INDEX "SubscriptionPlanFeature_planId_idx" ON "SubscriptionPlanFeature"("planId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "SubscriptionPlan_stripePriceId_key" ON "SubscriptionPlan"("stripePriceId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "SubscriptionPlan_stripeProductId_key" ON "SubscriptionPlan"("stripeProductId");
+
+-- CreateIndex
+CREATE INDEX "UserActiveFeature_userId_idx" ON "UserActiveFeature"("userId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "UserActiveFeature_userId_subscriptionFeatureId_key" ON "UserActiveFeature"("userId", "subscriptionFeatureId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "UserSubscription_stripeSubscriptionId_key" ON "UserSubscription"("stripeSubscriptionId");
 
 -- CreateIndex
 CREATE INDEX "UserSubscription_userId_status_idx" ON "UserSubscription"("userId", "status");
 
 -- CreateIndex
 CREATE INDEX "UserSubscription_endDate_idx" ON "UserSubscription"("endDate");
+
+-- CreateIndex
+CREATE INDEX "SubscriptionPlanHistory_planId_idx" ON "SubscriptionPlanHistory"("planId");
 
 -- CreateIndex
 CREATE INDEX "PaymentTransaction_subscriptionId_idx" ON "PaymentTransaction"("subscriptionId");
@@ -450,6 +510,9 @@ CREATE UNIQUE INDEX "UserTravelMode_userId_key" ON "UserTravelMode"("userId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "OrcaGraceToken_userId_key" ON "OrcaGraceToken"("userId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "OrcaGraceToken_subscriptionId_key" ON "OrcaGraceToken"("subscriptionId");
 
 -- AddForeignKey
 ALTER TABLE "Profile" ADD CONSTRAINT "Profile_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -518,13 +581,28 @@ ALTER TABLE "EventMessage" ADD CONSTRAINT "EventMessage_eventId_fkey" FOREIGN KE
 ALTER TABLE "EventMessage" ADD CONSTRAINT "EventMessage_senderId_fkey" FOREIGN KEY ("senderId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "SubscriptionPlanHistory" ADD CONSTRAINT "SubscriptionPlanHistory_planId_fkey" FOREIGN KEY ("planId") REFERENCES "SubscriptionPlan"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "SubscriptionPlanFeature" ADD CONSTRAINT "SubscriptionPlanFeature_planId_fkey" FOREIGN KEY ("planId") REFERENCES "SubscriptionPlan"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "SubscriptionPlanFeature" ADD CONSTRAINT "SubscriptionPlanFeature_subscriptionFeatureId_fkey" FOREIGN KEY ("subscriptionFeatureId") REFERENCES "SubscriptionFeature"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "UserActiveFeature" ADD CONSTRAINT "UserActiveFeature_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "UserActiveFeature" ADD CONSTRAINT "UserActiveFeature_subscriptionFeatureId_fkey" FOREIGN KEY ("subscriptionFeatureId") REFERENCES "SubscriptionFeature"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "UserActiveFeature" ADD CONSTRAINT "UserActiveFeature_subscriptionId_fkey" FOREIGN KEY ("subscriptionId") REFERENCES "UserSubscription"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "UserSubscription" ADD CONSTRAINT "UserSubscription_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "UserSubscription" ADD CONSTRAINT "UserSubscription_planId_fkey" FOREIGN KEY ("planId") REFERENCES "SubscriptionPlan"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "SubscriptionPlanHistory" ADD CONSTRAINT "SubscriptionPlanHistory_planId_fkey" FOREIGN KEY ("planId") REFERENCES "SubscriptionPlan"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "PaymentTransaction" ADD CONSTRAINT "PaymentTransaction_subscriptionId_fkey" FOREIGN KEY ("subscriptionId") REFERENCES "UserSubscription"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -534,3 +612,6 @@ ALTER TABLE "UserTravelMode" ADD CONSTRAINT "UserTravelMode_userId_fkey" FOREIGN
 
 -- AddForeignKey
 ALTER TABLE "OrcaGraceToken" ADD CONSTRAINT "OrcaGraceToken_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "OrcaGraceToken" ADD CONSTRAINT "OrcaGraceToken_subscriptionId_fkey" FOREIGN KEY ("subscriptionId") REFERENCES "UserSubscription"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

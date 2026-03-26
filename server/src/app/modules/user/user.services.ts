@@ -265,8 +265,8 @@ export const retrieveUserList = async ({
         where: { id: { not: user.sub } },
       }),
     ]);
-    const totalPages = Math.ceil(totalCount / limitNum);
-    const from = skip + 1;
+    const totalPages = totalCount === 0 ? 1 : Math.ceil(totalCount / limitNum);
+    const from = totalCount === 0 ? 0 : skip + 1;
     const to = Math.min(skip + limitNum, totalCount);
     const showing = `Showing ${from} to ${to} of ${totalCount} results`;
     const data = users.map((u) => ({
