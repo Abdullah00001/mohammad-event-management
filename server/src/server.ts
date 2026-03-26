@@ -18,7 +18,9 @@ async function main(): Promise<void> {
   await connectDatabase();
   initializeSocket(server);
   server.listen(port, '0.0.0.0', () => {
-    console.log(`Server Running On Port : ${port}`);
+    console.log(`🚀 Server ready!`);
+    console.log(`🏠 Local:   http://localhost:${port}`);
+    console.log(`🌐 Network: http://10.10.10.28:${port}`);
   });
 }
 
