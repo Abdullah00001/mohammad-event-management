@@ -26,6 +26,7 @@ import {
   loginSchema,
   signupSchema,
   verifyOtpSchema,
+  gpsPayloadSchema,
 } from '@/app/modules/user/user.schemas';
 import { validateReqBody } from '@/app/utils/system.utils';
 
@@ -65,8 +66,12 @@ router
 
 router
   .route('/auth/check')
-  .get(checkAccessToken, checkAccountStatus, checkAccessTokenController);
-
+  .post(
+    checkAccessToken,
+    checkAccountStatus,
+    validateReqBody(gpsPayloadSchema),
+    checkAccessTokenController
+  );
 /**
  * ==============================================
  * ============== ADMIN ENDPOINTS ===============

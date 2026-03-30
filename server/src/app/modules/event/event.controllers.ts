@@ -17,6 +17,7 @@ export const createEventController = asyncHandler(
     const traceId = getTraceId();
     const user = req.user as User;
     const payload = req.body as TEventCreatePayload;
+    console.log(payload);
     await createEventService({
       payload,
       user,

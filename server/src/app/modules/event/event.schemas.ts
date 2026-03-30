@@ -28,17 +28,26 @@ export const EventCreateSchema = z.object({
       message: 'startDate must be in the future',
     }),
 
-  // HH:mm format — stored as string in Prisma
   startTime: z
     .string({ error: 'time is required' })
-    .regex(/^(0[1-9]|1[0-2]):([0-5]\d)\s(AM|PM)$/, {
-      message: 'time must be in HH:MM AM/PM format (e.g. 02:30 PM)',
-    }),
+    .regex(/^([01]\d|2[0-3]):([0-5]\d)\s(AM|PM)$/, {
+      message: 'time must be in HH:MM AM/PM format (e.g. 14:30 PM)',
+    })
+    .refine(
+      (val) => {
+        const [hourStr, , period] = val.split(/[:\s]/);
+        const hour = parseInt(hourStr);
+        return (
+          (hour < 12 && period === 'AM') || (hour >= 12 && period === 'PM')
+        );
+      },
+      { message: 'AM/PM must match the hour (00–11 → AM, 12–23 → PM)' }
+    ),
 
   maxParticipantsCount: z
     .number({ error: 'maxParticipantsCount must be a number' })
     .int({ message: 'maxParticipantsCount must be an integer' })
-    .min(2, { message: 'maxParticipantsCount must be at least 2' })
+    .min(10, { message: 'maxParticipantsCount must be at least 2' })
     .max(500, { message: 'maxParticipantsCount must not exceed 500' })
     .default(10),
 
@@ -53,6 +62,7 @@ export const EventCreateSchema = z.object({
     .max(180, { message: 'long must be between -180 and 180' }),
 
   eventTypeId: z.uuid({ message: 'eventTypeId must be a valid UUID' }),
+  isPrivate: z.boolean().default(false),
 });
 
 export type TEventCreatePayload = z.infer<typeof EventCreateSchema>;

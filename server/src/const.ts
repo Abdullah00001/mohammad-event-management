@@ -5,6 +5,7 @@ export const baseUrl = {
   v1: '/api/v1',
 };
 export const otpPageTokenExpireIn = '1d';
+export const userLocationCacheExpireIn='1d';
 export const userAccessTokenExpiresIn = '3d';
 export const adminAccessTokenExpiresIn = '15m';
 export const refreshTokenExpiresInWithOutRememberMe = '3d';

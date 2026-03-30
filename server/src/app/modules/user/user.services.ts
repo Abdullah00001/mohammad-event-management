@@ -6,7 +6,9 @@ import prisma from '@/app/configs/db.configs';
 import { getRedisClient } from '@/app/configs/redis.config';
 import { getTraceId } from '@/app/configs/requestContext.configs';
 import { SignupResponseDTO } from '@/app/modules/user/user.dto';
+import { TGpsPayload, TSignupPayload } from '@/app/modules/user/user.schemas';
 import { getEmailQueue } from '@/app/queues/queues';
+import { parseExpiresIn } from '@/app/utils/cookie.utils';
 import {
   generateAccessTokenForAdmin,
   generateAccessTokenForUser,
@@ -16,15 +18,16 @@ import {
 import { hashOtp } from '@/app/utils/otp.utils';
 import { hashPassword } from '@/app/utils/password.utils';
 import { calculateMilliseconds } from '@/app/utils/system.utils';
-import { baseUrl, otpExpireAt } from '@/const';
+import { baseUrl, otpExpireAt, userLocationCacheExpireIn } from '@/const';
 
 export const signupService = async ({
   email,
   password,
-}: {
-  email: string;
-  password: string;
-}): Promise<{ user: SignupResponseDTO; signupPageToken: string }> => {
+  gpsPayloadSchema,
+}: TSignupPayload): Promise<{
+  user: SignupResponseDTO;
+  signupPageToken: string;
+}> => {
   const traceId = getTraceId();
   try {
     const hashPass = await hashPassword(password);
@@ -68,7 +71,14 @@ export const signupService = async ({
     };
     const redisClient = getRedisClient();
     const ttl = calculateMilliseconds(otpExpireAt, 'minute');
+    const gpsLocationTtl = parseExpiresIn(userLocationCacheExpireIn);
     await Promise.all([
+      redisClient.set(
+        `user:location:${newUser.user.id}`,
+        JSON.stringify(gpsPayloadSchema),
+        'PX',
+        gpsLocationTtl
+      ),
       redisClient.set(`user:${newUser.user.id}:otp`, hashedOtp, 'PX', ttl),
       getEmailQueue().add('send-signup-user-verify-otp-email', emailData),
     ]);
@@ -79,6 +89,28 @@ export const signupService = async ({
   } catch (error) {
     if (error instanceof Error) throw error;
     throw new Error('Unexpected Error Occurred In Signup Service');
+  }
+};
+
+export const checkAccessTokenService = async ({
+  locationPayload,
+  user,
+}: {
+  user: User;
+  locationPayload: TGpsPayload;
+}) => {
+  try {
+    const redisClient = getRedisClient();
+    const gpsLocationTtl = parseExpiresIn(userLocationCacheExpireIn);
+    await redisClient.set(
+      `user:location:${user.id}`,
+      JSON.stringify(locationPayload),
+      'PX',
+      gpsLocationTtl
+    );
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error('Unexpected Error Occurred In Check AccessToken Service');
   }
 };
 
@@ -165,10 +197,12 @@ export const loginService = async ({
   isAdmin,
   user,
   rememberMe,
+  gpsLocationPayload,
 }: {
   isAdmin: boolean;
   rememberMe: boolean;
   user: User;
+  gpsLocationPayload: TGpsPayload | undefined;
 }): Promise<{ accessToken: string; refreshToken?: string }> => {
   try {
     if (isAdmin) {
@@ -195,6 +229,14 @@ export const loginService = async ({
       rememberMe,
       accountStatus: user.accountStatus,
     });
+    const redisClient = getRedisClient();
+    const gpsLocationTtl = parseExpiresIn(userLocationCacheExpireIn);
+    await redisClient.set(
+      `user:location:${user.id}`,
+      JSON.stringify(gpsLocationPayload),
+      'PX',
+      gpsLocationTtl
+    );
     return { accessToken };
   } catch (error) {
     if (error instanceof Error) throw error;

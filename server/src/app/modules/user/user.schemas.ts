@@ -1,5 +1,29 @@
 import { z } from 'zod';
 
+export const gpsPayloadSchema = z.object({
+  lng: z
+    .string()
+    .transform((val) => parseFloat(val))
+    .pipe(
+      z
+        .number()
+        .min(-180, 'Longitude must be >= -180')
+        .max(180, 'Longitude must be <= 180')
+    ),
+
+  lat: z
+    .string()
+    .transform((val) => parseFloat(val))
+    .pipe(
+      z
+        .number()
+        .min(-90, 'Latitude must be >= -90')
+        .max(90, 'Latitude must be <= 90')
+    ),
+});
+
+export type TGpsPayload = z.infer<typeof gpsPayloadSchema>;
+
 export const signupSchema = z.object({
   email: z
     .string()
@@ -14,7 +38,10 @@ export const signupSchema = z.object({
       /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
       'Password must contain at least one uppercase letter, one lowercase letter, and one number'
     ),
+  gpsPayloadSchema,
 });
+
+export type TSignupPayload = z.infer<typeof signupSchema>;
 
 export const verifyOtpSchema = z
   .object({
@@ -45,4 +72,7 @@ export const loginSchema = z.object({
   rememberMe: z
     .boolean({ message: 'Remember me field is required' })
     .default(false),
-});
+  location: gpsPayloadSchema.optional(),
+}).strict();
+
+export type TLoginPayload = z.infer<typeof loginSchema>;

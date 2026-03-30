@@ -4,6 +4,11 @@ import { JwtPayload } from 'jsonwebtoken';
 
 import { getTraceId } from '@/app/configs/requestContext.configs';
 import {
+  TGpsPayload,
+  TLoginPayload,
+  TSignupPayload,
+} from '@/app/modules/user/user.schemas';
+import {
   adminRefreshToken,
   loginService,
   resendSignupUserOtp,
@@ -12,6 +17,7 @@ import {
   retrieveUserList,
   retrieveSingleUser,
   changeUserAccountStatusService,
+  checkAccessTokenService,
 } from '@/app/modules/user/user.services';
 import { cookieOption } from '@/app/utils/cookie.utils';
 import { extractToken } from '@/app/utils/jwt.utils';
@@ -25,8 +31,8 @@ import {
 export const signupController = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
     const traceId = getTraceId();
-    const { email, password } = req.body;
-    const data = await signupService({ email, password });
+    const { email, password, gpsPayloadSchema } = req.body as TSignupPayload;
+    const data = await signupService({ email, password, gpsPayloadSchema });
     res
       .status(200)
       .json({ success: true, message: 'Signup successful', data, traceId });
@@ -66,7 +72,7 @@ export const resendSignupUserOtpController = asyncHandler(
 
 export const loginController = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
-    const { rememberMe } = req.body;
+    const { rememberMe, location } = req.body as TLoginPayload;
     const path = req.path;
     const isAdminLogin = path.includes('/admin/auth/login');
     const traceId = getTraceId();
@@ -75,6 +81,7 @@ export const loginController = asyncHandler(
       isAdmin: isAdminLogin,
       user,
       rememberMe,
+      gpsLocationPayload: location,
     });
     if (isAdminLogin && refreshToken) {
       const refreshTokenExpireIn = rememberMe
@@ -106,8 +113,11 @@ export const loginController = asyncHandler(
 );
 
 export const checkAccessTokenController = asyncHandler(
-  async (_req: Request, res: Response): Promise<void> => {
+  async (req: Request, res: Response): Promise<void> => {
     const traceId = getTraceId();
+    const user = req.user as User;
+    const payload = req.body as TGpsPayload;
+    await checkAccessTokenService({ user, locationPayload: payload });
     res
       .status(200)
       .json({ success: true, message: 'User Is Authenticated', traceId });

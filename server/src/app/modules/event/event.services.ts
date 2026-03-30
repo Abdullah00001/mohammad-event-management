@@ -25,6 +25,7 @@ export const createEventService = async ({
       maxParticipantsCount,
       startDate,
       startTime,
+      isPrivate
     } = payload;
     await prisma.$transaction(async (tx) => {
       const event = await tx.event.create({
@@ -36,6 +37,7 @@ export const createEventService = async ({
           maxParticipantsCount,
           startDate,
           startTime,
+          isPrivate
         },
       });
 
