@@ -7,10 +7,11 @@ import utc from 'dayjs/plugin/utc';
 import type { Request, Response, NextFunction, RequestHandler } from 'express';
 import { ZodType } from 'zod';
 
-import { TMailOption } from '@/app/@types/system.types';
+import { TFirebaseCredentials, TMailOption } from '@/app/@types/system.types';
 import logger from '@/app/configs/logger.configs';
 import { getTraceId } from '@/app/configs/requestContext.configs';
 import { NOMINATIM_URL } from '@/const';
+import { env } from '@/env';
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -257,4 +258,19 @@ export async function getCountryFromCoords(
   };
 
   return data.address?.country_code?.toUpperCase() ?? null; // "BD", "US" …
+}
+
+export function getFirebaseCredentials(): TFirebaseCredentials {
+  return {
+    type: env.FIREBASE_ACCOUNT_TYPE,
+    project_id: env.FIREBASE_PROJECT_ID,
+    private_key_id: env.FIREBASE_PRIVATE_KEY_ID,
+    private_key: env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'), // Handle escaped newlines
+    client_id: env.FIREBASE_CLIENT_ID,
+    auth_uri: env.FIREBASE_AUTH_URI,
+    token_uri: env.FIREBASE_TOKEN_URI,
+    auth_provider_x509_cert_url: env.FIREBASE_AUTH_PROVIDER_X509_CERT_URL,
+    client_x509_cert_url: env.FIREBASE_CLIENT_X509_CERT_URL,
+    universe_domain: env.FIREBASE_UNIVERSE_DOMAIN,
+  };
 }

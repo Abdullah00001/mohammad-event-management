@@ -45,8 +45,8 @@ router
 router
   .route('/auth/verify')
   .post(
-    validateReqBody(verifyOtpSchema),
     checkOtpPageToken,
+    validateReqBody(verifyOtpSchema),
     checkOtp,
     verifySignupUserController
   );
