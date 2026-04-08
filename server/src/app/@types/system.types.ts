@@ -29,6 +29,7 @@ export type TEnv = {
   FIREBASE_AUTH_PROVIDER_X509_CERT_URL: string;
   FIREBASE_CLIENT_X509_CERT_URL: string;
   FIREBASE_UNIVERSE_DOMAIN: string;
+  FIREBASE_CLIENT_EMAIL: string;
 };
 
 export type TMailOption = {
@@ -56,4 +57,14 @@ export type TFirebaseCredentials = {
   auth_provider_x509_cert_url: string;
   client_x509_cert_url: string;
   universe_domain: string;
+  client_email: string;
 };
+
+export type TSendNotificationPayload={
+  fcmToken: string;
+  data: {
+    title: string;
+    description: string;
+  },
+  userId:string
+}

@@ -55,6 +55,12 @@ enum SubscriptionStatus {
   PAYMENT_FAILED
 }
 
+enum NotificationType {
+  FRIEND_REQUEST
+  EVENT_REMINDER
+  PUSH_NOTIFICATION
+}
+
 enum PaymentStatus {
   PENDING
   SUCCESS
@@ -304,6 +310,7 @@ model Notification {
   user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   notificationTitle       String
   notificationDescription String
+  type                    NotificationType
   isRead                  Boolean  @default(false)
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
