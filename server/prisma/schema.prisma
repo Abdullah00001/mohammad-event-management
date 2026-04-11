@@ -56,10 +56,27 @@ enum SubscriptionStatus {
 }
 
 enum NotificationType {
+  EVENT_JOIN
+  EVENT_LEAVE
+  HOST_REMOVED_USER
+  WAITLIST_ACCEPTED
+  EVENT_COMPLETED
   FRIEND_REQUEST
-  EVENT_REMINDER
-  PUSH_NOTIFICATION
+  FRIEND_ACCEPTED
+  SPOT_OPENED
+  EVENT_NEARBY
+  CHAT_MESSAGE
+  POD_MESSAGE
+  POR_INVITE
 }
+
+
+enum StrikeReason {
+  LATE_CANCELLATION   // user cancelled within 6 h window
+  NO_SHOW             // host confirmed absence in journal
+  MANUAL_ADMIN        // admin applied / reversed a strike manually
+}
+
 
 enum PaymentStatus {
   PENDING
@@ -129,6 +146,8 @@ model User {
   orcaGraceToken       OrcaGraceToken?
   travelMode           UserTravelMode?
   activeFeatures       UserActiveFeature[]
+  devices              Device[]
+  waitlists            WaitList[]
 
   // Pod invites received
   podInvites           PodInvite[]
@@ -187,7 +206,6 @@ model UserPreference {
   id                  String  @id @default(uuid())
   userId              String  @unique
   user                User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  pushNotification    Boolean @default(true)
   emailNotification   Boolean @default(true)
   eventReminders      Boolean @default(true)
   friendRequest       Boolean @default(true)
@@ -244,6 +262,7 @@ model Event {
   messages             EventMessage[]
   eventTypes           EventEventType[]
   invites              PodInvite[]
+  waitlists            WaitList[]
 
   createdAt            DateTime    @default(now())
   updatedAt            DateTime    @updatedAt
@@ -273,6 +292,19 @@ model EventParticipants {
   journalNoShow    Boolean   @default(false)
   journalSubmitted Boolean   @default(false)
   journalSubmittedAt DateTime?
+}
+
+
+model WaitList {
+  id            String   @id @default(uuid())
+  eventId       String
+  event         Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  joinedAt      DateTime @default(now())
+
+  @@unique([eventId, userId])
 }
 
 // Private Pod invite — Feature 4
@@ -315,7 +347,20 @@ model Notification {
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
 
-  @@index([userId])
+  @@index([userId, isRead])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([type, createdAt])
+}
+
+model Device {
+  id        String @id @default(uuid())
+  userId    String 
+  fcmToken  String @unique
+  platform  String // ios / android
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 // ─── Messaging ────────────────────────────────────────────────────

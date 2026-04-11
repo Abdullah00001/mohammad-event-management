@@ -276,11 +276,11 @@ export function getFirebaseCredentials(): TFirebaseCredentials {
   };
 }
 
-// export async function sendNotification({data,fcmToken,userId}: TSendNotificationPayload) {
-//   try {
-//     const user=await 
-//   } catch (error) {
-//     if(error instanceof Error) logger.error(`Error sending notification to user ${userId}:`, error);
-//     else logger.error(`Unknown error sending notification to user ${userId}:`, error);
-//   }
-// }
+export async function sendNotification({data,fcmToken,userId}: TSendNotificationPayload) {
+  try {
+    // const user=await 
+  } catch (error) {
+    if(error instanceof Error) logger.error(`Error sending notification to user ${userId}:`, error);
+    else logger.error(`Unknown error sending notification to user ${userId}:`, error);
+  }
+}
