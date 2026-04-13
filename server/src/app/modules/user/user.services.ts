@@ -106,21 +106,38 @@ export const signupService = async ({
 };
 
 export const checkAccessTokenService = async ({
-  locationPayload,
+  location,
+  fcmToken,
+  platform,
   user,
 }: {
   user: User;
-  locationPayload: TGpsPayload;
+  location: TGpsPayload;
+  fcmToken: string;
+  platform: string;
 }) => {
   try {
     const redisClient = getRedisClient();
     const gpsLocationTtl = parseExpiresIn(userLocationCacheExpireIn);
-    await redisClient.set(
-      `user:location:${user.id}`,
-      JSON.stringify(locationPayload),
-      'PX',
-      gpsLocationTtl
-    );
+    await prisma.device.create({
+      data: {
+        userId: user?.id,
+        fcmToken,
+        platform,
+      },
+    });
+    await Promise.all([
+      redisClient.geoadd(
+        'users:locations',
+        location.lng,
+        location.lat,
+        String(user.id)
+      ),
+      redisClient.expire(
+        `user:location:${user.id}`,
+        Math.floor(gpsLocationTtl / 1000)
+      ),
+    ]);
   } catch (error) {
     if (error instanceof Error) throw error;
     throw new Error('Unexpected Error Occurred In Check AccessToken Service');

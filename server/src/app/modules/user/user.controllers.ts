@@ -4,6 +4,7 @@ import { JwtPayload } from 'jsonwebtoken';
 
 import { getTraceId } from '@/app/configs/requestContext.configs';
 import {
+  TCheckAccessTokenPayload,
   TGpsPayload,
   TLoginPayload,
   TSignupPayload,
@@ -126,8 +127,8 @@ export const checkAccessTokenController = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
     const traceId = getTraceId();
     const user = req.user as User;
-    const payload = req.body as TGpsPayload;
-    await checkAccessTokenService({ user, locationPayload: payload });
+    const {fcmToken,location,platform} = req.body as TCheckAccessTokenPayload;
+    await checkAccessTokenService({ user, fcmToken, location, platform });
     res
       .status(200)
       .json({ success: true, message: 'User Is Authenticated', traceId });

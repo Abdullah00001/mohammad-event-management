@@ -24,6 +24,19 @@ export const gpsPayloadSchema = z.object({
 
 export type TGpsPayload = z.infer<typeof gpsPayloadSchema>;
 
+export const checkAccessTokenSchema = z.object({
+  location: gpsPayloadSchema,
+  fcmToken: z
+    .string()
+    .min(1, 'FCM Token is required')
+    .regex(/^[a-zA-Z0-9\-_:]{100,250}$/, 'Invalid FCM token format'),
+  platform: z.enum(['ios', 'android'], {
+    message: 'Platform must be one of ios, android, or web',
+  }),
+});
+
+export type TCheckAccessTokenPayload = z.infer<typeof checkAccessTokenSchema>;
+
 export const signupSchema = z.object({
   email: z
     .string()

@@ -27,7 +27,7 @@ import {
   loginSchema,
   signupSchema,
   verifyOtpSchema,
-  gpsPayloadSchema,
+  checkAccessTokenSchema,
 } from '@/app/modules/user/user.schemas';
 import { validateReqBody } from '@/app/utils/system.utils';
 
@@ -71,7 +71,8 @@ router
   .post(
     checkAccessToken,
     checkAccountStatus,
-    validateReqBody(gpsPayloadSchema),
+    checkDeviceFcmAccessToken,
+    validateReqBody(checkAccessTokenSchema),
     checkAccessTokenController
   );
 /**
