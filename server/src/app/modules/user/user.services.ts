@@ -24,6 +24,8 @@ export const signupService = async ({
   email,
   password,
   gpsPayloadSchema,
+  fcmToken,
+  platform,
 }: TSignupPayload): Promise<{
   user: SignupResponseDTO;
   signupPageToken: string;
@@ -46,6 +48,13 @@ export const signupService = async ({
       await tx.userPreference.create({
         data: {
           userId: user?.id,
+        },
+      });
+      await tx.device.create({
+        data: {
+          userId: user?.id,
+          fcmToken,
+          platform,
         },
       });
       return { user };
@@ -71,13 +80,17 @@ export const signupService = async ({
     };
     const redisClient = getRedisClient();
     const ttl = calculateMilliseconds(otpExpireAt, 'minute');
-    const gpsLocationTtl = parseExpiresIn(userLocationCacheExpireIn);
+    const gpsLocationTtl = parseExpiresIn(userLocationCacheExpireIn); // its will be return in milliseconds
     await Promise.all([
-      redisClient.set(
+      redisClient.geoadd(
+        'users:locations',
+        gpsPayloadSchema.lng,
+        gpsPayloadSchema.lat,
+        String(newUser.user.id)
+      ),
+      redisClient.expire(
         `user:location:${newUser.user.id}`,
-        JSON.stringify(gpsPayloadSchema),
-        'PX',
-        gpsLocationTtl
+        Math.floor(gpsLocationTtl / 1000)
       ),
       redisClient.set(`user:${newUser.user.id}:otp`, hashedOtp, 'PX', ttl),
       getEmailQueue().add('send-signup-user-verify-otp-email', emailData),
@@ -198,11 +211,15 @@ export const loginService = async ({
   user,
   rememberMe,
   gpsLocationPayload,
+  fcmToken,
+  platform,
 }: {
   isAdmin: boolean;
   rememberMe: boolean;
   user: User;
-  gpsLocationPayload: TGpsPayload | undefined;
+  gpsLocationPayload: TGpsPayload;
+  fcmToken: string;
+  platform: string;
 }): Promise<{ accessToken: string; refreshToken?: string }> => {
   try {
     if (isAdmin) {
@@ -222,6 +239,13 @@ export const loginService = async ({
       });
       return { accessToken, refreshToken };
     }
+    await prisma.device.create({
+      data: {
+        userId: user.id,
+        fcmToken,
+        platform,
+      },
+    });
     const accessToken = generateAccessTokenForUser({
       isVerified: user.isVerified,
       role: user.role,
@@ -231,12 +255,18 @@ export const loginService = async ({
     });
     const redisClient = getRedisClient();
     const gpsLocationTtl = parseExpiresIn(userLocationCacheExpireIn);
-    await redisClient.set(
-      `user:location:${user.id}`,
-      JSON.stringify(gpsLocationPayload),
-      'PX',
-      gpsLocationTtl
-    );
+    await Promise.all([
+      redisClient.geoadd(
+        'users:locations',
+        gpsLocationPayload.lng,
+        gpsLocationPayload.lat,
+        String(user.id)
+      ),
+      redisClient.expire(
+        `user:location:${user.id}`,
+        Math.floor(gpsLocationTtl / 1000)
+      ),
+    ]);
     return { accessToken };
   } catch (error) {
     if (error instanceof Error) throw error;

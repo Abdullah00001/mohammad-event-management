@@ -8,6 +8,7 @@ import RecoverRoutes from '@/app/modules/recover/recover.routes';
 import SubscriptionRoutes from '@/app/modules/subscription/subscription.routes';
 import UserTraits from '@/app/modules/survey/survey.routes';
 import UserRoutes from '@/app/modules/user/user.routes';
+import NotificationRoutes from '@/app/modules/notification/notification.routes';
 
 const routes: Router[] = [
   UserRoutes,
@@ -18,6 +19,7 @@ const routes: Router[] = [
   EventTypes,
   EventRoutes,
   SubscriptionRoutes,
+  NotificationRoutes,
 ];
 
 const v1Routes = Router();

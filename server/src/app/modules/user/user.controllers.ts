@@ -31,8 +31,15 @@ import {
 export const signupController = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
     const traceId = getTraceId();
-    const { email, password, gpsPayloadSchema } = req.body as TSignupPayload;
-    const data = await signupService({ email, password, gpsPayloadSchema });
+    const { email, password, gpsPayloadSchema, fcmToken, platform } =
+      req.body as TSignupPayload;
+    const data = await signupService({
+      email,
+      password,
+      gpsPayloadSchema,
+      fcmToken,
+      platform,
+    });
     res
       .status(200)
       .json({ success: true, message: 'Signup successful', data, traceId });
@@ -72,7 +79,8 @@ export const resendSignupUserOtpController = asyncHandler(
 
 export const loginController = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
-    const { rememberMe, location } = req.body as TLoginPayload;
+    const { rememberMe, location, fcmToken, platform } =
+      req.body as TLoginPayload;
     const path = req.path;
     const isAdminLogin = path.includes('/admin/auth/login');
     const traceId = getTraceId();
@@ -82,6 +90,8 @@ export const loginController = asyncHandler(
       user,
       rememberMe,
       gpsLocationPayload: location,
+      fcmToken,
+      platform,
     });
     if (isAdminLogin && refreshToken) {
       const refreshTokenExpireIn = rememberMe

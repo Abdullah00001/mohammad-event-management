@@ -21,6 +21,7 @@ import {
   checkPassword,
   findUserWithEmail,
   isAdmin,
+  checkDeviceFcmAccessToken,
 } from '@/app/modules/user/user.middlewares';
 import {
   loginSchema,
@@ -60,6 +61,7 @@ router
   .post(
     validateReqBody(loginSchema),
     findUserWithEmail,
+    checkDeviceFcmAccessToken,
     checkPassword,
     loginController
   );

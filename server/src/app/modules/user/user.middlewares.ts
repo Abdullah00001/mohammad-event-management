@@ -297,3 +297,24 @@ export const checkAccountStatus = asyncHandler(
     next();
   }
 );
+
+export const checkDeviceFcmAccessToken = asyncHandler(
+  async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
+    const user = req.user as User;
+    const isExist = await prisma.device.findFirst({
+      where: {
+        fcmToken: req.body.fcmToken,
+        userId: user.id,
+      },
+    });
+    if (isExist) {
+      await prisma.device.delete({
+        where: {
+          id: isExist.id,
+        },
+      });
+    }
+    next();
+    return;
+  }
+);

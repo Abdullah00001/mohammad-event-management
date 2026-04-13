@@ -32,7 +32,7 @@ router.route('/interest').get(checkAccessToken, getInterestController);
 
 router
   .route('/interest/search')
-  .get(checkAdminAccessToken, searchInterestController);
+  .get(checkAccessToken, searchInterestController);
 
 /**
  * =================================================
