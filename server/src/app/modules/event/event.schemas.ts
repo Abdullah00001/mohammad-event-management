@@ -43,6 +43,21 @@ export const EventCreateSchema = z.object({
       },
       { message: 'AM/PM must match the hour (00–11 → AM, 12–23 → PM)' }
     ),
+  endTime: z
+    .string({ error: 'time is required' })
+    .regex(/^([01]\d|2[0-3]):([0-5]\d)\s(AM|PM)$/, {
+      message: 'time must be in HH:MM AM/PM format (e.g. 14:30 PM)',
+    })
+    .refine(
+      (val) => {
+        const [hourStr, , period] = val.split(/[:\s]/);
+        const hour = parseInt(hourStr);
+        return (
+          (hour < 12 && period === 'AM') || (hour >= 12 && period === 'PM')
+        );
+      },
+      { message: 'AM/PM must match the hour (00–11 → AM, 12–23 → PM)' }
+    ),
 
   maxParticipantsCount: z
     .number({ error: 'maxParticipantsCount must be a number' })
@@ -102,7 +117,8 @@ export const querySchema = z.object({
         .number()
         .min(-180, 'Longitude must be >= -180')
         .max(180, 'Longitude must be <= 180')
-    ),
+    )
+    .optional(),
 
   lat: z
     .string()
@@ -112,7 +128,8 @@ export const querySchema = z.object({
         .number()
         .min(-90, 'Latitude must be >= -90')
         .max(90, 'Latitude must be <= 90')
-    ),
+    )
+    .optional(),
 
   // Date: DD/MM/YY
   date: z

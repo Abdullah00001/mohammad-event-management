@@ -5,7 +5,6 @@ import { JwtPayload } from 'jsonwebtoken';
 import { getTraceId } from '@/app/configs/requestContext.configs';
 import {
   TCheckAccessTokenPayload,
-  TGpsPayload,
   TLoginPayload,
   TSignupPayload,
 } from '@/app/modules/user/user.schemas';

@@ -17,7 +17,6 @@ export const createEventController = asyncHandler(
     const traceId = getTraceId();
     const user = req.user as User;
     const payload = req.body as TEventCreatePayload;
-    console.log(payload);
     await createEventService({
       payload,
       user,
@@ -37,11 +36,12 @@ export const getEventsListingController = asyncHandler(
     const traceId = getTraceId();
     const user = req.user as User;
     const query = req.validatedQuery as EventQueryParams;
-    await getEventListingService({ query });
+    const response = await getEventListingService({ query, user });
     res.status(201).json({
       success: true,
       status: 200,
       message: 'Events retrieve successful',
+      ...response,
       traceId,
     });
     return;

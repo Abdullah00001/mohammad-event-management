@@ -23,6 +23,7 @@ const folderPath = path.join(
 const files = {
   [`${moduleName}.controllers.ts`]: '',
   [`${moduleName}.services.ts`]: '',
+  [`${moduleName}.helpers.ts`]: '',
   [`${moduleName}.middlewares.ts`]: '',
   [`${moduleName}.routes.ts`]: '',
   [`${moduleName}.schemas.ts`]: '',

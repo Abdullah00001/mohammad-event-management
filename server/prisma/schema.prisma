@@ -246,6 +246,7 @@ model Event {
   description          String
   startDate            DateTime
   startTime            String
+  endTime              String
   maxParticipantsCount Int         @default(10)
   eventStatus          EventStatus @default(UPCOMING)
   lat                  Float

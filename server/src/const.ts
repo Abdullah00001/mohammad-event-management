@@ -14,4 +14,6 @@ export const otpExpireAt = 4;
 export const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/reverse';
 export const DEFAULT_PAGE = 1;
 export const DEFAULT_LIMIT = 10;
+export const DEFAULT_RADIUS_KM = 5;
+export const EARTH_RADIUS_KM = 6371;
 export const SUBSCRIPTION_FEATURE_CACHE_EXPIRY = '1d';

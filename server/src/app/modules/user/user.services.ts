@@ -82,6 +82,12 @@ export const signupService = async ({
     const ttl = calculateMilliseconds(otpExpireAt, 'minute');
     const gpsLocationTtl = parseExpiresIn(userLocationCacheExpireIn); // its will be return in milliseconds
     await Promise.all([
+      redisClient.set(
+        `user:location:${newUser.user.id}`,
+        JSON.stringify(gpsPayloadSchema),
+        'PX',
+        gpsLocationTtl
+      ),
       redisClient.geoadd(
         'users:locations',
         gpsPayloadSchema.lng,
@@ -126,7 +132,15 @@ export const checkAccessTokenService = async ({
         platform,
       },
     });
+    await redisClient.del(`user:location:${user.id}`);
+    await redisClient.zrem('users:locations', String(user.id));
     await Promise.all([
+      redisClient.set(
+        `user:location:${user.id}`,
+        JSON.stringify(location),
+        'PX',
+        gpsLocationTtl
+      ),
       redisClient.geoadd(
         'users:locations',
         location.lng,
@@ -273,6 +287,12 @@ export const loginService = async ({
     const redisClient = getRedisClient();
     const gpsLocationTtl = parseExpiresIn(userLocationCacheExpireIn);
     await Promise.all([
+      redisClient.set(
+        `user:location:${user.id}`,
+        JSON.stringify(gpsLocationPayload),
+        'PX',
+        gpsLocationTtl
+      ),
       redisClient.geoadd(
         'users:locations',
         gpsLocationPayload.lng,

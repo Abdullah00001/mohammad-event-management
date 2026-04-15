@@ -7,7 +7,11 @@ import utc from 'dayjs/plugin/utc';
 import type { Request, Response, NextFunction, RequestHandler } from 'express';
 import { ZodType } from 'zod';
 
-import { TFirebaseCredentials, TMailOption, TSendNotificationPayload } from '@/app/@types/system.types';
+import {
+  TFirebaseCredentials,
+  TMailOption,
+  TSendNotificationPayload,
+} from '@/app/@types/system.types';
 import logger from '@/app/configs/logger.configs';
 import { getTraceId } from '@/app/configs/requestContext.configs';
 import { NOMINATIM_URL } from '@/const';
@@ -276,11 +280,25 @@ export function getFirebaseCredentials(): TFirebaseCredentials {
   };
 }
 
-export async function sendNotification({data,fcmToken,userId}: TSendNotificationPayload) {
+export async function sendNotification({
+  data,
+  fcmToken,
+  userId,
+}: TSendNotificationPayload) {
   try {
-    // const user=await 
+    // const user=await
   } catch (error) {
-    if(error instanceof Error) logger.error(`Error sending notification to user ${userId}:`, error);
-    else logger.error(`Unknown error sending notification to user ${userId}:`, error);
+    if (error instanceof Error)
+      logger.error(`Error sending notification to user ${userId}:`, error);
+    else
+      logger.error(
+        `Unknown error sending notification to user ${userId}:`,
+        error
+      );
   }
+}
+
+export function timeToMinutes(time: string): number {
+  const [h, m] = time.split(':').map(Number);
+  return h * 60 + m;
 }
