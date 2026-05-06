@@ -8,13 +8,17 @@ import { getTraceId } from '@/app/configs/requestContext.configs';
 import { AuthErrorType } from '@/app/modules/user/user.types';
 import {
   extractToken,
+  generateOtpPageToken,
   verifyAccessToken,
   verifyOtpPageToken,
   verifyRefreshToken,
 } from '@/app/utils/jwt.utils';
-import { compareOtp } from '@/app/utils/otp.utils';
+import { compareOtp, hashOtp } from '@/app/utils/otp.utils';
 import { comparePassword } from '@/app/utils/password.utils';
-import { asyncHandler } from '@/app/utils/system.utils';
+import { asyncHandler, calculateMilliseconds } from '@/app/utils/system.utils';
+import { generate } from 'otp-generator';
+import { otpExpireAt } from '@/const';
+import { getEmailQueue } from '@/app/queues/queues';
 
 export const findUserWithEmail = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
@@ -29,17 +33,55 @@ export const findUserWithEmail = asyncHandler(
       return;
     }
     if (isSignup && user) {
-      res.status(409).json({
-        success: true,
-        message: 'User With This Email Already Exist!',
-        errorType: AuthErrorType.DUPLICATE_DATA,
-        traceId,
-      });
-      return;
+      if (user.isVerified === true) {
+        res.status(409).json({
+          success: false,
+          message: 'User With This Email Already Exist!',
+          errorType: AuthErrorType.DUPLICATE_DATA,
+          traceId,
+        });
+        return;
+      } else {
+        const otp = generate(6, {
+          digits: true,
+          lowerCaseAlphabets: false,
+          specialChars: false,
+          upperCaseAlphabets: false,
+        });
+        const hashedOtp = hashOtp({ otp });
+        const jwtToken = generateOtpPageToken({
+          sub: String(user.id),
+          role: user.role,
+          isVerified: user.isVerified,
+          accountStatus: user.accountStatus,
+        });
+        const emailData = {
+          email: user.email,
+          expirationTime: otpExpireAt,
+          otp,
+          traceId,
+        };
+        const redisClient = getRedisClient();
+        const ttl = calculateMilliseconds(otpExpireAt, 'minute');
+        await Promise.all([
+          redisClient.set(`user:${user.id}:otp`, hashedOtp, 'PX', ttl),
+          getEmailQueue().add('send-signup-user-verify-otp-email', emailData),
+        ]);
+        res.status(200).json({
+          success: true,
+          message:
+            "Signup successful, Please check your email, We've sent you the otp for verify your account!",
+          data: {
+            signupPageToken: jwtToken,
+          },
+          traceId,
+        });
+        return;
+      }
     }
     if (isLogin && !user) {
       res.status(404).json({
-        success: true,
+        success: false,
         message: 'Invalid Credential,Please Check Your Email And Password!',
         errorType: AuthErrorType.INVALID_CREDENTIALS,
         traceId,

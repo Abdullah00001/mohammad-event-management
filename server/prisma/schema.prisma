@@ -59,7 +59,7 @@ enum NotificationType {
   EVENT_JOIN
   EVENT_LEAVE
   HOST_REMOVED_USER
-  WAITLIST_ACCEPTED
+  WAIT_LIST_ACCEPTED
   EVENT_COMPLETED
   FRIEND_REQUEST
   FRIEND_ACCEPTED
@@ -67,7 +67,7 @@ enum NotificationType {
   EVENT_NEARBY
   CHAT_MESSAGE
   POD_MESSAGE
-  POR_INVITE
+  POD_INVITE
 }
 
 
@@ -75,20 +75,6 @@ enum StrikeReason {
   LATE_CANCELLATION   // user cancelled within 6 h window
   NO_SHOW             // host confirmed absence in journal
   MANUAL_ADMIN        // admin applied / reversed a strike manually
-}
-
-
-enum PaymentStatus {
-  PENDING
-  SUCCESS
-  FAILED
-  REFUNDED
-}
-
-enum PlanChangeType {
-  CREATED
-  UPDATED
-  DELETED
 }
 
 enum InviteStatus {
@@ -120,7 +106,7 @@ model User {
   // Premium
   isPremium            Boolean     @default(false)
   premiumUntil         DateTime?
-
+  isProfileSetup       Boolean     @default(false)
   createdAt            DateTime    @default(now())
   updatedAt            DateTime    @updatedAt
   stripeCustomerId String? @unique
@@ -141,13 +127,10 @@ model User {
   sentEventMessages    EventMessage[]      @relation("SentEventMessages")
   notifications        Notification[]
 
-  // Subscription
-  subscriptions        UserSubscription[]
   orcaGraceToken       OrcaGraceToken?
   travelMode           UserTravelMode?
-  activeFeatures       UserActiveFeature[]
   devices              Device[]
-  waitlists            WaitList[]
+  waitLists            WaitList[]
 
   // Pod invites received
   podInvites           PodInvite[]
@@ -263,7 +246,7 @@ model Event {
   messages             EventMessage[]
   eventTypes           EventEventType[]
   invites              PodInvite[]
-  waitlists            WaitList[]
+  waitLists            WaitList[]
 
   createdAt            DateTime    @default(now())
   updatedAt            DateTime    @updatedAt
@@ -425,121 +408,6 @@ model EventMessage {
   @@index([senderId])
 }
 
-// ─── Subscription & Payments ──────────────────────────────────────
-
-model SubscriptionFeature {
-  id           String   @id @default(uuid())
-  featureKey   String   @unique
-  featureTitle String @db.VarChar(48)
-  featureDescription String? @db.VarChar(180)
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  planFeatures SubscriptionPlanFeature[] @relation("PlanFeatures")
-  userFeatures UserActiveFeature[]
-
-  @@index([featureKey])
-  @@index([isActive])
-}
-
-// ─── Junction: which features belong to which plan ───────────────
-
-model SubscriptionPlanFeature {
-  planId                String
-  plan                  SubscriptionPlan    @relation(fields: [planId], references: [id], onDelete: Cascade)
-  subscriptionFeatureId String
-  feature               SubscriptionFeature @relation("PlanFeatures", fields: [subscriptionFeatureId], references: [id])
-
-  @@id([planId, subscriptionFeatureId])
-  @@index([planId])
-}
-
-model SubscriptionPlan {
-  id           String    @id @default(uuid())
-  title        String
-  price        Float
-  currency     String    @default("USD")
-  intervalDays Int       @default(30)
-  isActive     Boolean   @default(true)
-  deletedAt    DateTime?
-  createdById  String
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  stripePriceId   String?  @unique
-  stripeProductId String?  @unique
-
-  planFeatures  SubscriptionPlanFeature[]
-  subscriptions UserSubscription[]
-  history       SubscriptionPlanHistory[]
-}
-
-model UserActiveFeature {
-  id                    String              @id @default(uuid())
-  userId                String
-  user                  User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  subscriptionFeatureId String
-  feature               SubscriptionFeature @relation(fields: [subscriptionFeatureId], references: [id])
-  subscriptionId        String
-  subscription          UserSubscription    @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, subscriptionFeatureId])
-  @@index([userId])
-}
-
-model UserSubscription {
-  id           String             @id @default(uuid())
-  userId       String
-  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  planId       String
-  plan         SubscriptionPlan   @relation(fields: [planId], references: [id])
-  planSnapshot Json
-  status       SubscriptionStatus @default(ACTIVE)
-  startDate    DateTime           @default(now())
-  endDate      DateTime
-  createdAt    DateTime           @default(now())
-  updatedAt    DateTime           @updatedAt
-  stripeSubscriptionId String? @unique
-
-  activeFeatures UserActiveFeature[]
-  orcaGraceToken OrcaGraceToken?
-  transactions   PaymentTransaction[]
-
-  @@index([userId, status])
-  @@index([endDate])
-}
-
-// Full audit log — every admin create/edit/delete on a plan
-model SubscriptionPlanHistory {
-  id          String         @id @default(uuid())
-  planId      String
-  plan        SubscriptionPlan @relation(fields: [planId], references: [id])
-  snapshot    Json           // complete copy of the plan row at time of change
-  changeType  PlanChangeType
-  changedById String         // admin userId
-  createdAt   DateTime       @default(now())
-
-  @@index([planId])
-}
-
-// Every payment attempt — success, failure, refund
-model PaymentTransaction {
-  id             String           @id @default(uuid())
-  subscriptionId String
-  subscription   UserSubscription @relation(fields: [subscriptionId], references: [id])
-  amount         Float
-  currency       String
-  status         PaymentStatus
-  gateway        String           // "stripe"
-  gatewayTxId    String?          // gateway's own transaction ID
-  gatewayPayload Json?            // full raw webhook payload for audit
-  failureReason  String?
-  paidAt         DateTime?
-  createdAt      DateTime         @default(now())
-
-  @@index([subscriptionId])
-  @@index([gatewayTxId])
-}
 
 
 model UserTravelMode {
@@ -554,16 +422,12 @@ model UserTravelMode {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  // Rule: only one alternative city at a time
-  // Enforced at service level — user can only set one travel city
 }
 
 model OrcaGraceToken {
   id             String           @id @default(uuid())
   userId         String           @unique
   user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  subscriptionId String   @unique
-  subscription   UserSubscription @relation(fields: [subscriptionId], references: [id])
   isUsed         Boolean          @default(false)
   usedAt         DateTime?
   resetsAt       DateTime

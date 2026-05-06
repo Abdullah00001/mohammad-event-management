@@ -23,10 +23,10 @@ CREATE TYPE "EventStatus" AS ENUM ('UPCOMING', 'ONGOING', 'COMPLETED', 'DELETED'
 CREATE TYPE "SubscriptionStatus" AS ENUM ('ACTIVE', 'EXPIRED', 'PAYMENT_FAILED');
 
 -- CreateEnum
-CREATE TYPE "PaymentStatus" AS ENUM ('PENDING', 'SUCCESS', 'FAILED', 'REFUNDED');
+CREATE TYPE "NotificationType" AS ENUM ('EVENT_JOIN', 'EVENT_LEAVE', 'HOST_REMOVED_USER', 'WAIT_LIST_ACCEPTED', 'EVENT_COMPLETED', 'FRIEND_REQUEST', 'FRIEND_ACCEPTED', 'SPOT_OPENED', 'EVENT_NEARBY', 'CHAT_MESSAGE', 'POD_MESSAGE', 'POD_INVITE');
 
 -- CreateEnum
-CREATE TYPE "PlanChangeType" AS ENUM ('CREATED', 'UPDATED', 'DELETED');
+CREATE TYPE "StrikeReason" AS ENUM ('LATE_CANCELLATION', 'NO_SHOW', 'MANUAL_ADMIN');
 
 -- CreateEnum
 CREATE TYPE "InviteStatus" AS ENUM ('PENDING', 'ACCEPTED', 'DECLINED');
@@ -100,7 +100,6 @@ CREATE TABLE "UserTraits" (
 CREATE TABLE "UserPreference" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
-    "pushNotification" BOOLEAN NOT NULL DEFAULT true,
     "emailNotification" BOOLEAN NOT NULL DEFAULT true,
     "eventReminders" BOOLEAN NOT NULL DEFAULT true,
     "friendRequest" BOOLEAN NOT NULL DEFAULT true,
@@ -138,6 +137,7 @@ CREATE TABLE "Event" (
     "description" TEXT NOT NULL,
     "startDate" TIMESTAMP(3) NOT NULL,
     "startTime" TEXT NOT NULL,
+    "endTime" TEXT NOT NULL,
     "maxParticipantsCount" INTEGER NOT NULL DEFAULT 10,
     "eventStatus" "EventStatus" NOT NULL DEFAULT 'UPCOMING',
     "lat" DOUBLE PRECISION NOT NULL,
@@ -177,6 +177,16 @@ CREATE TABLE "EventParticipants" (
 );
 
 -- CreateTable
+CREATE TABLE "WaitList" (
+    "id" TEXT NOT NULL,
+    "eventId" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "joinedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "WaitList_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "PodInvite" (
     "id" TEXT NOT NULL,
     "eventId" TEXT NOT NULL,
@@ -206,11 +216,24 @@ CREATE TABLE "Notification" (
     "userId" TEXT NOT NULL,
     "notificationTitle" TEXT NOT NULL,
     "notificationDescription" TEXT NOT NULL,
+    "type" "NotificationType" NOT NULL,
     "isRead" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "Notification_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Device" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "fcmToken" TEXT NOT NULL,
+    "platform" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Device_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -263,100 +286,6 @@ CREATE TABLE "EventMessage" (
 );
 
 -- CreateTable
-CREATE TABLE "SubscriptionFeature" (
-    "id" TEXT NOT NULL,
-    "featureKey" TEXT NOT NULL,
-    "featureTitle" VARCHAR(48) NOT NULL,
-    "featureDescription" VARCHAR(180),
-    "isActive" BOOLEAN NOT NULL DEFAULT true,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "SubscriptionFeature_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "SubscriptionPlanFeature" (
-    "planId" TEXT NOT NULL,
-    "subscriptionFeatureId" TEXT NOT NULL,
-
-    CONSTRAINT "SubscriptionPlanFeature_pkey" PRIMARY KEY ("planId","subscriptionFeatureId")
-);
-
--- CreateTable
-CREATE TABLE "SubscriptionPlan" (
-    "id" TEXT NOT NULL,
-    "title" TEXT NOT NULL,
-    "price" DOUBLE PRECISION NOT NULL,
-    "currency" TEXT NOT NULL DEFAULT 'USD',
-    "intervalDays" INTEGER NOT NULL DEFAULT 30,
-    "isActive" BOOLEAN NOT NULL DEFAULT true,
-    "deletedAt" TIMESTAMP(3),
-    "createdById" TEXT NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-    "stripePriceId" TEXT,
-    "stripeProductId" TEXT,
-
-    CONSTRAINT "SubscriptionPlan_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "UserActiveFeature" (
-    "id" TEXT NOT NULL,
-    "userId" TEXT NOT NULL,
-    "subscriptionFeatureId" TEXT NOT NULL,
-    "subscriptionId" TEXT NOT NULL,
-
-    CONSTRAINT "UserActiveFeature_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "UserSubscription" (
-    "id" TEXT NOT NULL,
-    "userId" TEXT NOT NULL,
-    "planId" TEXT NOT NULL,
-    "planSnapshot" JSONB NOT NULL,
-    "status" "SubscriptionStatus" NOT NULL DEFAULT 'ACTIVE',
-    "startDate" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "endDate" TIMESTAMP(3) NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-    "stripeSubscriptionId" TEXT,
-
-    CONSTRAINT "UserSubscription_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "SubscriptionPlanHistory" (
-    "id" TEXT NOT NULL,
-    "planId" TEXT NOT NULL,
-    "snapshot" JSONB NOT NULL,
-    "changeType" "PlanChangeType" NOT NULL,
-    "changedById" TEXT NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "SubscriptionPlanHistory_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "PaymentTransaction" (
-    "id" TEXT NOT NULL,
-    "subscriptionId" TEXT NOT NULL,
-    "amount" DOUBLE PRECISION NOT NULL,
-    "currency" TEXT NOT NULL,
-    "status" "PaymentStatus" NOT NULL,
-    "gateway" TEXT NOT NULL,
-    "gatewayTxId" TEXT,
-    "gatewayPayload" JSONB,
-    "failureReason" TEXT,
-    "paidAt" TIMESTAMP(3),
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "PaymentTransaction_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
 CREATE TABLE "UserTravelMode" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
@@ -375,7 +304,6 @@ CREATE TABLE "UserTravelMode" (
 CREATE TABLE "OrcaGraceToken" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
-    "subscriptionId" TEXT NOT NULL,
     "isUsed" BOOLEAN NOT NULL DEFAULT false,
     "usedAt" TIMESTAMP(3),
     "resetsAt" TIMESTAMP(3) NOT NULL,
@@ -428,6 +356,9 @@ CREATE UNIQUE INDEX "BlockList_blockerId_blockedUserId_key" ON "BlockList"("bloc
 CREATE UNIQUE INDEX "Event_inviteLink_key" ON "Event"("inviteLink");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "WaitList_eventId_userId_key" ON "WaitList"("eventId", "userId");
+
+-- CreateIndex
 CREATE INDEX "PodInvite_inviteeId_idx" ON "PodInvite"("inviteeId");
 
 -- CreateIndex
@@ -437,7 +368,16 @@ CREATE UNIQUE INDEX "PodInvite_eventId_inviteeId_key" ON "PodInvite"("eventId", 
 CREATE INDEX "EventType_title_idx" ON "EventType"("title");
 
 -- CreateIndex
-CREATE INDEX "Notification_userId_idx" ON "Notification"("userId");
+CREATE INDEX "Notification_userId_isRead_idx" ON "Notification"("userId", "isRead");
+
+-- CreateIndex
+CREATE INDEX "Notification_userId_createdAt_idx" ON "Notification"("userId", "createdAt" DESC);
+
+-- CreateIndex
+CREATE INDEX "Notification_type_createdAt_idx" ON "Notification"("type", "createdAt");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Device_fcmToken_key" ON "Device"("fcmToken");
 
 -- CreateIndex
 CREATE INDEX "Conversation_userAId_idx" ON "Conversation"("userAId");
@@ -464,55 +404,10 @@ CREATE INDEX "EventMessage_eventId_createdAt_idx" ON "EventMessage"("eventId", "
 CREATE INDEX "EventMessage_senderId_idx" ON "EventMessage"("senderId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "SubscriptionFeature_featureKey_key" ON "SubscriptionFeature"("featureKey");
-
--- CreateIndex
-CREATE INDEX "SubscriptionFeature_featureKey_idx" ON "SubscriptionFeature"("featureKey");
-
--- CreateIndex
-CREATE INDEX "SubscriptionFeature_isActive_idx" ON "SubscriptionFeature"("isActive");
-
--- CreateIndex
-CREATE INDEX "SubscriptionPlanFeature_planId_idx" ON "SubscriptionPlanFeature"("planId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "SubscriptionPlan_stripePriceId_key" ON "SubscriptionPlan"("stripePriceId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "SubscriptionPlan_stripeProductId_key" ON "SubscriptionPlan"("stripeProductId");
-
--- CreateIndex
-CREATE INDEX "UserActiveFeature_userId_idx" ON "UserActiveFeature"("userId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "UserActiveFeature_userId_subscriptionFeatureId_key" ON "UserActiveFeature"("userId", "subscriptionFeatureId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "UserSubscription_stripeSubscriptionId_key" ON "UserSubscription"("stripeSubscriptionId");
-
--- CreateIndex
-CREATE INDEX "UserSubscription_userId_status_idx" ON "UserSubscription"("userId", "status");
-
--- CreateIndex
-CREATE INDEX "UserSubscription_endDate_idx" ON "UserSubscription"("endDate");
-
--- CreateIndex
-CREATE INDEX "SubscriptionPlanHistory_planId_idx" ON "SubscriptionPlanHistory"("planId");
-
--- CreateIndex
-CREATE INDEX "PaymentTransaction_subscriptionId_idx" ON "PaymentTransaction"("subscriptionId");
-
--- CreateIndex
-CREATE INDEX "PaymentTransaction_gatewayTxId_idx" ON "PaymentTransaction"("gatewayTxId");
-
--- CreateIndex
 CREATE UNIQUE INDEX "UserTravelMode_userId_key" ON "UserTravelMode"("userId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "OrcaGraceToken_userId_key" ON "OrcaGraceToken"("userId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "OrcaGraceToken_subscriptionId_key" ON "OrcaGraceToken"("subscriptionId");
 
 -- AddForeignKey
 ALTER TABLE "Profile" ADD CONSTRAINT "Profile_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -548,6 +443,12 @@ ALTER TABLE "EventParticipants" ADD CONSTRAINT "EventParticipants_eventId_fkey" 
 ALTER TABLE "EventParticipants" ADD CONSTRAINT "EventParticipants_participantId_fkey" FOREIGN KEY ("participantId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "WaitList" ADD CONSTRAINT "WaitList_eventId_fkey" FOREIGN KEY ("eventId") REFERENCES "Event"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "WaitList" ADD CONSTRAINT "WaitList_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "PodInvite" ADD CONSTRAINT "PodInvite_eventId_fkey" FOREIGN KEY ("eventId") REFERENCES "Event"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -555,6 +456,9 @@ ALTER TABLE "PodInvite" ADD CONSTRAINT "PodInvite_inviteeId_fkey" FOREIGN KEY ("
 
 -- AddForeignKey
 ALTER TABLE "Notification" ADD CONSTRAINT "Notification_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Device" ADD CONSTRAINT "Device_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Conversation" ADD CONSTRAINT "Conversation_userAId_fkey" FOREIGN KEY ("userAId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -581,37 +485,7 @@ ALTER TABLE "EventMessage" ADD CONSTRAINT "EventMessage_eventId_fkey" FOREIGN KE
 ALTER TABLE "EventMessage" ADD CONSTRAINT "EventMessage_senderId_fkey" FOREIGN KEY ("senderId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "SubscriptionPlanFeature" ADD CONSTRAINT "SubscriptionPlanFeature_planId_fkey" FOREIGN KEY ("planId") REFERENCES "SubscriptionPlan"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "SubscriptionPlanFeature" ADD CONSTRAINT "SubscriptionPlanFeature_subscriptionFeatureId_fkey" FOREIGN KEY ("subscriptionFeatureId") REFERENCES "SubscriptionFeature"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "UserActiveFeature" ADD CONSTRAINT "UserActiveFeature_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "UserActiveFeature" ADD CONSTRAINT "UserActiveFeature_subscriptionFeatureId_fkey" FOREIGN KEY ("subscriptionFeatureId") REFERENCES "SubscriptionFeature"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "UserActiveFeature" ADD CONSTRAINT "UserActiveFeature_subscriptionId_fkey" FOREIGN KEY ("subscriptionId") REFERENCES "UserSubscription"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "UserSubscription" ADD CONSTRAINT "UserSubscription_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "UserSubscription" ADD CONSTRAINT "UserSubscription_planId_fkey" FOREIGN KEY ("planId") REFERENCES "SubscriptionPlan"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "SubscriptionPlanHistory" ADD CONSTRAINT "SubscriptionPlanHistory_planId_fkey" FOREIGN KEY ("planId") REFERENCES "SubscriptionPlan"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "PaymentTransaction" ADD CONSTRAINT "PaymentTransaction_subscriptionId_fkey" FOREIGN KEY ("subscriptionId") REFERENCES "UserSubscription"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "UserTravelMode" ADD CONSTRAINT "UserTravelMode_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "OrcaGraceToken" ADD CONSTRAINT "OrcaGraceToken_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "OrcaGraceToken" ADD CONSTRAINT "OrcaGraceToken_subscriptionId_fkey" FOREIGN KEY ("subscriptionId") REFERENCES "UserSubscription"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

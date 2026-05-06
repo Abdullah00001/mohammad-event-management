@@ -50,8 +50,13 @@ export const signupService = async ({
           userId: user?.id,
         },
       });
-      await tx.device.create({
-        data: {
+      await tx.device.upsert({
+        where: { fcmToken: fcmToken },
+        update: {
+          userId: user?.id,
+          platform: platform,
+        },
+        create: {
           userId: user?.id,
           fcmToken,
           platform,
@@ -270,8 +275,10 @@ export const loginService = async ({
       });
       return { accessToken, refreshToken };
     }
-    await prisma.device.create({
-      data: {
+    await prisma.device.upsert({
+      where: { fcmToken: fcmToken },
+      update: { userId: user.id, platform },
+      create: {
         userId: user.id,
         fcmToken,
         platform,
