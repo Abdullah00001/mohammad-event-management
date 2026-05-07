@@ -115,7 +115,7 @@ export const loginController = asyncHandler(
     res.status(200).json({
       success: true,
       message: 'Login successful',
-      data: { accessToken },
+      data: { accessToken, isProfileSetup: user.isProfileSetup },
       traceId,
     });
     return;
@@ -126,11 +126,17 @@ export const checkAccessTokenController = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
     const traceId = getTraceId();
     const user = req.user as User;
-    const {fcmToken,location,platform} = req.body as TCheckAccessTokenPayload;
+    const { fcmToken, location, platform } =
+      req.body as TCheckAccessTokenPayload;
     await checkAccessTokenService({ user, fcmToken, location, platform });
-    res
-      .status(200)
-      .json({ success: true, message: 'User Is Authenticated', traceId });
+    res.status(200).json({
+      success: true,
+      message: 'User Is Authenticated',
+      data: {
+        isProfileSetup: user.isProfileSetup,
+      },
+      traceId,
+    });
     return;
   }
 );

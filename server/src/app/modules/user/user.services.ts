@@ -130,8 +130,13 @@ export const checkAccessTokenService = async ({
   try {
     const redisClient = getRedisClient();
     const gpsLocationTtl = parseExpiresIn(userLocationCacheExpireIn);
-    await prisma.device.create({
-      data: {
+    await prisma.device.upsert({
+      where: { fcmToken: fcmToken },
+      update: {
+        userId: user?.id,
+        platform: platform,
+      },
+      create: {
         userId: user?.id,
         fcmToken,
         platform,

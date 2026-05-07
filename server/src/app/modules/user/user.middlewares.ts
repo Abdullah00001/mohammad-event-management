@@ -72,6 +72,7 @@ export const findUserWithEmail = asyncHandler(
           message:
             "Signup successful, Please check your email, We've sent you the otp for verify your account!",
           data: {
+            isProfileSetup:user.isProfileSetup,
             signupPageToken: jwtToken,
           },
           traceId,

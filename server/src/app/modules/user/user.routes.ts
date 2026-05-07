@@ -28,6 +28,7 @@ import {
   signupSchema,
   verifyOtpSchema,
   checkAccessTokenSchema,
+  adminLoginSchema,
 } from '@/app/modules/user/user.schemas';
 import { validateReqBody } from '@/app/utils/system.utils';
 
@@ -84,7 +85,7 @@ router
 router
   .route('/admin/auth/login')
   .post(
-    validateReqBody(loginSchema),
+    validateReqBody(adminLoginSchema),
     findUserWithEmail,
     isAdmin,
     checkPassword,
