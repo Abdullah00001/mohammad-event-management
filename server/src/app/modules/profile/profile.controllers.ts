@@ -7,10 +7,26 @@ import {
   changePassword,
   changeUserPreference,
   getAdminProfileInformation,
+  getProfileInformation,
   updateProfile,
   uploadAvatar,
 } from '@/app/modules/profile/profile.services';
 import { asyncHandler } from '@/app/utils/system.utils';
+
+export const getProfileInformationController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const traceId = getTraceId();
+    const user = req.user as User;
+    const data = await getProfileInformation({ userId: user.id });
+    res.status(200).json({
+      success: true,
+      message: 'User profile retrieve successfully',
+      data,
+      traceId,
+    });
+    return;
+  }
+);
 
 export const updateProfileController = asyncHandler(
   async (req: Request, res: Response) => {

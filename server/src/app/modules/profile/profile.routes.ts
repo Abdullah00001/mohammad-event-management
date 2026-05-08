@@ -8,6 +8,7 @@ import {
   changePasswordController,
   changeUserPreferenceController,
   getAdminProfileInformationController,
+  getProfileInformationController,
   updateProfileController,
   uploadAvatarController,
 } from '@/app/modules/profile/profile.controllers';
@@ -44,6 +45,7 @@ router
 
 router
   .route('/profile')
+  .get(checkAccessToken, checkAccountStatus, getProfileInformationController)
   .post(
     checkAccessToken,
     checkAccountStatus,
