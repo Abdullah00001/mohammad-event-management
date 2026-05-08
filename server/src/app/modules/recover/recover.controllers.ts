@@ -20,11 +20,11 @@ export const findRecoverUserController = asyncHandler(
     const isAdmin = path.includes('/admin/recover');
     const traceId = getTraceId();
     const user = req.user as User;
-    const token = await findRecoverUSer({ user, traceId });
+    const data = await findRecoverUSer({ user, traceId });
     if (isAdmin) {
       res.cookie(
         'otp_page_token',
-        token.jwt,
+        data.jwt,
         cookieOption(otpPageTokenExpireIn)
       );
       res.status(200).json({
@@ -37,7 +37,7 @@ export const findRecoverUserController = asyncHandler(
     res.status(200).json({
       success: true,
       message: 'Recover user found and otp send successfully',
-      data: { otpPageToken: token },
+      data,
       traceId,
     });
     return;
@@ -88,13 +88,14 @@ export const resendRecoverUserOtpController = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
     const traceId = getTraceId();
     const user = req.user as JwtPayload;
-    await resendRecoverUserOtp({
+    const data = await resendRecoverUserOtp({
       user,
       traceId,
     });
     res.status(200).json({
       success: true,
       message: 'OTP reset successful',
+      data,
       traceId,
     });
     return;

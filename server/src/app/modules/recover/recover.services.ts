@@ -17,7 +17,7 @@ export const findRecoverUSer = async ({
 }: {
   user: User;
   traceId: string;
-}): Promise<{ jwt: string }> => {
+}): Promise<{ jwt: string; otp: string }> => {
   try {
     const otp = generate(6, {
       digits: true,
@@ -43,7 +43,7 @@ export const findRecoverUSer = async ({
       redisClient.set(`user:${user.id}:otp`, hashedOtp, 'PX', ttl),
       getEmailQueue().add('send-find-recover-user-email-otp', emailData),
     ]);
-    return { jwt: jwtToken };
+    return { jwt: jwtToken, otp };
   } catch (error) {
     if (error instanceof Error) throw error;
     throw new Error('Unknown error occurred in find recover user service');
@@ -107,7 +107,7 @@ export const resendRecoverUserOtp = async ({
 }: {
   user: JwtPayload;
   traceId: string;
-}): Promise<void> => {
+}): Promise<{ otp: string }> => {
   try {
     const otp = generate(6, {
       digits: true,
@@ -133,7 +133,7 @@ export const resendRecoverUserOtp = async ({
       redisClient.set(`user:${foundedUser?.id}:otp`, hashedOtp, 'PX', ttl),
       getEmailQueue().add('send-find-recover-user-email-otp', emailData),
     ]);
-    return;
+    return { otp };
   } catch (error) {
     if (error instanceof Error) {
       throw error;

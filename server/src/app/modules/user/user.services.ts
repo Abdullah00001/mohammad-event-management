@@ -29,6 +29,8 @@ export const signupService = async ({
 }: TSignupPayload): Promise<{
   user: SignupResponseDTO;
   signupPageToken: string;
+  otp: string;
+  isProfileSetup: boolean;
 }> => {
   const traceId = getTraceId();
   try {
@@ -60,6 +62,14 @@ export const signupService = async ({
           userId: user?.id,
           fcmToken,
           platform,
+        },
+      });
+      await tx.userTraits.create({
+        data: {
+          userId: user?.id,
+          curiosityScore: 0,
+          energyScore: 0,
+          rhythmScore: 0,
         },
       });
       return { user };
@@ -109,6 +119,8 @@ export const signupService = async ({
     return {
       user: SignupResponseDTO.fromEntity(newUser.user),
       signupPageToken: jwtToken,
+      otp,
+      isProfileSetup: newUser.user.isProfileSetup,
     };
   } catch (error) {
     if (error instanceof Error) throw error;
@@ -214,7 +226,7 @@ export const resendSignupUserOtp = async ({
   user,
 }: {
   user: JwtPayload;
-}): Promise<void> => {
+}): Promise<{ otp: string }> => {
   const traceId = getTraceId();
   try {
     const otp = generate(6, {
@@ -240,7 +252,7 @@ export const resendSignupUserOtp = async ({
       redisClient.set(`user:${queriedUser.id}:otp`, hashedOtp, 'PX', ttl),
       getEmailQueue().add('send-signup-user-verify-otp-email', emailData),
     ]);
-    return;
+    return { otp };
   } catch (error) {
     if (error instanceof Error) throw error;
     throw new Error('Unknown error occurred in resend signup user otp service');

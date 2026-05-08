@@ -151,6 +151,7 @@ model Profile {
   gender           Gender?
   location         String?
   avatar           String?
+  cover            String?
   bio              String?
   profileInterest  String[] @default([])
   countryVisited   String[] @default([])

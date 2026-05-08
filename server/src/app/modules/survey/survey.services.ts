@@ -11,8 +11,9 @@ export const createNewTraits = async ({
   user: User;
 }): Promise<UserTraits> => {
   try {
-    const data = await prisma.userTraits.create({
-      data: { ...payload, userId: user.id },
+    const data = await prisma.userTraits.update({
+      where: { userId: user.id },
+      data: { ...payload },
     });
     return data;
   } catch (error) {

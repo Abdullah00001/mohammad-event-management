@@ -45,7 +45,7 @@ router
   .post(
     checkAdminAccessToken,
     isAdmin,
-    uploadSingle('interestIcon'),
+    uploadSingle('interestIcon',true),
     handleMulterError,
     validateReqBody(interestSchema),
     createInterestController
