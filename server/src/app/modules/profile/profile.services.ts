@@ -11,6 +11,53 @@ import { hashPassword } from '@/app/utils/password.utils';
 import { singleDeleteToS3, singleUploadToS3 } from '@/app/utils/s3.utils';
 import { extractS3KeyFromUrl } from '@/app/utils/system.utils';
 
+export interface ProfileInformation {
+  cover: string | null;
+  avatar: string | null;
+  name: string | null;
+  location: string | null;
+  bio: string | null;
+  countryVisited: string[];
+  counrtyVisited: string[];
+  profileInterest: string[];
+}
+
+export const getProfileInformation = async ({
+  userId,
+}: {
+  userId: string;
+}): Promise<ProfileInformation> => {
+  try {
+    const profile = await prisma.profile.findUnique({
+      where: { userId },
+      select: {
+        avatar: true,
+        name: true,
+        location: true,
+        bio: true,
+        countryVisited: true,
+        profileInterest: true,
+      },
+    });
+
+    if (!profile) throw new Error('Profile not found');
+
+    return {
+      cover: null,
+      avatar: profile.avatar,
+      name: profile.name,
+      location: profile.location,
+      bio: profile.bio,
+      countryVisited: profile.countryVisited,
+      counrtyVisited: profile.countryVisited,
+      profileInterest: profile.profileInterest,
+    };
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error('Unknown error occurred in get profile service');
+  }
+};
+
 export const updateProfile = async ({
   user,
   payload,

@@ -14,23 +14,35 @@ const storage = diskStorage({
   },
 });
 
+const allowedImageMimeTypes = [
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/webp',
+  'image/svg+xml',
+  'image/gif',
+  'image/avif',
+  'image/bmp',
+  'image/x-ms-bmp',
+  'image/tiff',
+  'image/heic',
+  'image/heif',
+  'image/x-icon',
+  'image/vnd.microsoft.icon',
+];
+
 const imageFileFilter = (
   _req: Request,
   file: Express.Multer.File,
   cb: FileFilterCallback
 ) => {
-  if (
-    file.mimetype === 'image/jpeg' ||
-    file.mimetype === 'image/png' ||
-    file.mimetype === 'image/webp' ||
-    file.mimetype === 'image/svg+xml'
-  ) {
+  if (allowedImageMimeTypes.includes(file.mimetype)) {
     cb(null, true);
   } else {
     cb(
-      new Error(
-        'Only .jpeg and .png and .webp and .svg files are allowed!'
-      ) as any,
+      Object.assign(new Error('Only image files are allowed!'), {
+        code: 'LIMIT_INVALID_IMAGE_TYPE',
+      }) as any,
       false
     );
   }
@@ -223,7 +235,7 @@ export const handleMulterError = (
     });
     return;
   }
-  if (err?.message?.includes('Only .jpeg')) {
+  if (err?.code === 'LIMIT_INVALID_IMAGE_TYPE') {
     res.status(400).json({
       success: false,
       status: 400,
