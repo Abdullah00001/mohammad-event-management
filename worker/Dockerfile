@@ -1,8 +1,19 @@
 FROM node:20-alpine
 WORKDIR /app
 RUN apk add --no-cache dumb-init
-COPY package*.json ./
-COPY tsconfig.json ./
+
+# Copy Prisma schema BEFORE npm install (so postinstall hook can run)
+COPY prisma.config.ts ./
+COPY prisma ./prisma/
+
+COPY worker/package*.json ./
+COPY worker/tsconfig.json ./
+ARG DATABASE_URL="postgresql://postgres:myStrongPostgresPassword@postgres:5432/event_management"
+ENV DATABASE_URL=${DATABASE_URL}
 RUN npm install
+
+# Copy worker sources after npm install
+COPY worker/ ./
+
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
 CMD ["npm", "run", "dev"]

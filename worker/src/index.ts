@@ -4,6 +4,7 @@ import { Worker } from 'bullmq';
 
 import logger from '@/app/configs/logger.configs';
 import { connectRedis, disconnectRedis } from '@/app/configs/redis.configs';
+import { connectDatabase, disconnectDatabase } from '@/app/configs/db.configs';
 import { createEmailWorker } from '@/app/workers/email.workers';
 
 // ─────────────────────────────────────────────────────────────
@@ -40,6 +41,9 @@ const shutdown = async (signal: string): Promise<void> => {
     await disconnectRedis();
     logger.info(`${TAG} Redis disconnected`);
 
+    await disconnectDatabase();
+    logger.info(`${TAG} Database disconnected`);
+
     logger.info(`${TAG} ✓ Clean shutdown`);
     process.exit(0);
   } catch (err) {
@@ -67,8 +71,10 @@ process.on('unhandledRejection', (reason) => {
 const start = async (): Promise<void> => {
   logger.info(`${TAG} Starting — PID ${process.pid}`);
 
-  // Redis must be connected before workers start polling
+  // Connect to both Redis and the database before workers start polling
   await connectRedis();
+  await connectDatabase();
+
   allWorkers = [createEmailWorker()];
   logger.info(
     `${TAG} ${allWorkers.length} worker(s) active — listening for jobs`

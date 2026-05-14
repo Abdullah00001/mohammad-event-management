@@ -1,4 +1,6 @@
 export type TEnv = {
+  GEO_PROVIDER: string;
+  GOOGLE_MAPS_API_KEY: string;
   NODE_ENV: string;
   JWT_ACCESS_TOKEN_SECRET_KEY: string;
   JWT_REFRESH_TOKEN_SECRET_KEY: string;

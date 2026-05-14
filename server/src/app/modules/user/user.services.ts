@@ -19,6 +19,7 @@ import { hashOtp } from '@/app/utils/otp.utils';
 import { hashPassword } from '@/app/utils/password.utils';
 import { calculateMilliseconds } from '@/app/utils/system.utils';
 import { baseUrl, otpExpireAt, userLocationCacheExpireIn } from '@/const';
+import { getCountryFromGps } from '@/app/utils/geocoder.utils';
 
 export const signupService = async ({
   email,
@@ -34,6 +35,10 @@ export const signupService = async ({
 }> => {
   const traceId = getTraceId();
   try {
+    const locationInfo = await getCountryFromGps(
+      gpsPayloadSchema.lat,
+      gpsPayloadSchema.lng
+    );
     const hashPass = await hashPassword(password);
     const newUser = await prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
@@ -45,6 +50,7 @@ export const signupService = async ({
       await tx.profile.create({
         data: {
           userId: user?.id,
+          countryVisited: [locationInfo.countryName],
         },
       });
       await tx.userPreference.create({
