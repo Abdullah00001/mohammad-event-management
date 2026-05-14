@@ -4,7 +4,10 @@ import { Server } from 'socket.io';
 
 import { AuthenticatedSocket } from '@/app/@types/jwt.types';
 import logger from '@/app/configs/logger.configs';
-import { socketAuthMiddleware } from '@/app/middlewares/socket.middlewares';
+import {
+  socketAuthMiddleware,
+  socketTraceMiddleware,
+} from '@/app/middlewares/socket.middlewares';
 import { corsWhiteList } from '@/const';
 
 export let io: Server;
@@ -17,6 +20,8 @@ const initializeSocket = (server: HttpServer) => {
       credentials: true,
     },
   });
+
+  io.use(socketTraceMiddleware);
   io.use(socketAuthMiddleware);
   io.on('connection', (socket) => {
     const s = socket as AuthenticatedSocket;
@@ -30,7 +35,9 @@ const initializeSocket = (server: HttpServer) => {
   const chatNameSpace = io.of('/chat');
   const notificationNameSpace = io.of('/notification');
 
+  chatNameSpace.use(socketTraceMiddleware);
   chatNameSpace.use(socketAuthMiddleware);
+  notificationNameSpace.use(socketTraceMiddleware);
   notificationNameSpace.use(socketAuthMiddleware);
 
   notificationNameSpace.on('connection', (socket) => {

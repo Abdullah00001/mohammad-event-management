@@ -18,6 +18,7 @@ export const profileUpdateSchema = z.object({
   location: z.string().min(1).optional(),
   bio: z.string().min(1).optional(),
   profileInterest: z.array(z.uuid()).optional(),
+  isProfileSetup: z.boolean().optional(),
 });
 
 export type TProfileUpdatePayload = z.infer<typeof profileUpdateSchema>;

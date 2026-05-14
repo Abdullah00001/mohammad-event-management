@@ -1,14 +1,38 @@
 import { AccountStatus, User } from '@prisma/client';
 import { JsonWebTokenError, TokenExpiredError } from 'jsonwebtoken';
+import { v4 as uuidv4 } from 'uuid';
 
 import { AuthenticatedSocket } from '@/app/@types/jwt.types';
 import prisma from '@/app/configs/db.configs';
 import logger from '@/app/configs/logger.configs';
+import { requestContext } from '@/app/configs/requestContext.configs';
 import { getRedisClient } from '@/app/configs/redis.config';
 import {
   extractTokenFromSocketHeader,
   verifyAccessToken,
 } from '@/app/utils/jwt.utils';
+
+export const socketTraceMiddleware = (
+  socket: AuthenticatedSocket,
+  next: (err?: Error) => void
+) => {
+  const traceIdFromHeader = socket.handshake.headers['x-trace-id'];
+  const traceIdFromQuery = socket.handshake.query?.traceId;
+  const traceId =
+    typeof traceIdFromHeader === 'string'
+      ? traceIdFromHeader
+      : typeof traceIdFromQuery === 'string'
+        ? traceIdFromQuery
+        : Array.isArray(traceIdFromQuery)
+          ? traceIdFromQuery[0]
+          : uuidv4();
+
+  socket.traceId = traceId;
+
+  requestContext.run({ traceId }, () => {
+    next();
+  });
+};
 
 export const socketAuthMiddleware = async (
   socket: AuthenticatedSocket,
@@ -43,6 +67,11 @@ export const socketAuthMiddleware = async (
     }
     // Attach user payload to socket for downstream use
     socket.user = user as User;
+
+    socket.use((packet, nextPacket) => {
+      const packetTraceId = socket.traceId ?? uuidv4();
+      requestContext.run({ traceId: packetTraceId }, () => nextPacket());
+    });
 
     logger.info(`Socket authenticated — userId: ${decoded?.sub}`);
     next();

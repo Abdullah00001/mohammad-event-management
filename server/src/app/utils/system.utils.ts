@@ -1,3 +1,4 @@
+import { AsyncResource } from 'async_hooks';
 import crypto from 'crypto';
 import { unlink } from 'fs/promises';
 
@@ -36,7 +37,7 @@ dayjs.extend(timezone);
 export const asyncHandler =
   (handler: RequestHandler): RequestHandler =>
   (req: Request, res: Response, next: NextFunction) => {
-    Promise.resolve(handler(req, res, next)).catch(next);
+    Promise.resolve(AsyncResource.bind(handler)(req, res, next)).catch(next);
   };
 
 /* ------------------------------------------------------------------

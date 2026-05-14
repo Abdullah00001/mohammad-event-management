@@ -11,4 +11,5 @@ export interface ITokenPayload extends JwtPayload {
 
 export interface AuthenticatedSocket extends Socket {
   user?: User;
+  traceId?: string;
 }

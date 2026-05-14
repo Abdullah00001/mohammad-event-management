@@ -1,3 +1,4 @@
+import { AsyncResource } from 'async_hooks';
 import { Request, Response, NextFunction } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -12,6 +13,6 @@ export const traceMiddleware = (
 
   requestContext.run({ traceId }, () => {
     res.setHeader('x-trace-id', traceId);
-    next();
+    AsyncResource.bind(next)();
   });
 };

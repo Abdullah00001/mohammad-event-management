@@ -121,7 +121,6 @@ export function extractTokenFromSocketHeader(
 ): string | null {
   const token =
     socket.handshake.auth?.token || socket.handshake.headers?.authorization;
-
   if (!token) return null;
   if (typeof token === 'string' && token.startsWith('Bearer ')) {
     return token.slice(7).trim();

@@ -42,7 +42,7 @@ const router = Router();
 
 router
   .route('/auth/signup')
-  .post( findUserWithEmail, signupController);
+  .post( findUserWithEmail, validateReqBody(signupSchema), signupController);
 
 router
   .route('/auth/verify')

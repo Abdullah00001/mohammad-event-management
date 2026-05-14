@@ -66,8 +66,27 @@ export const updateProfile = async ({
   payload: TProfileUpdatePayload;
 }): Promise<Profile> => {
   try {
-    const data = await prisma.profile.update({
-      data: payload,
+    const {
+      age,
+      bio,
+      isProfileSetup,
+      gender,
+      location,
+      name,
+      profileInterest,
+    } = payload;
+    const data = await prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: user.id },
+        data: { isProfileSetup },
+      });
+      return await tx.profile.update({
+        data: { age, bio, gender, location, name, profileInterest },
+        where: { userId: user.id },
+      });
+    });
+    await prisma.profile.update({
+      data: { age, bio, gender, location, name, profileInterest },
       where: { userId: user.id },
     });
     return data;
