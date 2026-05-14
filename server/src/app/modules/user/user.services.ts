@@ -7,7 +7,7 @@ import { getRedisClient } from '@/app/configs/redis.config';
 import { getTraceId } from '@/app/configs/requestContext.configs';
 import { SignupResponseDTO } from '@/app/modules/user/user.dto';
 import { TGpsPayload, TSignupPayload } from '@/app/modules/user/user.schemas';
-import { getEmailQueue } from '@/app/queues/queues';
+import { getEmailQueue, getSystemQueue } from '@/app/queues/queues';
 import { parseExpiresIn } from '@/app/utils/cookie.utils';
 import {
   generateAccessTokenForAdmin,
@@ -19,7 +19,6 @@ import { hashOtp } from '@/app/utils/otp.utils';
 import { hashPassword } from '@/app/utils/password.utils';
 import { calculateMilliseconds } from '@/app/utils/system.utils';
 import { baseUrl, otpExpireAt, userLocationCacheExpireIn } from '@/const';
-import { getCountryFromGps } from '@/app/utils/geocoder.utils';
 
 export const signupService = async ({
   email,
@@ -35,10 +34,6 @@ export const signupService = async ({
 }> => {
   const traceId = getTraceId();
   try {
-    const locationInfo = await getCountryFromGps(
-      gpsPayloadSchema.lat,
-      gpsPayloadSchema.lng
-    );
     const hashPass = await hashPassword(password);
     const newUser = await prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
@@ -50,7 +45,6 @@ export const signupService = async ({
       await tx.profile.create({
         data: {
           userId: user?.id,
-          countryVisited: [locationInfo.countryName],
         },
       });
       await tx.userPreference.create({
@@ -121,6 +115,10 @@ export const signupService = async ({
       ),
       redisClient.set(`user:${newUser.user.id}:otp`, hashedOtp, 'PX', ttl),
       getEmailQueue().add('send-signup-user-verify-otp-email', emailData),
+      getSystemQueue().add('update-user-visited-country', {
+        userId: newUser.user.id,
+        userLocation: { lng: gpsPayloadSchema.lng, lat: gpsPayloadSchema.lat },
+      }),
     ]);
     return {
       user: SignupResponseDTO.fromEntity(newUser.user),
@@ -179,6 +177,10 @@ export const checkAccessTokenService = async ({
         `user:location:${user.id}`,
         Math.floor(gpsLocationTtl / 1000)
       ),
+      getSystemQueue().add('update-user-visited-country', {
+        userId: user?.id,
+        userLocation: { lng: location.lng, lat: location.lat },
+      }),
     ]);
   } catch (error) {
     if (error instanceof Error) throw error;
@@ -333,6 +335,13 @@ export const loginService = async ({
         `user:location:${user.id}`,
         Math.floor(gpsLocationTtl / 1000)
       ),
+      getSystemQueue().add('update-user-visited-country', {
+        userId: user?.id,
+        userLocation: {
+          lng: gpsLocationPayload.lng,
+          lat: gpsLocationPayload.lat,
+        },
+      }),
     ]);
     return { accessToken };
   } catch (error) {

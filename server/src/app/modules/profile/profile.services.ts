@@ -26,7 +26,7 @@ export const getProfileInformation = async ({
   userId,
 }: {
   userId: string;
-}): Promise<ProfileInformation> => {
+}): Promise<unknown> => {
   try {
     const profile = await prisma.profile.findUnique({
       where: { userId },
@@ -41,7 +41,17 @@ export const getProfileInformation = async ({
     });
 
     if (!profile) throw new Error('Profile not found');
-
+    const interests = await prisma.interest.findMany({
+      where: {
+        interestName: { in: profile.profileInterest },
+        isDeleted: false,
+      },
+      select: {
+        id: true,
+        interestName: true,
+        interestIcon: true,
+      },
+    });
     return {
       cover: null,
       avatar: profile.avatar,
@@ -49,8 +59,9 @@ export const getProfileInformation = async ({
       location: profile.location,
       bio: profile.bio,
       countryVisited: profile.countryVisited,
-      counrtyVisited: profile.countryVisited,
-      profileInterest: profile.profileInterest,
+      profileInterest: interests,
+      totalEventsAttended: 0,
+      totalConnections: 0,
     };
   } catch (error) {
     if (error instanceof Error) throw error;
@@ -208,5 +219,70 @@ export const getAdminProfileInformation = async ({
   } catch (error) {
     if (error instanceof Error) throw error;
     throw new Error('Unknown error occurred in change password service');
+  }
+};
+
+export const getUserPreference = async ({
+  user,
+}: {
+  user: User;
+}): Promise<UserPreference> => {
+  try {
+    const data = await prisma.userPreference.findUnique({
+      where: {  userId: user.id },
+    });
+    if (!data) throw new Error('User preference not found');
+    return data;
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error('Unknown error occurred in change password service');
+  }
+};
+
+export const getMyBlocklist = async ({
+  user,
+}: {
+  user: User;
+}): Promise<unknown> => {
+  try {
+    const blocklist: {
+      id: string;
+      blockedUserId: string;
+      blockedUser: {
+        id: string;
+        profile: {
+          name: string | null;
+          avatar: string | null;
+        } | null;
+      };
+    }[] = await prisma.blockList.findMany({
+      where: { userId: user.id },
+      select: {
+        id: true,
+        blockedUserId: true,
+        blockedUser: {
+          select: {
+            id: true,
+            profile: {
+              select: {
+                name: true,
+                avatar: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    return blocklist.map((block) => {
+      return {
+        id: block.id,
+        blockedUserId: block.blockedUserId,
+        blockedUserName: block.blockedUser.profile?.name ?? null,
+        blockedUserAvatar: block.blockedUser.profile?.avatar ?? null,
+      };
+    });
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error('Unknown error occurred in get blocklist service');
   }
 };

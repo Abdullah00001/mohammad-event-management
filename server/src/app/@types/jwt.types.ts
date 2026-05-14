@@ -7,6 +7,7 @@ export interface ITokenPayload extends JwtPayload {
   rememberMe?: boolean;
   role: Role;
   isVerified: boolean;
+  accountStatus: string;
 }
 
 export interface AuthenticatedSocket extends Socket {

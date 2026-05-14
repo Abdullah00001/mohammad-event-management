@@ -6,6 +6,7 @@ import logger from '@/app/configs/logger.configs';
 import { connectRedis, disconnectRedis } from '@/app/configs/redis.configs';
 import { connectDatabase, disconnectDatabase } from '@/app/configs/db.configs';
 import { createEmailWorker } from '@/app/workers/email.workers';
+import { createSystemWorker } from '@/app/workers/system.worker';
 
 // ─────────────────────────────────────────────────────────────
 // Registry — add every new Worker instance here
@@ -75,7 +76,7 @@ const start = async (): Promise<void> => {
   await connectRedis();
   await connectDatabase();
 
-  allWorkers = [createEmailWorker()];
+  allWorkers = [createEmailWorker(), createSystemWorker()];
   logger.info(
     `${TAG} ${allWorkers.length} worker(s) active — listening for jobs`
   );

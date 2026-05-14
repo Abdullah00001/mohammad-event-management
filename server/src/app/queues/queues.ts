@@ -3,6 +3,7 @@ import { Queue } from 'bullmq';
 import { createQueueOptions } from '@/app/configs/queue.configs';
 
 let _emailQueue: Queue | null = null;
+let systemQueue: Queue | null = null;
 
 export const getEmailQueue = () => {
   if (!_emailQueue) {
@@ -11,3 +12,9 @@ export const getEmailQueue = () => {
   return _emailQueue;
 };
 
+export const getSystemQueue = () => {
+  if (!systemQueue) {
+    systemQueue = new Queue('system-queue', createQueueOptions());
+  }
+  return systemQueue;
+};

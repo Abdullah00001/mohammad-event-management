@@ -8,7 +8,9 @@ import {
   changePasswordController,
   changeUserPreferenceController,
   getAdminProfileInformationController,
+  getMyBlocklistController,
   getProfileInformationController,
+  getUserPreferenceController,
   updateProfileController,
   uploadAvatarController,
 } from '@/app/modules/profile/profile.controllers';
@@ -85,7 +87,12 @@ router
     checkAccountStatus,
     validateReqBody(UserPreferenceSchema),
     changeUserPreferenceController
-  );
+  )
+  .get(checkAccessToken, checkAccountStatus, getUserPreferenceController);
+
+router
+  .route('/profile/blocklist')
+  .get(checkAccessToken, checkAccountStatus, getMyBlocklistController);
 
 /**
  * ==================================================

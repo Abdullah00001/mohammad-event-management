@@ -7,7 +7,9 @@ import {
   changePassword,
   changeUserPreference,
   getAdminProfileInformation,
+  getMyBlocklist,
   getProfileInformation,
+  getUserPreference,
   updateProfile,
   uploadAvatar,
 } from '@/app/modules/profile/profile.services';
@@ -92,6 +94,36 @@ export const changeUserPreferenceController = asyncHandler(
     res.status(200).json({
       success: true,
       message: 'User preference updated successfully',
+      data,
+      traceId,
+    });
+    return;
+  }
+);
+
+export const getUserPreferenceController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const traceId = getTraceId();
+    const user = req.user as User;
+    const data = await getUserPreference({ user });
+    res.status(200).json({
+      success: true,
+      message: 'User preference retrieve successfully',
+      data,
+      traceId,
+    });
+    return;
+  }
+);
+
+export const getMyBlocklistController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const traceId = getTraceId();
+    const user = req.user as User;
+    const data = await getMyBlocklist({ user });
+    res.status(200).json({
+      success: true,
+      message: 'User blocklist retrieve successfully',
       data,
       traceId,
     });

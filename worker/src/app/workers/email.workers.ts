@@ -1,5 +1,6 @@
 import { Job, Worker } from 'bullmq';
 import { compile } from 'handlebars';
+import { PrismaClient } from '@prisma/client';
 
 import logger from '@/app/configs/logger.configs';
 import mailTransporter from '@/app/configs/nodemailer.config';
@@ -11,6 +12,8 @@ import { signupSuccessfulEmailTemplate } from '@/app/templates/signupSuccessfulE
 import { signupUserVerifyOtpEmailTemplate } from '@/app/templates/signupUserVerifyOtpEmail.template';
 import { mailOption } from '@/app/utils/system.utils';
 import { otpExpireAt } from '@/const';
+
+const prisma = new PrismaClient();
 
 export const createEmailWorker = (): Worker => {
   const EmailWorker = new Worker(
