@@ -10,6 +10,7 @@ COPY worker/package*.json ./
 COPY worker/tsconfig.json ./
 ARG DATABASE_URL="postgresql://postgres:myStrongPostgresPassword@postgres:5432/event_management"
 ENV DATABASE_URL=${DATABASE_URL}
+ENV PRISMA_SCHEMA_PATH=./prisma/schema.prisma
 RUN npm install
 
 # Copy worker sources after npm install
