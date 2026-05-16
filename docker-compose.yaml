@@ -53,7 +53,7 @@ services:
     container_name: event_management_worker_container
     build:
       context: .
-      dockerfile: worker/Dockerfile
+      dockerfile: worker/Dockerfile.dev
       args:
         DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:myStrongPostgresPassword@postgres:5432/event_management}
     env_file:

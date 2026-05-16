@@ -1,11 +1,7 @@
 # Mohammad Event Management
 
-This repository is a full-stack event management system with two separate Node.js/TypeScript services:
-
-- `server/` — web API and Socket.IO service
-- `worker/` — background BullMQ worker for email and system jobs
-
-Both services share a single root Prisma schema in `prisma/schema.prisma`.
+This repository is built for Docker-native development and production.
+Both `server/` and `worker/` run inside containers, sharing a single root Prisma schema.
 
 ## Key concepts
 
@@ -16,7 +12,7 @@ Both services share a single root Prisma schema in `prisma/schema.prisma`.
   - `node_modules/.prisma/client`
   - `server/node_modules/.prisma/client`
   - `worker/node_modules/.prisma/client`
-- Shared workflow is automated via root scripts and `scripts/sync_prisma.sh`
+- Docker-native workflow is automated via root scripts and `scripts/sync_prisma.sh`
 
 ## Quick start
 
@@ -33,43 +29,34 @@ npm install
 npm run generate
 ```
 
-### 3. Start local services
-
-In one terminal:
-
-```bash
-cd server
-npm run dev
-```
-
-In another terminal:
-
-```bash
-cd worker
-npm run dev
-```
-
-## Docker development
-
-Before running Docker, ensure the shared schema and generated clients are up-to-date.
+### 3. Start the Docker development environment
 
 ```bash
 docker compose down
 docker compose up -d --build
 ```
 
+This starts:
+
+- Postgres
+- Redis
+- Redis UI
+- worker service
+- server service
+
 ## Useful scripts
 
-- `npm run generate` — generate Prisma clients from shared root schema
+- `npm run generate` — generate Prisma clients from the shared root schema
 - `npm run generate:all` — alias for `npm run generate`
 - `npm run sync:prisma` — install dependencies and regenerate Prisma clients
 
 ## Developer documentation
 
-See `docs/developer-workflow.md` for full setup, workflows, schema migration steps, and checklists for new and returning developers.
+See `docs/developer-workflow.md` for the complete Docker-native setup, workflow, schema migration steps, and checklists.
 
 ## Notes
 
+- Development is Docker-native; do not rely on local `npm run dev` workflows.
 - Do not add separate Prisma config files under `server/` or `worker/`.
-- Always use the shared root schema and root Prisma config.
-- Local VS Code Prisma support depends on generated clients existing in the root, `server`, and `worker` directories.
+- Use the shared root Prisma schema and config only.
+- If VS Code does not autocomplete Prisma, regenerate clients and restart the editor.
