@@ -23,17 +23,17 @@ cd /home/abdullah/Projects/mohammad-event-management
 npm install
 ```
 
-### 2. Generate Prisma clients
-
-```bash
-npm run generate
-```
-
-### 3. Start the Docker development environment
+### 2. Start the Docker development environment before Prisma work
 
 ```bash
 docker compose down
 docker compose up -d --build
+```
+
+### 3. Generate Prisma clients
+
+```bash
+npm run generate
 ```
 
 This starts:
@@ -57,6 +57,8 @@ See `docs/developer-workflow.md` for the complete Docker-native setup, workflow,
 ## Notes
 
 - Development is Docker-native; do not rely on local `npm run dev` workflows.
+- Start Docker Compose before running any Prisma migration or schema generation commands.
+- Do not modify `prisma/schema.prisma` unless the database is running via Docker Compose.
 - Do not add separate Prisma config files under `server/` or `worker/`.
 - Use the shared root Prisma schema and config only.
 - If VS Code does not autocomplete Prisma, regenerate clients and restart the editor.

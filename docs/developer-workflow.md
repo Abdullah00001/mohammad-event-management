@@ -38,11 +38,10 @@ git clone <repo-url>
 cd mohammad-event-management
 ```
 
-### Step 2: Install dependencies and generate Prisma
+### Step 2: Install dependencies
 
 ```bash
 npm install
-npm run sync:prisma
 ```
 
 This ensures:
@@ -50,30 +49,34 @@ This ensures:
 - root dependencies are installed
 - server dependencies are installed
 - worker dependencies are installed
-- Prisma clients are generated from the shared schema
 
-### Step 3: Verify Prisma client generation
-
-```bash
-ls node_modules/.prisma/client
-ls server/node_modules/.prisma/client
-ls worker/node_modules/.prisma/client
-```
-
-### Step 4: Start the Docker development environment
+### Step 3: Start Docker Compose before Prisma schema or migration work
 
 ```bash
 docker compose down
 docker compose up -d --build
 ```
 
-This starts:
+This starts the required database and cache services before any Prisma migration or schema change.
 
-- Postgres
-- Redis
-- Redis UI
-- worker service
-- server service
+### Step 4: Generate Prisma clients
+
+```bash
+npm run sync:prisma
+```
+
+This ensures:
+
+- Prisma clients are generated from the shared schema
+- local code and containers use the same Prisma client
+
+### Step 5: Verify Prisma client generation
+
+```bash
+ls node_modules/.prisma/client
+ls server/node_modules/.prisma/client
+ls worker/node_modules/.prisma/client
+```
 
 ## Returning developer flow
 
@@ -89,17 +92,17 @@ git pull
 npm install
 ```
 
-### Step 3: Regenerate Prisma clients after schema or dependency changes
-
-```bash
-npm run generate
-```
-
-### Step 4: Restart Docker
+### Step 3: Start Docker Compose before Prisma work
 
 ```bash
 docker compose down
 docker compose up -d --build
+```
+
+### Step 4: Regenerate Prisma clients after schema or dependency changes
+
+```bash
+npm run generate
 ```
 
 ## Before running Docker Compose
@@ -122,21 +125,30 @@ docker compose up -d --build
 
 ### When `prisma/schema.prisma` changes
 
-1. Update the schema.
-2. Apply a migration:
+> WARNING: Do not modify `prisma/schema.prisma` unless Docker Compose is running and Postgres is healthy.
+
+1. Start Docker Compose if it is not already running:
+
+```bash
+docker compose down
+docker compose up -d --build
+```
+
+2. Update the schema.
+3. Apply a migration:
 
 ```bash
 cd /home/abdullah/Projects/mohammad-event-management
 npx dotenv -e server/.env -- npx prisma migrate dev --schema prisma/schema.prisma --name <describe_change>
 ```
 
-3. Regenerate Prisma clients:
+4. Regenerate Prisma clients:
 
 ```bash
 npm run generate
 ```
 
-4. Rebuild and restart Docker:
+5. Rebuild and restart Docker if needed:
 
 ```bash
 docker compose down
@@ -190,6 +202,8 @@ npx dotenv -e server/.env -- npx prisma migrate dev --schema prisma/schema.prism
 ## Important notes
 
 - Development is Docker-native; do not use local `npm run dev` workflows.
+- Start Docker Compose before running any Prisma migration or schema generation commands.
+- Do not modify `prisma/schema.prisma` unless the database is running via Docker Compose.
 - Keep `prisma/schema.prisma` and `prisma.config.ts` as the shared source of truth.
 - Do not add separate Prisma config files in `server/` or `worker/`.
 - If VS Code does not autocomplete Prisma, regenerate clients and restart the editor.
