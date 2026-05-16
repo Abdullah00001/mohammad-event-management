@@ -3,7 +3,7 @@ import { Job, Worker } from 'bullmq';
 import logger from '@/app/configs/logger.configs';
 import { getRedisClient } from '@/app/configs/redis.configs';
 import { requestContext } from '@/app/configs/requestContext.configs';
-import { prisma } from '@/app/configs/db.configs';
+import  prisma  from '@/app/configs/db.configs';
 import { getCountryFromGps } from '@/app/utils/geocoder.utils';
 
 export const createSystemWorker = (): Worker => {

@@ -10,8 +10,8 @@
   "scripts": {
     "build": "bash scripts/build.sh",
     "start": "node ./dist/server.js",
-    "dev": "npx prisma generate --schema ${PRISMA_SCHEMA_PATH:-../prisma/schema.prisma} && nodemon",
-    "postinstall": "npx prisma generate --schema ${PRISMA_SCHEMA_PATH:-../prisma/schema.prisma}",
+    "dev": "npx prisma generate --config ../prisma.config.ts --schema ${PRISMA_SCHEMA_PATH:-../prisma/schema.prisma} && nodemon",
+    "postinstall": "npx prisma generate --config ../prisma.config.ts --schema ${PRISMA_SCHEMA_PATH:-../prisma/schema.prisma}",
     "format": "prettier --write \"src/**/*.ts\"",
     "lint": "eslint \"src/**/*.{ts,js}\" --quiet",
     "create:module": "node ./scripts/createModule.js",

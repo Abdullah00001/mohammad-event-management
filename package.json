@@ -6,8 +6,13 @@
     "@prisma/client": "^6.19.2",
     "prisma": "^6.19.2"
   },
+  "devDependencies": {
+    "dotenv-cli": "^6.0.0"
+  },
   "scripts": {
-    "generate": "prisma generate",
-    "postinstall": "prisma generate"
+    "generate": "dotenv -e server/.env -- prisma generate --schema prisma/schema.prisma",
+    "generate:all": "npm run generate",
+    "postinstall": "echo 'Skipping automatic prisma generate at root. Run `npm run generate` to generate clients locally.'",
+    "sync:prisma": "./scripts/sync_prisma.sh"
   }
 }
