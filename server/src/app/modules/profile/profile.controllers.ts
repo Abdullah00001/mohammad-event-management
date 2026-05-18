@@ -20,7 +20,7 @@ export const getProfileInformationController = asyncHandler(
   async (req: Request, res: Response) => {
     const traceId = getTraceId();
     const user = req.user as User;
-    const data = await getProfileInformation({ userId: user.id });
+    const data = await getProfileInformation({ userId: user.id, email: user.email });
     res.status(200).json({
       success: true,
       message: 'User profile retrieve successfully',

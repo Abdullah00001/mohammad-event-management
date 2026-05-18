@@ -23,8 +23,10 @@ export interface ProfileInformation {
 
 export const getProfileInformation = async ({
   userId,
+  email,
 }: {
   userId: string;
+  email: string;
 }): Promise<unknown> => {
   try {
     const profile = await prisma.profile.findUnique({
@@ -36,7 +38,7 @@ export const getProfileInformation = async ({
         bio: true,
         countryVisited: true,
         profileInterest: true,
-        cover:true,
+        cover: true,
       },
     });
     if (!profile) throw new Error('Profile not found');
@@ -51,16 +53,56 @@ export const getProfileInformation = async ({
         interestIcon: true,
       },
     });
+    const upcomingEvents = [
+      {
+        id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+        name: 'City Sports Championship',
+        thumbnail:
+          'https://abdullah-sta.s3.eu-north-1.amazonaws.com/eventType/613b101c-f5f9-4bd2-bb73-1a66587c36b2/1778928703959.png',
+        eventType: {
+          id: '6a143688-8d8f-46df-a973-a37a799566e5',
+          title: 'Sports',
+        },
+        startDate: '2026-06-10T09:00:00.000Z',
+        startTime: '09:00 AM',
+      },
+      {
+        id: 'b2c3d4e5-f6a7-8901-bcde-f12345678901',
+        name: 'Jazz & Blues Night',
+        thumbnail:
+          'https://abdullah-sta.s3.eu-north-1.amazonaws.com/eventType/aac94538-e2a6-46b0-824d-97968204db20/1778928774835.png',
+        eventType: {
+          id: 'eca31285-05b0-4f83-8737-7a54455367cd',
+          title: 'Music',
+        },
+        startDate: '2026-06-15T18:30:00.000Z',
+        startTime: '06:30 PM',
+      },
+      {
+        id: 'c3d4e5f6-a7b8-9012-cdef-123456789012',
+        name: 'Street Food Festival',
+        thumbnail:
+          'https://abdullah-sta.s3.eu-north-1.amazonaws.com/eventType/23da0fe6-7eca-45f9-8139-624dfc3b98d1/1778928852407.png',
+        eventType: {
+          id: 'b35cda8c-6a77-4675-a479-097273c8286e',
+          title: 'Food and Drinks',
+        },
+        startDate: '2026-06-20T12:00:00.000Z',
+        startTime: '12:00 PM',
+      },
+    ];
     return {
+      name: profile.name,
+      email,
       cover: profile.cover,
       avatar: profile.avatar,
-      name: profile.name,
       location: profile.location,
       bio: profile.bio,
       countryVisited: profile.countryVisited,
       profileInterest: interests,
       totalEventsAttended: 0,
       totalConnections: 0,
+      upcomingEvents,
     };
   } catch (error) {
     if (error instanceof Error) throw error;
@@ -173,7 +215,6 @@ export const uploadCover = async ({
     throw new Error('Unknown error occurred in update profile cover service');
   }
 };
-
 
 export const changePassword = async ({
   newPassword,
