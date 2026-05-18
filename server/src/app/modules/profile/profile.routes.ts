@@ -13,6 +13,7 @@ import {
   getUserPreferenceController,
   updateProfileController,
   uploadAvatarController,
+  uploadCoverController,
 } from '@/app/modules/profile/profile.controllers';
 import { checkCurrentPassword } from '@/app/modules/profile/profile.middlewares';
 import {
@@ -69,6 +70,16 @@ router
     uploadSingle('avatar', true),
     handleMulterError,
     uploadAvatarController
+  );
+
+router
+  .route('/profile/cover')
+  .post(
+    checkAccessToken,
+    checkAccountStatus,
+    uploadSingle('cover', true),
+    handleMulterError,
+    uploadCoverController
   );
 
 router

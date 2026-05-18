@@ -12,6 +12,7 @@ import {
   getUserPreference,
   updateProfile,
   uploadAvatar,
+  uploadCover,
 } from '@/app/modules/profile/profile.services';
 import { asyncHandler } from '@/app/utils/system.utils';
 
@@ -60,6 +61,27 @@ export const uploadAvatarController = asyncHandler(
     res.status(200).json({
       success: true,
       message: 'Profile avatar upload successful',
+      data,
+      traceId,
+    });
+    return;
+  }
+);
+
+export const uploadCoverController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const traceId = getTraceId();
+    const user = req.user as User;
+    const profile = req.profile as Profile;
+    const fileName = (req.file as Express.Multer.File).filename;
+    const data = await uploadCover({
+      fileName,
+      profile,
+      user,
+    });
+    res.status(200).json({
+      success: true,
+      message: 'Profile cover upload successful',
       data,
       traceId,
     });

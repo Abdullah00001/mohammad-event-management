@@ -36,13 +36,13 @@ export const getProfileInformation = async ({
         bio: true,
         countryVisited: true,
         profileInterest: true,
+        cover:true,
       },
     });
-
     if (!profile) throw new Error('Profile not found');
     const interests = await prisma.interest.findMany({
       where: {
-        interestName: { in: profile.profileInterest },
+        id: { in: profile.profileInterest },
         isDeleted: false,
       },
       select: {
@@ -52,7 +52,7 @@ export const getProfileInformation = async ({
       },
     });
     return {
-      cover: null,
+      cover: profile.cover,
       avatar: profile.avatar,
       name: profile.name,
       location: profile.location,
@@ -139,6 +139,41 @@ export const uploadAvatar = async ({
     throw new Error('Unknown error occurred in update profile avatar service');
   }
 };
+
+export const uploadCover = async ({
+  fileName,
+  profile,
+  user,
+}: {
+  user: User;
+  profile: Profile;
+  fileName: string;
+}): Promise<{ cover: string }> => {
+  const cover = profile.cover;
+  const filePath = join(__dirname, '../../../../public/temp', fileName);
+  const fileExtension = extname(filePath);
+  const s3Key = `covers/${user.id}/${Date.now()}${fileExtension}`;
+  try {
+    if (cover) {
+      const key = extractS3KeyFromUrl(cover);
+      await singleDeleteToS3({ key });
+    }
+    const url = await singleUploadToS3({
+      filePath,
+      key: s3Key,
+      mimeType: fileExtension,
+    });
+    await prisma.profile.update({
+      data: { cover: url },
+      where: { id: profile.id, userId: user.id },
+    });
+    return { cover: url };
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error('Unknown error occurred in update profile cover service');
+  }
+};
+
 
 export const changePassword = async ({
   newPassword,
@@ -228,7 +263,7 @@ export const getUserPreference = async ({
 }): Promise<UserPreference> => {
   try {
     const data = await prisma.userPreference.findUnique({
-      where: {  userId: user.id },
+      where: { userId: user.id },
     });
     if (!data) throw new Error('User preference not found');
     return data;
