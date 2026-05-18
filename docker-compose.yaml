@@ -64,6 +64,7 @@ services:
       REDIS_PASSWORD: myStrongRedisPassword
       DATABASE_URL: postgresql://postgres:myStrongPostgresPassword@postgres:5432/event_management
       NODE_ENV: development
+      PRISMA_CONFIG_PATH: ./prisma.config.ts
     volumes:
       - ./worker/src:/app/src
       - ./worker/nodemon.json:/app/nodemon.json
@@ -91,10 +92,16 @@ services:
     networks:
       - nowor_backend_network
     volumes:
-      - "./server:/usr/src/app"
+      - ./server/src:/usr/src/app/src
+      - ./server/package.json:/usr/src/app/package.json
+      - ./server/tsconfig.json:/usr/src/app/tsconfig.json
+      - ./server/nodemon.json:/usr/src/app/nodemon.json
+      - ./server/scripts:/usr/src/app/scripts
+      - ./server/public:/usr/src/app/public
+      - ./server/logs:/usr/src/app/logs
       - ./prisma:/usr/src/app/prisma
       - ./prisma.config.ts:/usr/src/app/prisma.config.ts
-      - /usr/src/app/node_modules
+      - server_node_modules:/usr/src/app/node_modules
     env_file:
       - ./server/.env
     environment:
@@ -104,14 +111,14 @@ services:
       REDIS_PORT: 6379
       REDIS_PASSWORD: myStrongRedisPassword
       DATABASE_URL: postgresql://postgres:myStrongPostgresPassword@postgres:5432/event_management
+      PRISMA_CONFIG_PATH: ./prisma.config.ts
     stop_grace_period: 8s
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-      worker:
-        condition: service_started
+    restart: unless-stopped
 
 networks:
   nowor_backend_network:
@@ -122,3 +129,4 @@ volumes:
   nowor_redis_volume:
   nowor_postgres_volume:
   worker_node_modules:
+  server_node_modules:

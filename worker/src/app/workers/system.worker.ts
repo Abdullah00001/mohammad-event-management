@@ -5,6 +5,7 @@ import { getRedisClient } from '@/app/configs/redis.configs';
 import { requestContext } from '@/app/configs/requestContext.configs';
 import  prisma  from '@/app/configs/db.configs';
 import { getCountryFromGps } from '@/app/utils/geocoder.utils';
+import {Redis} from 'ioredis';
 
 export const createSystemWorker = (): Worker => {
   const SystemWorker = new Worker(
@@ -66,7 +67,7 @@ export const createSystemWorker = (): Worker => {
       });
     },
     {
-      connection: getRedisClient(),
+      connection: getRedisClient() as any,
     }
   );
 

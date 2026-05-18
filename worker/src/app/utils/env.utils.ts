@@ -9,5 +9,6 @@ export const getEnv = (key: string): string => {
   if (!value) {
     throw new Error(`Missing Environment Variable: ${key}`);
   }
+  console.log(value);
   return value as string;
 };

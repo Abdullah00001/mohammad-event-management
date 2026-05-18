@@ -13,8 +13,6 @@ import { signupUserVerifyOtpEmailTemplate } from '@/app/templates/signupUserVeri
 import { mailOption } from '@/app/utils/system.utils';
 import { otpExpireAt } from '@/const';
 
-const prisma = new PrismaClient();
-
 export const createEmailWorker = (): Worker => {
   const EmailWorker = new Worker(
     'email-queue',

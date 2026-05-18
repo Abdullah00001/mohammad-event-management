@@ -1,5 +1,6 @@
 export type TEnv = {
   GEO_PROVIDER: string;
+  GEO_USER_AGENT: string;
   GOOGLE_MAPS_API_KEY: string;
   NODE_ENV: string;
   SMTP_HOST: string;

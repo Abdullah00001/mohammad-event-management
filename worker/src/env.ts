@@ -15,5 +15,6 @@ export const env: TEnv = {
   S3_REGION: getEnv('S3_REGION'),
   S3_BUCKET_NAME: getEnv('S3_BUCKET_NAME'),
   GEO_PROVIDER: getEnv('GEO_PROVIDER'),
+  GEO_USER_AGENT: getEnv('GEO_USER_AGENT'),
   GOOGLE_MAPS_API_KEY: getEnv('GOOGLE_MAPS_API_KEY'),
 };
