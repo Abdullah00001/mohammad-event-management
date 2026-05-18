@@ -18,7 +18,6 @@ export interface ProfileInformation {
   location: string | null;
   bio: string | null;
   countryVisited: string[];
-  counrtyVisited: string[];
   profileInterest: string[];
 }
 
@@ -256,7 +255,7 @@ export const getMyBlocklist = async ({
         } | null;
       };
     }[] = await prisma.blockList.findMany({
-      where: { userId: user.id },
+      where: { blockerId: user.id },
       select: {
         id: true,
         blockedUserId: true,

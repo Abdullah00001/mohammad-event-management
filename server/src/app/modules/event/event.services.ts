@@ -402,7 +402,7 @@ export const getEventListingService = async ({
         event.maxParticipantsCount - participantCount
       );
       const isJoined = participants.some((p) => p.participantId === user.id);
-      const isOnWaitlist = event.waitlists.length > 0;
+      const isOnWaitlist = (event.waitlists as { id: string }[]).length > 0;
 
       return {
         id: event.id,
