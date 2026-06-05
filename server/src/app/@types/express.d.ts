@@ -1,4 +1,4 @@
-import { EventType, Interest, Profile, SubscriptionPlan, User } from '@prisma/client';
+import { EventType, Interest, Profile, SubscriptionPlan, User,Event } from '@prisma/client';
 import { JwtPayload } from 'jsonwebtoken';
 
 declare global {
@@ -16,7 +16,8 @@ declare global {
       validatedQuery?: unknown;
       interest: Interest;
       eventType:EventType;
-      plan:SubscriptionPlan
+      plan:SubscriptionPlan;
+      event:Event;
     }
   }
 }

@@ -19,6 +19,7 @@ import { getTraceId } from '@/app/configs/requestContext.configs';
 import { traceMiddleware } from '@/app/middlewares/trace.middlewares';
 import v1Routes from '@/app/routes/v1/index';
 import { baseUrl } from '@/const';
+import { globalErrorMiddleware } from '@/app/middlewares/globalError.middlewares';
 
 const app: Application = express();
 
@@ -45,14 +46,12 @@ app.use(helmet());
 
 app.get('/health', (_req: Request, res: Response) => {
   const traceId = getTraceId();
-  res
-    .status(200)
-    .json({
-      status: 200,
-      success: true,
-      message: 'Server Is Running',
-      traceId,
-    });
+  res.status(200).json({
+    status: 200,
+    success: true,
+    message: 'Server Is Running',
+    traceId,
+  });
   return;
 });
 
@@ -70,5 +69,7 @@ app.use((req: Request, res: Response) => {
     error: `Cannot ${req.method} ${req.originalUrl}`,
   });
 });
+
+app.use(globalErrorMiddleware);
 
 export default app;

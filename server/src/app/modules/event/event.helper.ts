@@ -32,7 +32,7 @@ export function buildHaversineFragment(
           power(sin(radians(e.lat - ${pLat}) / 2.0), 2) +
           cos(radians(${pLat})) *
           cos(radians(e.lat)) *
-          power(sin(radians(e.long - ${pLng}) / 2.0), 2)
+          power(sin(radians(e.lng - ${pLng}) / 2.0), 2)
         )
       )
     ) <= ${pRadKm}
@@ -120,7 +120,7 @@ export async function buildDistanceMap(
                 power(sin(radians(e.lat - ${pLat}) / 2.0), 2) +
                 cos(radians(${pLat})) *
                 cos(radians(e.lat)) *
-                power(sin(radians(e.long - ${pLng}) / 2.0), 2)
+                power(sin(radians(e.lng - ${pLng}) / 2.0), 2)
               )
             ) AS NUMERIC
           ), 2

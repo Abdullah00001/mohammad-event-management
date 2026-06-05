@@ -18,8 +18,6 @@ export const EventCreateSchema = z.object({
 
   description: z
     .string({ error: 'description is required' })
-    .min(10, { message: 'description must be at least 10 characters' })
-    .max(1000, { message: 'description must not exceed 1000 characters' })
     .trim(),
 
   startDate: z.coerce
@@ -28,36 +26,11 @@ export const EventCreateSchema = z.object({
       message: 'startDate must be in the future',
     }),
 
-  startTime: z
-    .string({ error: 'time is required' })
-    .regex(/^([01]\d|2[0-3]):([0-5]\d)\s(AM|PM)$/, {
-      message: 'time must be in HH:MM AM/PM format (e.g. 14:30 PM)',
-    })
-    .refine(
-      (val) => {
-        const [hourStr, , period] = val.split(/[:\s]/);
-        const hour = parseInt(hourStr);
-        return (
-          (hour < 12 && period === 'AM') || (hour >= 12 && period === 'PM')
-        );
-      },
-      { message: 'AM/PM must match the hour (00–11 → AM, 12–23 → PM)' }
-    ),
-  endTime: z
-    .string({ error: 'time is required' })
-    .regex(/^([01]\d|2[0-3]):([0-5]\d)\s(AM|PM)$/, {
-      message: 'time must be in HH:MM AM/PM format (e.g. 14:30 PM)',
-    })
-    .refine(
-      (val) => {
-        const [hourStr, , period] = val.split(/[:\s]/);
-        const hour = parseInt(hourStr);
-        return (
-          (hour < 12 && period === 'AM') || (hour >= 12 && period === 'PM')
-        );
-      },
-      { message: 'AM/PM must match the hour (00–11 → AM, 12–23 → PM)' }
-    ),
+  endDate: z.coerce
+    .date({ error: 'endDate must be a valid ISO date' })
+    .refine((date) => date >= new Date(), {
+      message: 'endDate must be in the future',
+    }),
 
   maxParticipantsCount: z
     .number({ error: 'maxParticipantsCount must be a number' })
@@ -71,10 +44,10 @@ export const EventCreateSchema = z.object({
     .min(-90, { message: 'lat must be between -90 and 90' })
     .max(90, { message: 'lat must be between -90 and 90' }),
 
-  long: z
-    .number({ error: 'long must be a number' })
-    .min(-180, { message: 'long must be between -180 and 180' })
-    .max(180, { message: 'long must be between -180 and 180' }),
+  lng: z
+    .number({ error: 'lng must be a number' })
+    .min(-180, { message: 'lng must be between -180 and 180' })
+    .max(180, { message: 'lng must be between -180 and 180' }),
 
   eventTypeId: z.uuid({ message: 'eventTypeId must be a valid UUID' }),
   isPrivate: z.boolean().default(false),
@@ -167,3 +140,27 @@ export const querySchema = z.object({
 });
 
 export type EventQueryParams = z.infer<typeof querySchema>;
+
+export const UpdateEventInformationSchema = z.object({
+  eventName: z
+    .string({ error: 'eventName is required' })
+    .min(3, { message: 'eventName must be at least 3 characters' })
+    .max(100, { message: 'eventName must not exceed 100 characters' })
+    .trim()
+    .optional(),
+
+  description: z
+    .string({ error: 'description is required' })
+    .min(10, { message: 'description must be at least 10 characters' })
+    .max(1000, { message: 'description must not exceed 1000 characters' })
+    .trim()
+    .optional(),
+
+  maxParticipantsCount: z
+    .number({ error: 'maxParticipantsCount must be a number' })
+    .int({ message: 'maxParticipantsCount must be an integer' })
+    .min(10, { message: 'maxParticipantsCount must be at least 2' })
+    .optional(),
+});
+
+export type TUpdateEventInformationPayload = z.infer<typeof UpdateEventInformationSchema>;

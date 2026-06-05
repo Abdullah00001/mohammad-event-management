@@ -22,20 +22,19 @@ export interface EventItem {
   eventName: string;
   description: string;
   startDate: Date;
-  startTime: string;
-  endTime: string;
+  endDate: Date;
   maxParticipantsCount: number;
   eventStatus: EventStatus;
   lat: number;
-  long: number;
+  lng: number;
   isPrivate: boolean;
   interests: string[];
   distanceKm: number;
   participantCount: number;
   spotsLeft: number;
-  isOnWaitlist: boolean;
+  isOnWaitList: boolean;
   isJoined: boolean;
-  eventTypes: { id: string; title: string; thumbnail: string }[];
+  eventType: { id: string; title: string; thumbnail: string };
   host: {
     id: string;
     name: string | null;

@@ -1,3 +1,7 @@
+// ─────────────────────────────────────────────────────────────────────────────
+//  GENERATORS & DATASOURCE
+// ─────────────────────────────────────────────────────────────────────────────
+
 generator client {
   provider = "prisma-client-js"
   output   = "../node_modules/.prisma/client"
@@ -18,7 +22,9 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ─── Enums ────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+//  ENUMS
+// ─────────────────────────────────────────────────────────────────────────────
 
 enum AccountStatus {
   ACTIVE
@@ -82,7 +88,6 @@ enum NotificationType {
   POD_INVITE
 }
 
-
 enum StrikeReason {
   LATE_CANCELLATION   // user cancelled within 6 h window
   NO_SHOW             // host confirmed absence in journal
@@ -95,64 +100,72 @@ enum InviteStatus {
   DECLINED
 }
 
-// ─── Core User ────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+//  CORE USER
+// ─────────────────────────────────────────────────────────────────────────────
 
 model User {
-  id                   String      @id @default(uuid())
-  email                String      @unique
-  password             String?
-  isVerified           Boolean     @default(false)
-  accountStatus        AccountStatus @default(ACTIVE)
-  role                 Role        @default(USER)
-  provider             Provider    @default(MANUAL)
-  providerId           String?
+  id                    String            @id @default(uuid())
+  email                 String            @unique
+  password              String?
+  isVerified            Boolean           @default(false)
+  accountStatus         AccountStatus     @default(ACTIVE)
+  role                  Role              @default(USER)
+  provider              Provider          @default(MANUAL)
+  providerId            String?
 
   // Strike & penalty system
-  strikeCount          Int         @default(0)
-  penaltyEndDate       DateTime?
+  strikeCount           Int               @default(0)
+  penaltyEndDate        DateTime?
+  lastStrikeDate        DateTime?         // when the last strike was received (for 90‑day reset)
 
   // Attendance streak (for 30-day strike reset mechanic)
   lastEventAttendedDate DateTime?
-  attendanceStreakDays  Int        @default(0)
+  attendanceStreakDays  Int               @default(0)
 
   // Premium
-  isPremium            Boolean     @default(false)
-  premiumUntil         DateTime?
-  isProfileSetup       Boolean     @default(false)
-  createdAt            DateTime    @default(now())
-  updatedAt            DateTime    @updatedAt
-  stripeCustomerId String? @unique
+  isPremium             Boolean           @default(false)
+  premiumUntil          DateTime?
+  isProfileSetup        Boolean           @default(false)
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+  stripeCustomerId      String?           @unique
 
   // Relations
-  profile              Profile?
-  userTraits           UserTraits?
-  userPreference       UserPreference?
-  sentRequests         Friends[]   @relation("SenderRelation")
-  receivedRequests     Friends[]   @relation("ReceiverRelation")
-  blockedUsers         BlockList[] @relation("BlockerRelation")
-  blockedBy            BlockList[] @relation("BlockedRelation")
-  eventParticipants    EventParticipants[]
-  conversationsAsA     Conversation[]      @relation("ConversationUserA")
-  conversationsAsB     Conversation[]      @relation("ConversationUserB")
-  conversationSettings ConversationSettings[]
-  sentMessages         Message[]           @relation("SentMessages")
-  sentEventMessages    EventMessage[]      @relation("SentEventMessages")
-  notifications        Notification[]
+  profile               Profile?
+  userTraits            UserTraits?
+  userPreference        UserPreference?
+  sentRequests          Friends[]         @relation("SenderRelation")
+  receivedRequests      Friends[]         @relation("ReceiverRelation")
+  blockedUsers          BlockList[]       @relation("BlockerRelation")
+  blockedBy             BlockList[]       @relation("BlockedRelation")
+  eventParticipants     EventParticipants[]
+  conversationsAsA      Conversation[]    @relation("ConversationUserA")
+  conversationsAsB      Conversation[]    @relation("ConversationUserB")
+  conversationSettings  ConversationSettings[]
+  sentMessages          Message[]         @relation("SentMessages")
+  sentEventMessages     EventMessage[]    @relation("SentEventMessages")
+  notifications         Notification[]
+  strikes               Strike[]          // audit log of strikes
 
-  orcaGraceToken       OrcaGraceToken?
-  travelMode           UserTravelMode?
-  devices              Device[]
-  waitLists            WaitList[]
+  orcaGraceToken        OrcaGraceToken?
+  travelMode            UserTravelMode?
+  devices               Device[]
+  waitLists             WaitList[]
 
   // Pod invites received
-  podInvites           PodInvite[]
+  podInvites            PodInvite[]
 
   @@index([role])
   @@index([accountStatus])
   @@index([isPremium])
+  @@index([strikeCount])
+  @@index([penaltyEndDate])
 }
 
-// ─── Profile & Traits ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+//  PROFILE & TRAITS
+// ─────────────────────────────────────────────────────────────────────────────
 
 model Profile {
   id               String   @id @default(uuid())
@@ -167,10 +180,6 @@ model Profile {
   bio              String?
   profileInterest  String[] @default([])
   countryVisited   String[] @default([])
-
-  // Passport Stamp Badge — derived from user.isPremium (no extra field needed)
-  // Frontend reads user.isPremium to show/hide badge
-
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 }
@@ -199,15 +208,18 @@ model UserTraits {
 }
 
 model UserPreference {
-  id                  String  @id @default(uuid())
-  userId              String  @unique
-  user                User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  emailNotification   Boolean @default(true)
-  eventReminders      Boolean @default(true)
-  friendRequest       Boolean @default(true)
+  id                String  @id @default(uuid())
+  userId            String  @unique
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emailNotification Boolean @default(true)
+  eventReminders    Boolean @default(true)
+  friendRequest     Boolean @default(true)
+  pushNotifications Boolean @default(true)
 }
 
-// ─── Social ───────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+//  SOCIAL (FRIENDS & BLOCK)
+// ─────────────────────────────────────────────────────────────────────────────
 
 model Friends {
   id         String           @id @default(uuid())
@@ -234,26 +246,26 @@ model BlockList {
   @@unique([blockerId, blockedUserId])
 }
 
-// ─── Events / Pods ────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+//  EVENTS / PODS
+// ─────────────────────────────────────────────────────────────────────────────
 
 model Event {
   id                   String      @id @default(uuid())
   eventName            String
   description          String
   startDate            DateTime
-  startTime            String
-  endTime              String
-  maxParticipantsCount Int         @default(10)
+  endDate              DateTime
+  maxParticipantsCount Int        @default(10)
   eventStatus          EventStatus @default(UPCOMING)
   lat                  Float
-  long                 Float
+  lng                 Float
   deletedAt            DateTime?
-  interests        String[]    @default([])
+  interests            String[]    @default([])
 
   // Private Pod (Reunion Pod) — Feature 4
-  // Only premium users can create a private pod
   isPrivate            Boolean     @default(false)
-  inviteLink           String?     @unique  // shareable token for external invite link
+  inviteLink           String?     @unique
 
   eventParticipants    EventParticipants[]
   messages             EventMessage[]
@@ -263,6 +275,11 @@ model Event {
 
   createdAt            DateTime    @default(now())
   updatedAt            DateTime    @updatedAt
+
+  @@index([lat, lng])
+  @@index([startDate,endDate])
+  @@index([eventStatus])
+  @@index([isPrivate])
 }
 
 model EventEventType {
@@ -285,26 +302,26 @@ model EventParticipants {
   joinedAt      DateTime  @default(now())
 
   // Journal entry submitted by host after event
-  journalRating    Int?      // 1–5 star rating
-  journalNoShow    Boolean   @default(false)
-  journalSubmitted Boolean   @default(false)
-  journalSubmittedAt DateTime?
-}
+  journalRating       Int?
+  journalNoShow       Boolean   @default(false)
+  journalSubmitted    Boolean   @default(false)
+  journalSubmittedAt  DateTime?
 
+  @@unique([eventId, participantId])
+}
 
 model WaitList {
-  id            String   @id @default(uuid())
-  eventId       String
-  event         Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  userId        String
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  joinedAt      DateTime @default(now())
+  id        String   @id @default(uuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  joinedAt  DateTime @default(now())
 
   @@unique([eventId, userId])
+  @@index([eventId, joinedAt])
 }
 
-// Private Pod invite — Feature 4
 model PodInvite {
   id        String       @id @default(uuid())
   eventId   String
@@ -331,18 +348,37 @@ model EventType {
   @@index([title])
 }
 
-// ─── Notifications ────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+//  STRIKE AUDIT TRAIL
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Strike {
+  id        String       @id @default(uuid())
+  userId    String
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  points    Int          // 1 or 2
+  reason    StrikeReason
+  createdAt DateTime     @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  NOTIFICATIONS & DEVICES (PUSH)
+// ─────────────────────────────────────────────────────────────────────────────
 
 model Notification {
-  id                      String   @id @default(uuid())
+  id                      String           @id @default(uuid())
   userId                  String
-  user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   notificationTitle       String
   notificationDescription String
   type                    NotificationType
-  isRead                  Boolean  @default(false)
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
+  metadata                Json?            // extra data for the app (e.g. { eventId, conversationId })
+  isRead                  Boolean          @default(false)
+  createdAt               DateTime         @default(now())
+  updatedAt               DateTime         @updatedAt
 
   @@index([userId, isRead])
   @@index([userId, createdAt(sort: Desc)])
@@ -350,17 +386,21 @@ model Notification {
 }
 
 model Device {
-  id        String @id @default(uuid())
-  userId    String 
-  fcmToken  String @unique
-  platform  String // ios / android
+  id        String   @id @default(uuid())
+  userId    String
+  fcmToken  String   @unique
+  platform  String   // ios / android
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
-// ─── Messaging ────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+//  MESSAGING – 1:1 CONVERSATIONS (with per‑user delete/clear)
+// ─────────────────────────────────────────────────────────────────────────────
 
 model Conversation {
   id        String   @id @default(uuid())
@@ -384,11 +424,12 @@ model ConversationSettings {
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   userId         String
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  clearedAt      DateTime?
-  deletedAt      DateTime?
+  clearedAt      DateTime?    // hide all messages before this date (clear chat for this user)
+  deletedAt      DateTime?    // soft delete entire conversation for this user
   createdAt      DateTime     @default(now())
 
   @@unique([conversationId, userId])
+  @@index([userId])
 }
 
 model Message {
@@ -399,12 +440,17 @@ model Message {
   sender         User         @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
   content        String
   isEdited       Boolean      @default(false)
-  deletedAt      DateTime?
+  deletedAt      DateTime?    // soft delete for everyone (if sender deletes)
   createdAt      DateTime     @default(now())
 
   @@index([conversationId, createdAt])
   @@index([senderId])
+  @@index([deletedAt])
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  EVENT GROUP CHAT
+// ─────────────────────────────────────────────────────────────────────────────
 
 model EventMessage {
   id        String    @id @default(uuid())
@@ -414,36 +460,41 @@ model EventMessage {
   sender    User      @relation("SentEventMessages", fields: [senderId], references: [id], onDelete: Cascade)
   content   String
   isEdited  Boolean   @default(false)
-  deletedAt DateTime?
+  deletedAt DateTime? // soft delete for everyone (if sender or host deletes)
   createdAt DateTime  @default(now())
 
   @@index([eventId, createdAt])
   @@index([senderId])
+  @@index([deletedAt])
 }
 
-
+// ─────────────────────────────────────────────────────────────────────────────
+//  PREMIUM FEATURES
+// ─────────────────────────────────────────────────────────────────────────────
 
 model UserTravelMode {
-  id              String   @id @default(uuid())
-  userId          String   @unique
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  isActive        Boolean  @default(false)
-  travelCityName  String?
-  travelCityLat   Float?
-  travelCityLong  Float?
-  activatedAt     DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
+  id             String   @id @default(uuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isActive       Boolean  @default(false)
+  travelCityName String?
+  travelCityLat  Float?
+  travelCityLng Float?
+  activatedAt    DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
 
+// Pod Insurance – one free late cancellation per month
 model OrcaGraceToken {
-  id             String           @id @default(uuid())
-  userId         String           @unique
-  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  isUsed         Boolean          @default(false)
-  usedAt         DateTime?
-  resetsAt       DateTime
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isUsed    Boolean  @default(false)
+  usedAt    DateTime?
+  resetsAt  DateTime   // when this token expires (end of month)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, resetsAt])
 }

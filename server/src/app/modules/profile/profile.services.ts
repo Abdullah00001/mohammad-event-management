@@ -244,6 +244,7 @@ export const changeUserPreference = async ({
   user: User;
 }): Promise<UserPreference> => {
   try {
+    console.log(payload);
     const data = await prisma.userPreference.update({
       where: { userId: user.id },
       data: payload,
@@ -348,14 +349,52 @@ export const getMyBlocklist = async ({
         },
       },
     });
-    return blocklist.map((block) => {
-      return {
-        id: block.id,
-        blockedUserId: block.blockedUserId,
-        blockedUserName: block.blockedUser.profile?.name ?? null,
-        blockedUserAvatar: block.blockedUser.profile?.avatar ?? null,
-      };
-    });
+    const dummyBlockList = [
+      {
+        id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+        name: 'Rafi Hossain',
+        bio: 'Travel enthusiast. Love exploring new places and meeting new people.',
+        avatar:
+          'https://abdullah-sta.s3.eu-north-1.amazonaws.com/avatars/701ff52a-9125-4a8a-a7b6-026e2b18fb26/1779100957943.png',
+      },
+      {
+        id: '550e8400-e29b-41d4-a716-446655440000',
+        name: 'Nadia Islam',
+        bio: 'Foodie & adventure lover. Always looking for the next great experience.',
+        avatar:
+          'https://abdullah-sta.s3.eu-north-1.amazonaws.com/avatars/701ff52a-9125-4a8a-a7b6-026e2b18fb26/1779100957943.png',
+      },
+      {
+        id: '6ba7b810-9dad-11d1-80b4-00c04fd430c8',
+        name: 'Tanvir Ahmed',
+        bio: 'Music lover and part-time photographer based in Chittagong.',
+        avatar:
+          'https://abdullah-sta.s3.eu-north-1.amazonaws.com/avatars/701ff52a-9125-4a8a-a7b6-026e2b18fb26/1779100957943.png',
+      },
+      {
+        id: '7c9e6679-7425-40de-944b-e07fc1f90ae7',
+        name: 'Sumaiya Khanam',
+        bio: 'Bookworm and coffee addict. Enjoy cultural events and art exhibitions.',
+        avatar:
+          'https://abdullah-sta.s3.eu-north-1.amazonaws.com/avatars/701ff52a-9125-4a8a-a7b6-026e2b18fb26/1779100957943.png',
+      },
+      {
+        id: 'a987b234-c56d-78ef-901a-bcdef2345678',
+        name: 'Imran Chowdhury',
+        bio: 'Sports fanatic. Football, cricket — you name it, I watch it.',
+        avatar:
+          'https://abdullah-sta.s3.eu-north-1.amazonaws.com/avatars/701ff52a-9125-4a8a-a7b6-026e2b18fb26/1779100957943.png',
+      },
+    ];
+    // return blocklist.map((block) => {
+    //   return {
+    //     id: block.id,
+    //     blockedUserId: block.blockedUserId,
+    //     blockedUserName: block.blockedUser.profile?.name ?? null,
+    //     blockedUserAvatar: block.blockedUser.profile?.avatar ?? null,
+    //   };
+    // });
+    return dummyBlockList;
   } catch (error) {
     if (error instanceof Error) throw error;
     throw new Error('Unknown error occurred in get blocklist service');

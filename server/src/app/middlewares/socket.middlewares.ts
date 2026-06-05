@@ -40,14 +40,14 @@ export const socketAuthMiddleware = async (
 ) => {
   try {
     const token = extractTokenFromSocketHeader(socket);
-
     if (!token) {
       logger.warn(`Socket auth failed — no token provided: ${socket.id}`);
       return next(new Error('UNAUTHORIZED: No token provided'));
     }
     const redisClient = getRedisClient();
     const isBlackListed = await redisClient.get(`blacklist:jwt:${token}`);
-    if (!isBlackListed) {
+
+    if (isBlackListed) {
       logger.warn(`Socket auth failed — Token blacklisted: ${socket.id}`);
       return next(new Error('UNAUTHORIZED: Token blacklisted'));
     }

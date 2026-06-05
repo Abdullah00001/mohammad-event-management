@@ -1,16 +1,21 @@
-import { Prisma } from '@prisma/client';
-import { EventRole, EventStatus, User } from '@prisma/client';
+import { EventRole, EventStatus, User, Event, Prisma } from '@prisma/client';
 
 import prisma from '@/app/configs/db.configs';
 import {
   EventQueryParams,
   TEventCreatePayload,
+  TUpdateEventInformationPayload,
 } from '@/app/modules/event/event.schemas';
 import { getCountryFromCoords, timeToMinutes } from '@/app/utils/system.utils';
 import { DEFAULT_LIMIT, DEFAULT_PAGE, DEFAULT_RADIUS_KM } from '@/const';
 import { getRedisClient } from '@/app/configs/redis.config';
 import { EventItem, EventListingResult } from '@/app/modules/event/event.types';
-import { buildDistanceMap, buildEmptyResult, buildHaversineFragment, getBlockedUserIds } from './event.helper';
+import {
+  buildDistanceMap,
+  buildEmptyResult,
+  buildHaversineFragment,
+  getBlockedUserIds,
+} from './event.helper';
 
 export const createEventService = async ({
   payload,
@@ -18,32 +23,30 @@ export const createEventService = async ({
 }: {
   user: User;
   payload: TEventCreatePayload;
-}): Promise<void> => {
+}): Promise<{ eventId: string }> => {
   try {
     const {
       description,
       eventName,
       eventTypeId,
       lat,
-      long,
+      lng,
       maxParticipantsCount,
       startDate,
-      startTime,
+      endDate,
       isPrivate,
-      endTime,
     } = payload;
-    await prisma.$transaction(async (tx) => {
+    const event = await prisma.$transaction(async (tx) => {
       const event = await tx.event.create({
         data: {
           description,
           eventName,
           lat,
-          long,
+          lng,
           maxParticipantsCount,
           startDate,
-          startTime,
+          endDate,
           isPrivate,
-          endTime,
         },
       });
 
@@ -61,8 +64,9 @@ export const createEventService = async ({
           participantId: user.id,
         },
       });
+      return event;
     });
-    return;
+    return { eventId: event.id };
   } catch (error) {
     if (error instanceof Error) throw error;
     throw new Error('Unknown error occurred in create event service');
@@ -341,7 +345,7 @@ export const getEventListingService = async ({
               },
             },
           },
-          waitlists: {
+          waitLists: {
             where: { userId: user.id },
             select: { id: true },
           },
@@ -399,34 +403,29 @@ export const getEventListingService = async ({
       const participantCount = participants.length;
       const spotsLeft = Math.max(
         0,
-        event.maxParticipantsCount - participantCount
+        event?.maxParticipantsCount - participantCount
       );
       const isJoined = participants.some((p) => p.participantId === user.id);
-      const isOnWaitlist = (event.waitlists as { id: string }[]).length > 0;
+      const isOnWaitList = event.waitLists.length > 0;
 
       return {
         id: event.id,
         eventName: event.eventName,
         description: event.description,
         startDate: event.startDate,
-        startTime: event.startTime,
-        endTime: event.endTime,
+        endDate: event.endDate,
         maxParticipantsCount: event.maxParticipantsCount,
         eventStatus: event.eventStatus,
         lat: event.lat,
-        long: event.long,
+        lng: event.lng,
         isPrivate: event.isPrivate,
         interests: event.interests,
         distanceKm: distanceMap[event.id] ?? 0,
         participantCount,
         spotsLeft,
         isJoined,
-        isOnWaitlist,
-        eventTypes: event.eventTypes.map((et) => ({
-          id: et.eventType.id,
-          title: et.eventType.title,
-          thumbnail: et.eventType.thumbnail,
-        })),
+        isOnWaitList,
+        eventType: event.eventTypes[0].eventType,
         host: host
           ? {
               id: host.user.id,
@@ -453,7 +452,7 @@ export const getEventListingService = async ({
       // We resolve country for each nearby event in parallel.
       const countryChecks = await Promise.all(
         events.map(async (e) => {
-          const country = await getCountryFromCoords(e.lat, e.long);
+          const country = await getCountryFromCoords(e.lat, e.lng);
           return { id: e.id, sameCountry: country === userCountry };
         })
       );
@@ -484,5 +483,343 @@ export const getEventListingService = async ({
   } catch (error) {
     if (error instanceof Error) throw error;
     throw new Error('Unknown error occurred in get events service');
+  }
+};
+
+export const getSingleEventService = async ({
+  event,
+  user,
+}: {
+  event: Event;
+  user: User;
+}): Promise<unknown> => {
+  try {
+    const enrichedEvent = await prisma.event.findUniqueOrThrow({
+      where: { id: event.id },
+      include: {
+        // ── JOIN 1: EventParticipants ──────────────────────────────────────
+        eventParticipants: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                isPremium: true,
+                isProfileSetup: true,
+                // ✅ name & avatar live on Profile, not User
+                profile: {
+                  select: {
+                    name: true,
+                    avatar: true,
+                    gender: true,
+                    age: true,
+                  },
+                },
+              },
+            },
+          },
+          orderBy: { joinedAt: 'asc' },
+        },
+
+        // ── JOIN 2: WaitList ───────────────────────────────────────────────
+        waitLists: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                isPremium: true,
+                isProfileSetup: true,
+                // ✅ same shape as above for consistency
+                profile: {
+                  select: {
+                    name: true,
+                    avatar: true,
+                    gender: true,
+                    age: true,
+                  },
+                },
+              },
+            },
+          },
+          orderBy: { joinedAt: 'asc' },
+        },
+      },
+    });
+
+    const participantCount = enrichedEvent.eventParticipants.length;
+    const availableSlots = Math.max(
+      0,
+      enrichedEvent.maxParticipantsCount - participantCount
+    );
+
+    const host =
+      enrichedEvent.eventParticipants.find((p) => p.role === EventRole.HOST) ??
+      null;
+
+    // ── Caller's own participation status ─────────────────────────────────
+    const currentUserParticipant =
+      enrichedEvent.eventParticipants.find(
+        (p) => p.participantId === user.id
+      ) ?? null;
+
+    const currentUserOnWaitList =
+      enrichedEvent.waitLists.find((w) => w.userId === user.id) ?? null;
+
+    return {
+      id: enrichedEvent.id,
+      eventName: enrichedEvent.eventName,
+      description: enrichedEvent.description,
+      startDate: enrichedEvent.startDate,
+      endDate: enrichedEvent.endDate,
+      maxParticipantsCount: enrichedEvent.maxParticipantsCount,
+      eventStatus: enrichedEvent.eventStatus,
+      lat: enrichedEvent.lat,
+      lng: enrichedEvent.lng,
+      interests: enrichedEvent.interests,
+      isPrivate: enrichedEvent.isPrivate,
+      inviteLink: enrichedEvent.inviteLink,
+      createdAt: enrichedEvent.createdAt,
+      updatedAt: enrichedEvent.updatedAt,
+
+      // JOIN 1
+      participants: enrichedEvent.eventParticipants,
+      participantCount,
+      availableSlots,
+      host,
+
+      // JOIN 2
+      waitList: enrichedEvent.waitLists,
+      waitListCount: enrichedEvent.waitLists.length,
+
+      // Caller context — useful for the client to render join/leave/waitlist UI
+      currentUser: {
+        isParticipant: !!currentUserParticipant,
+        role: currentUserParticipant?.role ?? null,
+        isOnWaitList: !!currentUserOnWaitList,
+      },
+    };
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error('Unknown error occurred in get single event service');
+  }
+};
+
+export const updateEventService = async ({
+  event,
+  payload,
+}: {
+  event: Event;
+  payload: Partial<TUpdateEventInformationPayload>;
+}): Promise<unknown> => {
+  try {
+    const updatedEvent = await prisma.event.update({
+      where: { id: event.id },
+      data: payload,
+    });
+    return updatedEvent;
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error('Unknown error occurred in update event service');
+  }
+};
+
+export const removeParticipantsFromEventService = async ({
+  event,
+  participantId,
+}: {
+  event: Event;
+  participantId: string;
+}): Promise<void> => {
+  try {
+    await prisma.eventParticipants.delete({
+      where: {
+        eventId_participantId: {
+          eventId: event.id,
+          participantId,
+          role: EventRole.TRAVELER,
+        },
+      },
+    });
+    return;
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error(
+      'Unknown error occurred in remove participants from event service'
+    );
+  }
+};
+
+export const deleteEventService = async ({
+  event,
+}: {
+  event: Event;
+}): Promise<void> => {
+  try {
+    await prisma.event.update({
+      where: { id: event.id },
+      data: { eventStatus: EventStatus.DELETED },
+    });
+    return;
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error('Unknown error occurred in delete event service');
+  }
+};
+
+export const retrieveMyAdventureLogsService = async ({
+  user,
+  eventStatus,
+  page = DEFAULT_PAGE,
+  limit = DEFAULT_LIMIT,
+}: {
+  user: User;
+  eventStatus: EventStatus;
+  page?: number;
+  limit?: number;
+}): Promise<unknown> => {
+  try {
+    const offset = (page - 1) * limit;
+
+    // ── Single query: EventParticipants → Event → EventEventType → EventType ──
+    const [myParticipations, totalCount] = await prisma.$transaction([
+      prisma.eventParticipants.findMany({
+        where: {
+          participantId: user.id,
+          event: {
+            eventStatus,
+            deletedAt: null,
+          },
+        },
+        orderBy: { event: { startDate: 'asc' } },
+        skip: offset,
+        take: limit,
+        select: {
+          role: true,
+          joinedAt: true,
+          journalSubmitted: true,
+          journalRating: true,
+          journalNoShow: true,
+          journalSubmittedAt: true,
+
+          // ── JOIN 1: Event ──────────────────────────────────────────────
+          event: {
+            select: {
+              id: true,
+              eventName: true,
+              description: true,
+              startDate: true,
+              endDate: true,
+              maxParticipantsCount: true,
+              eventStatus: true,
+              lat: true,
+              lng: true,
+              interests: true,
+              isPrivate: true,
+              inviteLink: true,
+              createdAt: true,
+              updatedAt: true,
+
+              // ── JOIN 2: EventEventType → EventType ─────────────────────
+              eventTypes: {
+                select: {
+                  eventType: {
+                    select: {
+                      id: true,
+                      title: true,
+                      thumbnail: true,
+                    },
+                  },
+                },
+              },
+
+              // ── JOIN 3: EventParticipants (_count for "4/8 orcas") ──────
+              _count: {
+                select: { eventParticipants: true },
+              },
+            },
+          },
+        },
+      }),
+
+      prisma.eventParticipants.count({
+        where: {
+          participantId: user.id,
+          event: {
+            eventStatus,
+            deletedAt: null,
+          },
+        },
+      }),
+    ]);
+
+    // ── Shape response ────────────────────────────────────────────────────
+    const data = myParticipations.map((participation) => {
+      const { event } = participation;
+      const participantCount = event._count.eventParticipants;
+      const spotsLeft = Math.max(
+        0,
+        event.maxParticipantsCount - participantCount
+      );
+
+      return {
+        id: event.id,
+        eventName: event.eventName,
+        description: event.description,
+        startDate: event.startDate,
+        endDate: event.endDate,
+        maxParticipantsCount: event.maxParticipantsCount,
+        participantCount, // current filled — numerator of "4/8 orcas"
+        spotsLeft, // remaining slots
+        eventStatus: event.eventStatus,
+        lat: event.lat,
+        lng: event.lng,
+        interests: event.interests,
+        isPrivate: event.isPrivate,
+        inviteLink: event.inviteLink,
+        createdAt: event.createdAt,
+        updatedAt: event.updatedAt,
+
+        // EventType badge (thumbnail + title in UI)
+        eventTypes: event.eventTypes.map((et) => ({
+          id: et.eventType.id,
+          title: et.eventType.title,
+          thumbnail: et.eventType.thumbnail,
+        })),
+
+        // Caller's own participation record
+        myParticipation: {
+          role: participation.role,
+          joinedAt: participation.joinedAt,
+          journalSubmitted: participation.journalSubmitted,
+          journalRating: participation.journalRating,
+          journalNoShow: participation.journalNoShow,
+          journalSubmittedAt: participation.journalSubmittedAt,
+        },
+      };
+    });
+
+    // ── Pagination meta (same shape as getEventListingService) ────────────
+    const totalPages = Math.ceil(totalCount / limit);
+
+    return {
+      data,
+      meta: {
+        totalEvents: totalCount,
+        totalPages,
+        links: {
+          currentPage: page,
+          nextPage: page < totalPages ? page + 1 : null,
+          previousPage: page > 1 ? page - 1 : null,
+          firstPage: 1,
+          lastPage: totalPages || 1,
+        },
+      },
+    };
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error(
+      'Unknown error occurred in retrieve adventure logs service'
+    );
   }
 };

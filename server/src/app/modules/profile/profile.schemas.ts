@@ -24,7 +24,7 @@ export const profileUpdateSchema = z.object({
 export type TProfileUpdatePayload = z.infer<typeof profileUpdateSchema>;
 
 export const UserPreferenceSchema = z.object({
-  pushNotification: z.boolean().default(false).optional(),
+  pushNotifications: z.boolean().default(false).optional(),
   emailNotification: z.boolean().default(false).optional(),
   eventReminders: z.boolean().default(false).optional(),
   friendRequest: z.boolean().default(false).optional(),

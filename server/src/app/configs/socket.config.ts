@@ -9,6 +9,8 @@ import {
   socketTraceMiddleware,
 } from '@/app/middlewares/socket.middlewares';
 import { corsWhiteList } from '@/const';
+import { chatNamespace, notificationNamespace } from '@/app/sockets';
+import {baseUrl} from "@/const"
 
 export let io: Server;
 
@@ -32,37 +34,16 @@ const initializeSocket = (server: HttpServer) => {
     });
   });
 
-  const chatNameSpace = io.of('/chat');
-  const notificationNameSpace = io.of('/notification');
+  const chatNameSpace = io.of(`${baseUrl.v1}/chat`);
+  const notificationNameSpace = io.of(`${baseUrl.v1}/notification`);
 
   chatNameSpace.use(socketTraceMiddleware);
   chatNameSpace.use(socketAuthMiddleware);
   notificationNameSpace.use(socketTraceMiddleware);
   notificationNameSpace.use(socketAuthMiddleware);
 
-  notificationNameSpace.on('connection', (socket) => {
-    const s = socket as AuthenticatedSocket;
-    logger.info(`Notification NS Connected: ${s.id} | userId: ${s.user?.id}`);
-
-    // Personal room for targeted pushes:
-    // notificationNameSpace.to(userId).emit('notification', payload)
-    if (s.user?.id) s.join(s.user.id);
-
-    s.on('disconnect', () => {
-      logger.info(`Notification NS Disconnected: ${s.id}`);
-    });
-  });
-
-  chatNameSpace.on('connection', (socket) => {
-    const s = socket as AuthenticatedSocket;
-    logger.info(`Chat NS Connected: ${s.id} | userId: ${s.user?.id}`);
-
-    if (s.user?.id) s.join(s.user.id);
-
-    s.on('disconnect', () => {
-      logger.info(`Chat NS Disconnected: ${s.id}`);
-    });
-  });
+  chatNamespace(chatNameSpace);
+  notificationNamespace(notificationNameSpace);
 
   return io;
 };
