@@ -10,7 +10,10 @@ import {
 import {
   createEventService,
   getEventListingService,
+  getMyActivityService,
+  getMySingleEventService,
   getSingleEventService,
+  getSingleWildEventService,
   removeParticipantsFromEventService,
   retrieveMyAdventureLogsService,
   updateEventService,
@@ -48,6 +51,23 @@ export const getEventsListingController = asyncHandler(
       status: 200,
       message: 'Events retrieve successful',
       ...response,
+      traceId,
+    });
+    return;
+  }
+);
+
+export const getSingleWildEventController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const traceId = getTraceId();
+    const event = req.event;
+    const user = req.user as User;
+    const data = await getSingleWildEventService({ event, user });
+    res.status(200).json({
+      success: true,
+      status: 200,
+      message: 'Event retrieve successful',
+      data,
       traceId,
     });
     return;
@@ -112,8 +132,13 @@ export const retrieveMyAdventureLogsController = asyncHandler(
       eventStatus: EventStatus;
       page: number | undefined;
       limit: number | undefined;
-    }; 
-    const data = await retrieveMyAdventureLogsService({ user, eventStatus, page, limit });
+    };
+    const data = await retrieveMyAdventureLogsService({
+      user,
+      eventStatus,
+      page,
+      limit,
+    });
     res.status(200).json({
       success: true,
       status: 200,
@@ -124,3 +149,47 @@ export const retrieveMyAdventureLogsController = asyncHandler(
     return;
   }
 );
+
+export const getMyActivityController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const traceId = getTraceId();
+    const user = req.user as User;
+    const { eventStatus, page, limit } = req.query as {
+      eventStatus: EventStatus;
+      page: number | undefined;
+      limit: number | undefined;
+    };
+    const data = await getMyActivityService({
+      user,
+      eventStatus,
+      page:Number(page),
+      limit:Number(limit),
+    });
+    res.status(200).json({
+      success: true,
+      status: 200,
+      message: 'User activity retrieved successfully',
+      data,
+      traceId,
+    });
+    return;
+  }
+);
+
+export const getMySingleActivityController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const traceId = getTraceId();
+    const user = req.user as User;
+    const event = req.event;
+    const data = await getMySingleEventService({ event, user });
+    res.status(200).json({
+      success: true,
+      status: 200,
+      message: 'User single activity retrieved successfully',
+      data,
+      traceId,
+    });
+    return;
+  }
+);
+

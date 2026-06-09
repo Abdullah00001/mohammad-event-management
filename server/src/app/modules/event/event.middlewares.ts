@@ -61,3 +61,34 @@ export const checkEventHostMiddleware = asyncHandler(
     return;
   }
 );
+
+export const checkEventTypeMiddleware = asyncHandler(
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const { eventTypeId } = req.body;
+    if (!eventTypeId) {
+      res.status(400).json({
+        success: false,
+        status: 400,
+        message: 'eventTypeId is required',
+        traceId: getTraceId(),
+      });
+      return;
+    }
+    const eventType = await prisma.eventType.findUnique({
+      where: {
+        id: eventTypeId as string,
+      },
+    });
+    if (!eventType) {
+      res.status(404).json({
+        success: false,
+        status: 404,
+        message: 'Event type not found',
+        traceId: getTraceId(),
+      });
+      return;
+    }
+    next();
+    return;
+  }
+);

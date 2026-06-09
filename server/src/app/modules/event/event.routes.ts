@@ -3,7 +3,10 @@ import { Router } from 'express';
 import {
   createEventController,
   getEventsListingController,
+  getMyActivityController,
+  getMySingleActivityController,
   getSingleEventController,
+  getSingleWildEventController,
   removeParticipantsFromEventController,
   retrieveMyAdventureLogsController,
   updateEventController,
@@ -11,6 +14,7 @@ import {
 import {
   findEventByIdMiddleware,
   checkEventHostMiddleware,
+  checkEventTypeMiddleware,
 } from '@/app/modules/event/event.middlewares';
 import {
   EventCreateSchema,
@@ -45,7 +49,7 @@ router
     checkAccessToken,
     checkAccountStatus,
     findEventByIdMiddleware,
-    getSingleEventController
+    getSingleWildEventController
   );
 
 /**
@@ -53,6 +57,25 @@ router
  * ----- USER ACTIVITY & EVENT INTERACTION ROUTES -------
  * ======================================================
  */
+
+router
+  .route('/activity')
+  .get(checkAccessToken, checkAccountStatus, getMyActivityController);
+
+router
+  .route('/activity/:id')
+  .get(
+    checkAccessToken,
+    checkAccountStatus,
+    findEventByIdMiddleware,
+    getMySingleActivityController
+  );
+
+router.route('/activity/:id/join').post(
+  checkAccessToken,
+  checkAccountStatus,
+  findEventByIdMiddleware
+);
 
 /**
  * =======================================================
@@ -66,15 +89,12 @@ router
     checkAccessToken,
     checkAccountStatus,
     validateReqBody(EventCreateSchema),
+    checkEventTypeMiddleware,
     createEventController
   );
 router
   .route('/adventure')
-  .get(
-    checkAccessToken,
-    checkAccountStatus,
-    retrieveMyAdventureLogsController
-  );
+  .get(checkAccessToken, checkAccountStatus, retrieveMyAdventureLogsController);
 
 router
   .route('/adventure/:id')

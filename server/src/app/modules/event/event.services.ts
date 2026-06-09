@@ -141,29 +141,20 @@ export const getEventListingService = async ({
     // ── 4. Collect blocked user IDs ───────────────────────────────
     const blockedIds = await getBlockedUserIds(user.id);
 
-    // ── 5. Collect event IDs the user is privately invited to ─────
+    // ── 5. Build Prisma where clause ──────────────────────────────
     //
-    // Private events are only visible if:
-    //   - The user is the host, OR
-    //   - The user has an ACCEPTED PodInvite
+    // CHANGED: Removed the `acceptedPrivateEventIds` query entirely.
+    // Private events are no longer shown in the listing — only public
+    // events created by other users are surfaced here.
     //
-    const acceptedPrivateEventIds = (
-      await prisma.podInvite.findMany({
-        where: { inviteeId: user.id, status: 'ACCEPTED' },
-        select: { eventId: true },
-      })
-    ).map((i) => i.eventId);
-
-    // ── 6. Build Prisma where clause ──────────────────────────────
     const offset = (page - 1) * limit;
 
-    // We use a raw query for the Haversine distance filter because
-    // Prisma does not support computed/geo columns natively.
-    // Everything else is standard Prisma ORM.
-
-    // First, fetch IDs of events within the radius via raw SQL,
-    // then let Prisma handle the rest of the filtering ergonomically.
-
+    // ── 6. Fetch nearby event IDs via raw Haversine SQL ───────────
+    //
+    // Prisma does not support computed/geo columns natively so we use
+    // a raw query for the distance filter and hand the IDs back to the
+    // ORM for the rest of the filtering.
+    //
     const haversinePredicate = buildHaversineFragment(refLat, refLng, radiusKm);
     const distanceRows = await prisma.$queryRaw<{ id: string }[]>(
       Prisma.sql`
@@ -244,47 +235,33 @@ export const getEventListingService = async ({
     }
 
     // ── 8. Fetch events with full relations ───────────────────────
-    const whereClause = {
+    //
+    // CHANGED: Two rules applied in the where clause:
+    //   1. `isPrivate: false`  — only public events are shown
+    //   2. `eventParticipants.none` merges blocked-user exclusion AND
+    //      logged-in user HOST exclusion into a single relation filter
+    //      (Prisma does not allow two `none` blocks on the same relation)
+    //
+    // The shared where clause used by both findMany and count:
+    const sharedWhere = {
       id: { in: filteredIds },
       eventStatus: { not: EventStatus.DELETED },
 
-      // Exclude events hosted by blocked users
+      // CHANGED: Only show public events — private events excluded entirely
+      isPrivate: false,
+
+      // CHANGED: Exclude events where the logged-in user is the HOST,
+      // and exclude events hosted by blocked users — merged into one `none`
       eventParticipants: {
         none: {
-          participantId: { in: blockedIds },
           role: EventRole.HOST,
+          participantId: {
+            in: [...(blockedIds.length ? blockedIds : ['__none__']), user.id],
+          },
         },
       },
 
-      // Private event visibility
-      OR: [
-        { isPrivate: false },
-        {
-          isPrivate: true,
-          OR: [
-            // User is the host
-            {
-              eventParticipants: {
-                some: {
-                  participantId: user.id,
-                  role: EventRole.HOST,
-                },
-              },
-            },
-            // User has an accepted invite
-            { id: { in: acceptedPrivateEventIds } },
-          ],
-        },
-      ],
-
       ...(dateFilter && { startDate: dateFilter }),
-
-      // maxOrcas = upper bound on current participant count
-      ...(maxOrcas !== undefined && {
-        eventParticipants: {
-          none: undefined, // reset the none above — handled differently below
-        },
-      }),
     };
 
     // maxOrcas is cleaner handled via HAVING in SQL; we do a post-fetch
@@ -292,39 +269,7 @@ export const getEventListingService = async ({
 
     const [rawEvents, totalCount] = await prisma.$transaction([
       prisma.event.findMany({
-        where: {
-          id: { in: filteredIds },
-          eventStatus: { not: EventStatus.DELETED },
-          eventParticipants: {
-            none: {
-              participantId: {
-                in: blockedIds.length ? blockedIds : ['__none__'],
-              },
-              role: EventRole.HOST,
-            },
-          },
-          OR: [
-            { isPrivate: false },
-            {
-              isPrivate: true,
-              OR: [
-                {
-                  eventParticipants: {
-                    some: { participantId: user.id, role: EventRole.HOST },
-                  },
-                },
-                {
-                  id: {
-                    in: acceptedPrivateEventIds.length
-                      ? acceptedPrivateEventIds
-                      : ['__none__'],
-                  },
-                },
-              ],
-            },
-          ],
-          ...(dateFilter && { startDate: dateFilter }),
-        },
+        where: sharedWhere,
         include: {
           eventParticipants: {
             select: {
@@ -356,39 +301,7 @@ export const getEventListingService = async ({
       }),
 
       prisma.event.count({
-        where: {
-          id: { in: filteredIds },
-          eventStatus: { not: EventStatus.DELETED },
-          eventParticipants: {
-            none: {
-              participantId: {
-                in: blockedIds.length ? blockedIds : ['__none__'],
-              },
-              role: EventRole.HOST,
-            },
-          },
-          OR: [
-            { isPrivate: false },
-            {
-              isPrivate: true,
-              OR: [
-                {
-                  eventParticipants: {
-                    some: { participantId: user.id, role: EventRole.HOST },
-                  },
-                },
-                {
-                  id: {
-                    in: acceptedPrivateEventIds.length
-                      ? acceptedPrivateEventIds
-                      : ['__none__'],
-                  },
-                },
-              ],
-            },
-          ],
-          ...(dateFilter && { startDate: dateFilter }),
-        },
+        where: sharedWhere,
       }),
     ]);
 
@@ -411,28 +324,18 @@ export const getEventListingService = async ({
       return {
         id: event.id,
         eventName: event.eventName,
-        description: event.description,
         startDate: event.startDate,
-        endDate: event.endDate,
         maxParticipantsCount: event.maxParticipantsCount,
         eventStatus: event.eventStatus,
         lat: event.lat,
         lng: event.lng,
         isPrivate: event.isPrivate,
-        interests: event.interests,
         distanceKm: distanceMap[event.id] ?? 0,
         participantCount,
         spotsLeft,
         isJoined,
         isOnWaitList,
         eventType: event.eventTypes[0].eventType,
-        host: host
-          ? {
-              id: host.user.id,
-              name: host.user.profile?.name ?? null,
-              avatar: host.user.profile?.avatar ?? null,
-            }
-          : { id: '', name: null, avatar: null },
         createdAt: event.createdAt,
       };
     });
@@ -486,6 +389,145 @@ export const getEventListingService = async ({
   }
 };
 
+export const getSingleWildEventService = async ({
+  event,
+  user,
+}: {
+  event: Event;
+  user: User;
+}): Promise<unknown> => {
+  try {
+    // ── 1. Collect blocked user IDs ───────────────────────────────
+    const blockedIds = await getBlockedUserIds(user.id);
+
+    // ── 2. Fetch and enrich the event ─────────────────────────────
+    const enrichedEvent = await prisma.event.findUniqueOrThrow({
+      where: { id: event.id },
+      include: {
+        // ── JOIN 1: EventParticipants ──────────────────────────────
+        eventParticipants: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                isPremium: true,
+                isProfileSetup: true,
+                profile: {
+                  select: {
+                    name: true,
+                    avatar: true,
+                    gender: true,
+                    age: true,
+                  },
+                },
+              },
+            },
+          },
+          orderBy: { joinedAt: 'asc' },
+        },
+
+        // ── JOIN 2: WaitList ───────────────────────────────────────
+        waitLists: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                isPremium: true,
+                isProfileSetup: true,
+                profile: {
+                  select: {
+                    name: true,
+                    avatar: true,
+                    gender: true,
+                    age: true,
+                  },
+                },
+              },
+            },
+          },
+          orderBy: { joinedAt: 'asc' },
+        },
+      },
+    });
+
+    // ── 3. Wild rules validation ───────────────────────────────────
+
+    const host =
+      enrichedEvent.eventParticipants.find((p) => p.role === EventRole.HOST) ??
+      null;
+
+    // Rule 1: Only public events are visible in the wild
+    if (enrichedEvent.isPrivate) {
+      throw new Error('Event not found');
+    }
+
+    // Rule 2: Logged-in user must not be the host
+    if (host?.participantId === user.id) {
+      throw new Error('Event not found');
+    }
+
+    // Rule 3: Host must not be in the logged-in user's blocked list
+    if (host && blockedIds.includes(host.participantId)) {
+      throw new Error('Event not found');
+    }
+
+    // ── 4. Derive computed fields ──────────────────────────────────
+    const participantCount = enrichedEvent.eventParticipants.length;
+    const availableSlots = Math.max(
+      0,
+      enrichedEvent.maxParticipantsCount - participantCount
+    );
+
+    // ── 5. Caller's own participation status ──────────────────────
+    const currentUserParticipant =
+      enrichedEvent.eventParticipants.find(
+        (p) => p.participantId === user.id
+      ) ?? null;
+
+    const currentUserOnWaitList =
+      enrichedEvent.waitLists.find((w) => w.userId === user.id) ?? null;
+
+    // ── 6. Return enriched event ──────────────────────────────────
+    return {
+      id: enrichedEvent.id,
+      eventName: enrichedEvent.eventName,
+      description: enrichedEvent.description,
+      startDate: enrichedEvent.startDate,
+      endDate: enrichedEvent.endDate,
+      maxParticipantsCount: enrichedEvent.maxParticipantsCount,
+      eventStatus: enrichedEvent.eventStatus,
+      lat: enrichedEvent.lat,
+      lng: enrichedEvent.lng,
+      interests: enrichedEvent.interests,
+      isPrivate: enrichedEvent.isPrivate,
+      inviteLink: enrichedEvent.inviteLink,
+      createdAt: enrichedEvent.createdAt,
+      updatedAt: enrichedEvent.updatedAt,
+
+      // JOIN 1
+      participants: enrichedEvent.eventParticipants,
+      participantCount,
+      availableSlots,
+      host,
+
+      // JOIN 2
+      waitList: enrichedEvent.waitLists,
+      waitListCount: enrichedEvent.waitLists.length,
+
+      // Caller context — useful for the client to render join/leave/waitlist UI
+      currentUser: {
+        isParticipant: !!currentUserParticipant,
+        role: currentUserParticipant?.role ?? null,
+        isOnWaitList: !!currentUserOnWaitList,
+      },
+    };
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error('Unknown error occurred in get single wild event service');
+  }
+};
 export const getSingleEventService = async ({
   event,
   user,
@@ -821,5 +863,321 @@ export const retrieveMyAdventureLogsService = async ({
     throw new Error(
       'Unknown error occurred in retrieve adventure logs service'
     );
+  }
+};
+
+export const getMyActivityService = async ({
+  user,
+  eventStatus,
+  page = DEFAULT_PAGE,
+  limit = DEFAULT_LIMIT,
+}: {
+  user: User;
+  eventStatus?: EventStatus;
+  page?: number;
+  limit?: number;
+}): Promise<unknown> => {
+  try {
+    // ── 1. Resolve status filter ───────────────────────────────────
+    //
+    // UPCOMING | COMPLETED | ONGOING → filter by that status
+    // anything else / not passed     → show all except DELETED
+    //
+    const allowedStatuses: EventStatus[] = [
+      EventStatus.UPCOMING,
+      EventStatus.COMPLETED,
+      EventStatus.ONGOING,
+    ];
+
+    const statusFilter =
+      eventStatus && allowedStatuses.includes(eventStatus)
+        ? { eventStatus }
+        : { eventStatus: { not: EventStatus.DELETED } };
+
+    // ── 2. Pagination offset ───────────────────────────────────────
+    const offset = (page - 1) * limit;
+
+    // ── 3. Fetch events + total count ─────────────────────────────
+    //
+    // Scope: events where the logged-in user is a PARTICIPANT (not HOST)
+    //
+    const [rawEvents, totalCount] = await prisma.$transaction([
+      prisma.event.findMany({
+        where: {
+          ...statusFilter,
+          eventParticipants: {
+            some: {
+              participantId: user.id,
+              role: EventRole.TRAVELER,
+            },
+          },
+        },
+        include: {
+          // ── JOIN 1: EventParticipants ────────────────────────────
+          eventParticipants: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  email: true,
+                  isPremium: true,
+                  isProfileSetup: true,
+                  profile: {
+                    select: {
+                      name: true,
+                      avatar: true,
+                      gender: true,
+                      age: true,
+                    },
+                  },
+                },
+              },
+            },
+            orderBy: { joinedAt: 'asc' },
+          },
+
+          // ── JOIN 2: WaitList ─────────────────────────────────────
+          waitLists: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  email: true,
+                  isPremium: true,
+                  isProfileSetup: true,
+                  profile: {
+                    select: {
+                      name: true,
+                      avatar: true,
+                      gender: true,
+                      age: true,
+                    },
+                  },
+                },
+              },
+            },
+            orderBy: { joinedAt: 'asc' },
+          },
+        },
+        orderBy: { startDate: 'asc' },
+        skip: offset,
+        take: limit,
+      }),
+
+      prisma.event.count({
+        where: {
+          ...statusFilter,
+          eventParticipants: {
+            some: {
+              participantId: user.id,
+              role: EventRole.TRAVELER,
+            },
+          },
+        },
+      }),
+    ]);
+
+    // ── 4. Shape each event identically to getSingleEventService ──
+    const events = rawEvents.map((enrichedEvent) => {
+      const host =
+        enrichedEvent.eventParticipants.find(
+          (p) => p.role === EventRole.HOST
+        ) ?? null;
+
+      const participantCount = enrichedEvent.eventParticipants.length;
+      const availableSlots = Math.max(
+        0,
+        enrichedEvent.maxParticipantsCount - participantCount
+      );
+
+      const currentUserParticipant =
+        enrichedEvent.eventParticipants.find(
+          (p) => p.participantId === user.id
+        ) ?? null;
+
+      const currentUserOnWaitList =
+        enrichedEvent.waitLists.find((w) => w.userId === user.id) ?? null;
+
+      return {
+        id: enrichedEvent.id,
+        eventName: enrichedEvent.eventName,
+        description: enrichedEvent.description,
+        startDate: enrichedEvent.startDate,
+        endDate: enrichedEvent.endDate,
+        maxParticipantsCount: enrichedEvent.maxParticipantsCount,
+        eventStatus: enrichedEvent.eventStatus,
+        lat: enrichedEvent.lat,
+        lng: enrichedEvent.lng,
+        interests: enrichedEvent.interests,
+        isPrivate: enrichedEvent.isPrivate,
+        inviteLink: enrichedEvent.inviteLink,
+        createdAt: enrichedEvent.createdAt,
+        updatedAt: enrichedEvent.updatedAt,
+
+        // JOIN 1
+        participants: enrichedEvent.eventParticipants,
+        participantCount,
+        availableSlots,
+        host,
+
+        // JOIN 2
+        waitList: enrichedEvent.waitLists,
+        waitListCount: enrichedEvent.waitLists.length,
+
+        // Caller context
+        currentUser: {
+          isParticipant: !!currentUserParticipant,
+          role: currentUserParticipant?.role ?? null,
+          isOnWaitList: !!currentUserOnWaitList,
+        },
+      };
+    });
+
+    // ── 5. Paginate & respond ─────────────────────────────────────
+    const totalPages = Math.ceil(totalCount / limit);
+
+    return {
+      data: events,
+      meta: {
+        totalEvents: totalCount,
+        totalPages,
+        links: {
+          currentPage: page,
+          nextPage: page < totalPages ? page + 1 : null,
+          previousPage: page > 1 ? page - 1 : null,
+          firstPage: 1,
+          lastPage: totalPages || 1,
+        },
+      },
+    };
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error('Unknown error occurred in get my activity service');
+  }
+};
+
+export const getMySingleEventService = async ({
+  event,
+  user,
+}: {
+  event: Event;
+  user: User;
+}): Promise<unknown> => {
+  try {
+    // Reuse the same logic as getSingleEventService but with an added
+    // where clause to ensure the logged-in user is a PARTICIPANT (not HOST).
+    const enrichedEvent = await prisma.event.findFirstOrThrow({
+      where: {
+        id: event.id,
+        eventParticipants: {
+          some: {
+            participantId: user.id,
+            role: EventRole.TRAVELER,
+          },
+        },
+      },
+      include: {
+        // JOIN 1: EventParticipants
+        eventParticipants: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                isPremium: true,
+                isProfileSetup: true,
+                profile: {
+                  select: {
+                    name: true,
+                    avatar: true,   
+                    gender: true,
+                    age: true,
+                  },
+                },
+              },
+            },
+          },
+          orderBy: { joinedAt: 'asc' },
+        },
+
+        // JOIN 2: WaitList
+        waitLists: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                isPremium: true,
+                isProfileSetup: true,
+                profile: {
+                  select: {
+                    name: true,
+                    avatar: true,     
+                    gender: true,
+                    age: true,
+                  },
+                },
+              },
+            },
+          },
+          orderBy: { joinedAt: 'asc' },
+        },
+      },
+    });
+
+    const participantCount = enrichedEvent.eventParticipants.length;
+    const availableSlots = Math.max(
+      0,
+      enrichedEvent.maxParticipantsCount - participantCount
+    );
+
+    const host =
+      enrichedEvent.eventParticipants.find((p) => p.role === EventRole.HOST) ??
+      null;
+
+    const currentUserParticipant =
+      enrichedEvent.eventParticipants.find(
+        (p) => p.participantId === user.id
+      ) ?? null;
+
+    const currentUserOnWaitList =
+      enrichedEvent.waitLists.find((w) => w.userId === user.id) ?? null;
+
+    return {
+      id: enrichedEvent.id,
+      eventName: enrichedEvent.eventName,
+      description: enrichedEvent.description,
+      startDate: enrichedEvent.startDate,
+      endDate: enrichedEvent.endDate,
+      maxParticipantsCount: enrichedEvent.maxParticipantsCount,
+      eventStatus: enrichedEvent.eventStatus,
+      lat: enrichedEvent.lat,
+      lng: enrichedEvent.lng,
+      interests: enrichedEvent.interests,
+      isPrivate: enrichedEvent.isPrivate,
+      inviteLink: enrichedEvent.inviteLink,
+      createdAt: enrichedEvent.createdAt,
+      updatedAt: enrichedEvent.updatedAt,
+
+      // JOIN 1
+      participants: enrichedEvent.eventParticipants,
+      participantCount,
+      availableSlots,
+      host,
+
+      // JOIN 2
+      waitList: enrichedEvent.waitLists,
+      waitListCount: enrichedEvent.waitLists.length,
+
+      // Caller context
+      currentUser: {
+        isParticipant: !!currentUserParticipant,
+        role: currentUserParticipant?.role ?? null,
+        isOnWaitList: !!currentUserOnWaitList,
+      },
+    };
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error('Unknown error occurred in get my single event service');
   }
 };

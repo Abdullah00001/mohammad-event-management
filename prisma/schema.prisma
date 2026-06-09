@@ -259,7 +259,7 @@ model Event {
   maxParticipantsCount Int        @default(10)
   eventStatus          EventStatus @default(UPCOMING)
   lat                  Float
-  lng                 Float
+  lng                  Float
   deletedAt            DateTime?
   interests            String[]    @default([])
 

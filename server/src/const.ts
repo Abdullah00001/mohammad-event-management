@@ -19,7 +19,7 @@ export const baseUrl = {
 };
 export const otpPageTokenExpireIn = '1d';
 export const userLocationCacheExpireIn = '1d';
-export const userAccessTokenExpiresIn = '3d';
+export const userAccessTokenExpiresIn = '30d';
 export const adminAccessTokenExpiresIn = '15m';
 export const refreshTokenExpiresInWithOutRememberMe = '3d';
 export const refreshTokenExpiresInWithRememberMe = '30d';
