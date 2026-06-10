@@ -164,3 +164,14 @@ export const UpdateEventInformationSchema = z.object({
 });
 
 export type TUpdateEventInformationPayload = z.infer<typeof UpdateEventInformationSchema>;
+
+export const SubmitEventJournalSchema = z.object({  
+  participantId: z.string({ error: 'participantId is required' }),
+  rating: z
+    .number({ error: 'rating must be a number' })
+    .int({ message: 'rating must be an integer' })
+    .min(1, { message: 'rating must be at least 1' })
+    .max(5, { message: 'rating must not exceed 5' }),
+});
+
+export type TSubmitEventJournalPayload = z.infer<typeof SubmitEventJournalSchema>;

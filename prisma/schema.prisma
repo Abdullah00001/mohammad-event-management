@@ -155,6 +155,9 @@ model User {
 
   // Pod invites received
   podInvites            PodInvite[]
+  ratingsGiven   EventRating[] @relation("RaterRatings")
+  // Ratings received by this user
+  ratingsReceived EventRating[] @relation("RatedRatings")
 
   @@index([role])
   @@index([accountStatus])
@@ -272,6 +275,7 @@ model Event {
   eventTypes           EventEventType[]
   invites              PodInvite[]
   waitLists            WaitList[]
+  ratings EventRating[]
 
   createdAt            DateTime    @default(now())
   updatedAt            DateTime    @updatedAt
@@ -300,14 +304,28 @@ model EventParticipants {
   user          User      @relation(fields: [participantId], references: [id], onDelete: Cascade)
   role          EventRole
   joinedAt      DateTime  @default(now())
-
-  // Journal entry submitted by host after event
-  journalRating       Int?
-  journalNoShow       Boolean   @default(false)
-  journalSubmitted    Boolean   @default(false)
-  journalSubmittedAt  DateTime?
+  noShow       Boolean   @default(false)
+  cancelledAt   DateTime?
 
   @@unique([eventId, participantId])
+}
+
+// Add after EventParticipants model
+
+model EventRating {
+  id          String   @id @default(uuid())
+  eventId     String
+  event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  raterId     String   // user who gives rating
+  rater       User     @relation("RaterRatings", fields: [raterId], references: [id], onDelete: Cascade)
+  ratedUserId String   // user who receives rating
+  ratedUser   User     @relation("RatedRatings", fields: [ratedUserId], references: [id], onDelete: Cascade)
+  rating      Int      // 1-5 stars
+  review      String?  // optional text feedback
+  createdAt   DateTime @default(now())
+
+  @@unique([eventId, raterId, ratedUserId])  // prevent duplicate ratings
+  @@index([eventId, ratedUserId])
 }
 
 model WaitList {

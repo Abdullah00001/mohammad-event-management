@@ -14,9 +14,13 @@ import {
   getMySingleEventService,
   getSingleEventService,
   getSingleWildEventService,
+  joinEventService,
+  leaveEventService,
   removeParticipantsFromEventService,
   retrieveMyAdventureLogsService,
   updateEventService,
+  getEventJournalService,
+  submitEventJournalService,
 } from '@/app/modules/event/event.services';
 import { asyncHandler } from '@/app/utils/system.utils';
 
@@ -162,8 +166,8 @@ export const getMyActivityController = asyncHandler(
     const data = await getMyActivityService({
       user,
       eventStatus,
-      page:Number(page),
-      limit:Number(limit),
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
     });
     res.status(200).json({
       success: true,
@@ -193,3 +197,79 @@ export const getMySingleActivityController = asyncHandler(
   }
 );
 
+export const joinEventController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const traceId = getTraceId();
+    const user = req.user as User;
+    const event = req.event;
+    await joinEventService({ event, user });
+    res.status(200).json({
+      success: true,
+      status: 200,
+      message: 'User joined event successfully',
+      traceId,
+    });
+    return;
+  }
+);
+
+export const leaveEventController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const traceId = getTraceId();
+    const user = req.user as User;
+    const event = req.event;
+    await leaveEventService({ event, user });
+    res.status(200).json({
+      success: true,
+      status: 200,
+      message: 'User left event successfully',
+      traceId,
+    });
+    return;
+  }
+);
+
+export const getEventJournalsController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const traceId = getTraceId();
+    const { limit, page } = req.query as {
+      page: number | undefined;
+      limit: number | undefined;
+    };
+    const user = req.user as User;
+    const event = req.event;
+    const data = await getEventJournalService({
+      event,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
+    res.status(200).json({
+      success: true,
+      status: 200,
+      message: 'Event journals retrieved successfully',
+      data,
+      traceId,
+    });
+    return;
+  }
+);
+
+
+export const submitEventJournalController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const traceId = getTraceId();
+    const event = req.event;
+    const { participantId, rating } = req.body as {
+      participantId: string;
+      rating: number;
+    };
+    await submitEventJournalService({ event, participantId, rating });
+    res.status(200).json({
+      success: true,
+      status: 200,
+      message: 'Event journal submitted successfully',
+      traceId,
+    });
+    return;
+  }
+);

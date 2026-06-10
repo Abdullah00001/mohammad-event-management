@@ -7,8 +7,11 @@ import {
   getMySingleActivityController,
   getSingleEventController,
   getSingleWildEventController,
+  joinEventController,
+  leaveEventController,
   removeParticipantsFromEventController,
   retrieveMyAdventureLogsController,
+  submitEventJournalController,
   updateEventController,
 } from '@/app/modules/event/event.controllers';
 import {
@@ -19,6 +22,7 @@ import {
 import {
   EventCreateSchema,
   querySchema,
+  SubmitEventJournalSchema,
 } from '@/app/modules/event/event.schemas';
 import {
   checkAccessToken,
@@ -71,10 +75,35 @@ router
     getMySingleActivityController
   );
 
-router.route('/activity/:id/join').post(
+router
+  .route('/activity/:id/join')
+  .post(
+    checkAccessToken,
+    checkAccountStatus,
+    findEventByIdMiddleware,
+    joinEventController
+  );
+
+router.route('/activity/:id/leave').post(
   checkAccessToken,
   checkAccountStatus,
-  findEventByIdMiddleware
+  findEventByIdMiddleware,
+  leaveEventController
+);
+
+router.route('/activity/:id/journals').get(
+  checkAccessToken,
+  checkAccountStatus,
+  findEventByIdMiddleware,
+  getSingleEventController
+);
+
+router.route('/activity/:id/journals').post(
+  checkAccessToken,
+  checkAccountStatus,
+  validateReqBody(SubmitEventJournalSchema),
+  findEventByIdMiddleware,
+  submitEventJournalController
 );
 
 /**

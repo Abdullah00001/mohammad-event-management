@@ -1089,7 +1089,7 @@ export const getMySingleEventService = async ({
                 profile: {
                   select: {
                     name: true,
-                    avatar: true,   
+                    avatar: true,
                     gender: true,
                     age: true,
                   },
@@ -1112,7 +1112,7 @@ export const getMySingleEventService = async ({
                 profile: {
                   select: {
                     name: true,
-                    avatar: true,     
+                    avatar: true,
                     gender: true,
                     age: true,
                   },
@@ -1179,5 +1179,164 @@ export const getMySingleEventService = async ({
   } catch (error) {
     if (error instanceof Error) throw error;
     throw new Error('Unknown error occurred in get my single event service');
+  }
+};
+
+export const joinEventService = async ({
+  event,
+  user,
+}: {
+  event: Event;
+  user: User;
+}): Promise<void> => {
+  try {
+    await prisma.eventParticipants.create({
+      data: {
+        eventId: event.id,
+        participantId: user.id,
+        role: EventRole.TRAVELER,
+      },
+    });
+    return;
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error('Unknown error occurred in join event service');
+  }
+};
+
+export const leaveEventService = async ({
+  event,
+  user,
+}: {
+  event: Event;
+  user: User;
+}): Promise<void> => {
+  try {
+    await prisma.eventParticipants.delete({
+      where: {
+        eventId_participantId: {
+          eventId: event.id,
+          participantId: user.id,
+          role: EventRole.TRAVELER,
+        },
+      },
+    });
+    return;
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error('Unknown error occurred in leave event service');
+  }
+};
+
+export const getEventJournalService = async ({
+  limit = DEFAULT_LIMIT,
+  page = DEFAULT_PAGE,
+  event,
+}: {
+  event: Event;
+  page: number | undefined;
+  limit: number | undefined;
+}): Promise<unknown> => {
+  try {
+    const offset = (page - 1) * limit;
+
+    const [journals, totalCount] = await prisma.$transaction([
+      prisma.eventParticipants.findMany({
+        where: {
+          eventId: event.id,
+          journalSubmitted: true,
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              isPremium: true,
+              isProfileSetup: true,
+              profile: {
+                select: {
+                  name: true,
+                  avatar: true, 
+                  bio: true,
+                },
+              },
+            },
+          },
+        },
+        orderBy: { journalSubmittedAt: 'desc' },
+        skip: offset,
+        take: limit,
+      }),
+
+      prisma.eventParticipants.count({
+        where: {
+          eventId: event.id,
+          journalSubmitted: true,
+        },
+      }),
+    ]);
+
+    const totalPages = Math.ceil(totalCount / limit);
+
+    return {
+      data: journals.map((j) => ({
+        participantId: j.participantId,
+        journalRating: j.journalRating,
+        journalNoShow: j.journalNoShow,
+        journalSubmittedAt: j.journalSubmittedAt,
+        user: {
+          id: j.user.id,
+          email: j.user.email,
+          isPremium: j.user.isPremium,
+          isProfileSetup: j.user.isProfileSetup,
+          profile: {
+            name: j.user.profile?.name,
+            avatar: j.user.profile?.avatar,
+            bio: j.user.profile?.bio,
+          },
+        },
+      })),
+      meta: {
+        totalJournals: totalCount,
+        totalPages,
+        links: {
+          currentPage: page,
+          nextPage: page < totalPages ? page + 1 : null,
+          previousPage: page > 1 ? page - 1 : null,
+          firstPage: 1,
+          lastPage: totalPages || 1,
+        },
+      },
+    };
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error('Unknown error occurred in get event journal service');
+  }
+};
+
+export const submitEventJournalService = async ({
+  event,
+  rating,
+  participantId,}: {
+  event: Event;
+  rating: number;
+  participantId: string;
+}): Promise<void> => {
+  try {
+    await prisma.eventParticipants.update({
+      where: {
+        eventId: event.id,
+        participantId,
+      },
+      data: {
+        journalSubmitted: true,
+        journalRating: rating,
+        journalSubmittedAt: new Date(),
+      },
+    });
+    return;
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error('Unknown error occurred in submit event journal service');
   }
 };
