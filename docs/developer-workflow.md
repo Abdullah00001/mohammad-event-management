@@ -10,6 +10,7 @@ Both `server/` and `worker/` run inside containers, using the same shared root P
 - `server/` — server service source code and dev Dockerfile
 - `worker/` — worker service source code and dev Dockerfile
 - `scripts/sync_prisma.sh` — helper for install and Prisma generation
+- `scripts/migration_generate.sh` — helper that runs Prisma migration and generation in the `server` and `worker` containers
 - `package.json` — root helper scripts
 
 ## Philosophy
@@ -26,6 +27,7 @@ Both `server/` and `worker/` run inside containers, using the same shared root P
   - `server/node_modules/.prisma/client`
   - `worker/node_modules/.prisma/client`
 - `npm run generate:all` is an alias for `npm run generate`.
+- `npm run migrate:generate` runs `scripts/migration_generate.sh`, which applies Prisma migrations and regenerates clients in both services.
 - `npm run sync:prisma` installs dependencies and regenerates Prisma clients.
 - The Docker setup mounts the shared root `prisma/` and `prisma.config.ts` into both services.
 
@@ -63,6 +65,12 @@ This starts the required database and cache services before any Prisma migration
 
 ```bash
 npm run sync:prisma
+```
+
+If you want to use the migration helper instead, make sure Docker Compose is running and then run:
+
+```bash
+npm run migrate:generate
 ```
 
 This ensures:
@@ -182,6 +190,7 @@ docker compose up -d --build
 npm install
 npm run generate
 npm run generate:all
+npm run migrate:generate
 npm run sync:prisma
 ```
 

@@ -12,6 +12,7 @@
   "scripts": {
     "generate": "dotenv -e server/.env -- prisma generate --schema prisma/schema.prisma",
     "generate:all": "npm run generate",
+    "migrate:generate": "bash ./scripts/migration_generate.sh",
     "postinstall": "echo 'Skipping automatic prisma generate at root. Run `npm run generate` to generate clients locally.'",
     "sync:prisma": "./scripts/sync_prisma.sh"
   }
