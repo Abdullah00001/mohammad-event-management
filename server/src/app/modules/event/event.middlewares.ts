@@ -92,3 +92,83 @@ export const checkEventTypeMiddleware = asyncHandler(
     return;
   }
 );
+
+export const checkParticipantOfEventMiddleware = asyncHandler(
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const event = req.event;
+    const { participantId } = req.body as { participantId: string };
+    const participant = await prisma.eventParticipants.findFirst({
+      where: {
+        eventId: event.id,
+        participantId,
+      },
+    });
+    if (!participant) {
+      res.status(403).json({
+        success: false,
+        status: 403,
+        message: 'Forbidden: You are not a participant of this event',
+        traceId: getTraceId(),
+      });
+      return;
+    }
+    next();
+    return;
+  }
+);
+
+export const checkIsEventOrcaExistMiddleware = asyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const { orcaId } = req.params;
+    if (!orcaId) {
+      res.status(404).json({
+        success: false,
+        status: 404,
+        message: 'User profile not found',
+        traceId: getTraceId(),
+      });
+      return;
+    }
+    // ── 1. Check profile exists ───────────────────────────────────
+    const profile = await prisma.profile.findUnique({
+      where: { userId: orcaId as string },
+      select: { userId: true },
+    });
+
+    if (!profile) {
+      res.status(404).json({
+        success: false,
+        status: 404,
+        message: 'User profile not found',
+        traceId: getTraceId(),
+      });
+      return;
+    }
+
+    // ── 2. Check user is a participant of the event ───────────────
+    const event = req.event;
+
+    const participant = await prisma.eventParticipants.findUnique({
+      where: {
+        eventId_participantId: {
+          eventId: event.id,
+          participantId: orcaId as string,
+        },
+      },
+      select: { participantId: true },
+    });
+
+    if (!participant) {
+      res.status(404).json({
+        success: false,
+        status: 404,
+        message: 'User is not a participant of this event',
+        traceId: getTraceId(),
+      });
+      return;
+    }
+
+    next();
+    return;
+  }
+);

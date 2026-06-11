@@ -3,9 +3,11 @@ import { Router } from 'express';
 import {
   createEventController,
   getEventsListingController,
+  getEventSummaryController,
   getMyActivityController,
   getMySingleActivityController,
   getSingleEventController,
+  getSingleEventOrcaController,
   getSingleWildEventController,
   joinEventController,
   leaveEventController,
@@ -18,6 +20,8 @@ import {
   findEventByIdMiddleware,
   checkEventHostMiddleware,
   checkEventTypeMiddleware,
+  checkParticipantOfEventMiddleware,
+  checkIsEventOrcaExistMiddleware,
 } from '@/app/modules/event/event.middlewares';
 import {
   EventCreateSchema,
@@ -84,27 +88,53 @@ router
     joinEventController
   );
 
-router.route('/activity/:id/leave').post(
-  checkAccessToken,
-  checkAccountStatus,
-  findEventByIdMiddleware,
-  leaveEventController
-);
+router
+  .route('/activity/:id/leave')
+  .post(
+    checkAccessToken,
+    checkAccountStatus,
+    findEventByIdMiddleware,
+    leaveEventController
+  );
 
-router.route('/activity/:id/journals').get(
-  checkAccessToken,
-  checkAccountStatus,
-  findEventByIdMiddleware,
-  getSingleEventController
-);
+router
+  .route('/activity/:id/journals')
+  .get(
+    checkAccessToken,
+    checkAccountStatus,
+    findEventByIdMiddleware,
+    getSingleEventController
+  );
 
-router.route('/activity/:id/journals').post(
-  checkAccessToken,
-  checkAccountStatus,
-  validateReqBody(SubmitEventJournalSchema),
-  findEventByIdMiddleware,
-  submitEventJournalController
-);
+router
+  .route('/activity/:id/journals')
+  .post(
+    checkAccessToken,
+    checkAccountStatus,
+    validateReqBody(SubmitEventJournalSchema),
+    findEventByIdMiddleware,
+    checkParticipantOfEventMiddleware,
+    submitEventJournalController
+  );
+
+router
+  .route('/activity/:id/summary')
+  .get(
+    checkAccessToken,
+    checkAccountStatus,
+    findEventByIdMiddleware,
+    getEventSummaryController
+  );
+
+router
+  .route('/activity/:id/orcas/:orcaId')
+  .get(
+    checkAccessToken,
+    checkAccountStatus,
+    findEventByIdMiddleware,
+    checkIsEventOrcaExistMiddleware,
+    getSingleEventOrcaController
+  );
 
 /**
  * =======================================================

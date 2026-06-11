@@ -305,7 +305,7 @@ model EventParticipants {
   role          EventRole
   joinedAt      DateTime  @default(now())
   noShow       Boolean   @default(false)
-  cancelledAt   DateTime?
+  leftAt   DateTime?
 
   @@unique([eventId, participantId])
 }

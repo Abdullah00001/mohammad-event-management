@@ -21,6 +21,8 @@ import {
   updateEventService,
   getEventJournalService,
   submitEventJournalService,
+  getEventSummaryService,
+  getSingleEventOrcaService,
 } from '@/app/modules/event/event.services';
 import { asyncHandler } from '@/app/utils/system.utils';
 
@@ -67,6 +69,15 @@ export const getSingleWildEventController = asyncHandler(
     const event = req.event;
     const user = req.user as User;
     const data = await getSingleWildEventService({ event, user });
+    if (!data) {
+      res.status(404).json({
+        success: false,
+        status: 404,
+        message: 'Event not found',
+        traceId,
+      });
+      return;
+    }
     res.status(200).json({
       success: true,
       status: 200,
@@ -242,6 +253,7 @@ export const getEventJournalsController = asyncHandler(
       event,
       page: page ? Number(page) : undefined,
       limit: limit ? Number(limit) : undefined,
+      user,
     });
     res.status(200).json({
       success: true,
@@ -254,20 +266,64 @@ export const getEventJournalsController = asyncHandler(
   }
 );
 
-
 export const submitEventJournalController = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
     const traceId = getTraceId();
     const event = req.event;
+    const user = req.user as User;
     const { participantId, rating } = req.body as {
       participantId: string;
       rating: number;
     };
-    await submitEventJournalService({ event, participantId, rating });
+    await submitEventJournalService({ event, participantId, rating, user });
     res.status(200).json({
       success: true,
       status: 200,
       message: 'Event journal submitted successfully',
+      traceId,
+    });
+    return;
+  }
+);
+
+export const getEventSummaryController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const traceId = getTraceId();
+    const event = req.event;
+    const user = req.user as User;
+    const { limit, page } = req.query as {
+      page: number | undefined;
+      limit: number | undefined;
+    };
+    const data = await getEventSummaryService({
+      event,
+      user,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
+    res.status(200).json({
+      success: true,
+      status: 200,
+      message: 'Event summary retrieved successfully',
+      data,
+      traceId,
+    });
+    return;
+  }
+);
+
+export const getSingleEventOrcaController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const traceId = getTraceId();
+    const { orcaId } = req.params as { orcaId: string };
+    const event = req.event;
+    const user = req.user as User;
+    const data = await getSingleEventOrcaService({ event, orcaId, user });
+    res.status(200).json({
+      success: true,
+      status: 200,
+      message: 'Event summary retrieved successfully',
+      data,
       traceId,
     });
     return;

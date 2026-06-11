@@ -1,4 +1,11 @@
-import { EventRole, EventStatus, User, Event, Prisma } from '@prisma/client';
+import {
+  EventRole,
+  EventStatus,
+  User,
+  Event,
+  Prisma,
+  FriendshipStatus,
+} from '@prisma/client';
 
 import prisma from '@/app/configs/db.configs';
 import {
@@ -247,21 +254,35 @@ export const getEventListingService = async ({
       id: { in: filteredIds },
       eventStatus: { not: EventStatus.DELETED },
 
-      // CHANGED: Only show public events — private events excluded entirely
+      // Only public events
       isPrivate: false,
 
-      // CHANGED: Exclude events where the logged-in user is the HOST,
-      // and exclude events hosted by blocked users — merged into one `none`
-      eventParticipants: {
-        none: {
-          role: EventRole.HOST,
-          participantId: {
-            in: [...(blockedIds.length ? blockedIds : ['__none__']), user.id],
+      ...(dateFilter && { startDate: dateFilter }),
+
+      // CHANGED: Split into AND to support two independent `none` conditions
+      // on the same `eventParticipants` relation
+      AND: [
+        // Exclude events hosted by blocked users
+        {
+          eventParticipants: {
+            none: {
+              role: EventRole.HOST,
+              participantId: {
+                in: blockedIds.length ? blockedIds : ['__none__'],
+              },
+            },
           },
         },
-      },
-
-      ...(dateFilter && { startDate: dateFilter }),
+        // CHANGED: Exclude events where the logged-in user has any presence
+        // (host, participant, or any other role) — only joinable events shown
+        {
+          eventParticipants: {
+            none: {
+              participantId: user.id,
+            },
+          },
+        },
+      ],
     };
 
     // maxOrcas is cleaner handled via HAVING in SQL; we do a post-fetch
@@ -449,6 +470,12 @@ export const getSingleWildEventService = async ({
           },
           orderBy: { joinedAt: 'asc' },
         },
+        // Join Event Type for richer details in the wild feed
+        eventTypes: {
+          include: {
+            eventType: true,
+          },
+        },
       },
     });
 
@@ -460,17 +487,24 @@ export const getSingleWildEventService = async ({
 
     // Rule 1: Only public events are visible in the wild
     if (enrichedEvent.isPrivate) {
-      throw new Error('Event not found');
+      return null;
     }
 
     // Rule 2: Logged-in user must not be the host
     if (host?.participantId === user.id) {
-      throw new Error('Event not found');
+      return null;
     }
 
+    // CHANGED — checks any presence regardless of role
+    const userHasPresence = enrichedEvent.eventParticipants.some(
+      (p) => p.participantId === user.id
+    );
+    if (userHasPresence) {
+      return null;
+    }
     // Rule 3: Host must not be in the logged-in user's blocked list
     if (host && blockedIds.includes(host.participantId)) {
-      throw new Error('Event not found');
+      return null;
     }
 
     // ── 4. Derive computed fields ──────────────────────────────────
@@ -493,29 +527,24 @@ export const getSingleWildEventService = async ({
     return {
       id: enrichedEvent.id,
       eventName: enrichedEvent.eventName,
-      description: enrichedEvent.description,
       startDate: enrichedEvent.startDate,
       endDate: enrichedEvent.endDate,
       maxParticipantsCount: enrichedEvent.maxParticipantsCount,
       eventStatus: enrichedEvent.eventStatus,
       lat: enrichedEvent.lat,
       lng: enrichedEvent.lng,
-      interests: enrichedEvent.interests,
-      isPrivate: enrichedEvent.isPrivate,
-      inviteLink: enrichedEvent.inviteLink,
       createdAt: enrichedEvent.createdAt,
       updatedAt: enrichedEvent.updatedAt,
+      eventType: enrichedEvent.eventTypes[0].eventType,
 
       // JOIN 1
-      participants: enrichedEvent.eventParticipants,
       participantCount,
       availableSlots,
-      host,
-
-      // JOIN 2
-      waitList: enrichedEvent.waitLists,
-      waitListCount: enrichedEvent.waitLists.length,
-
+      host: {
+        hostId: host?.participantId,
+        hostName: host?.user?.profile?.name ?? 'Unknown',
+        hostAvatar: host?.user?.profile?.avatar ?? null,
+      },
       // Caller context — useful for the client to render join/leave/waitlist UI
       currentUser: {
         isParticipant: !!currentUserParticipant,
@@ -1212,13 +1241,16 @@ export const leaveEventService = async ({
   user: User;
 }): Promise<void> => {
   try {
-    await prisma.eventParticipants.delete({
+    await prisma.eventParticipants.update({
       where: {
         eventId_participantId: {
           eventId: event.id,
           participantId: user.id,
           role: EventRole.TRAVELER,
         },
+      },
+      data: {
+        leftAt: new Date(),
       },
     });
     return;
@@ -1232,38 +1264,43 @@ export const getEventJournalService = async ({
   limit = DEFAULT_LIMIT,
   page = DEFAULT_PAGE,
   event,
+  user,
 }: {
   event: Event;
+  user: User;
   page: number | undefined;
   limit: number | undefined;
 }): Promise<unknown> => {
   try {
     const offset = (page - 1) * limit;
 
-    const [journals, totalCount] = await prisma.$transaction([
+    // ── 1. Fetch participants + total count ───────────────────────
+    //
+    // Join: EventParticipants → User → Profile
+    // All roles included (HOST + TRAVELER)
+    //
+    const [rawParticipants, totalCount] = await prisma.$transaction([
       prisma.eventParticipants.findMany({
         where: {
           eventId: event.id,
-          journalSubmitted: true,
         },
         include: {
           user: {
             select: {
               id: true,
-              email: true,
               isPremium: true,
               isProfileSetup: true,
               profile: {
                 select: {
                   name: true,
-                  avatar: true, 
+                  avatar: true,
                   bio: true,
                 },
               },
             },
           },
         },
-        orderBy: { journalSubmittedAt: 'desc' },
+        orderBy: { joinedAt: 'asc' },
         skip: offset,
         take: limit,
       }),
@@ -1271,33 +1308,65 @@ export const getEventJournalService = async ({
       prisma.eventParticipants.count({
         where: {
           eventId: event.id,
-          journalSubmitted: true,
         },
       }),
     ]);
 
+    // ── 2. Fetch all ratings the calling user has given in this event ──
+    //
+    // Join: EventRating where raterId = user.id and eventId = event.id
+    // Used to flag isRated and pre-fill rating per participant
+    //
+    const givenRatings = await prisma.eventRating.findMany({
+      where: {
+        eventId: event.id,
+        raterId: user.id,
+      },
+      select: {
+        ratedUserId: true,
+        rating: true,
+        review: true,
+      },
+    });
+
+    // Build a lookup map: ratedUserId → { rating, review }
+    const ratingMap = new Map(
+      givenRatings.map((r) => [
+        r.ratedUserId,
+        { rating: r.rating, review: r.review },
+      ])
+    );
+
+    // ── 3. Shape each participant with rating status ───────────────
+    const participants = rawParticipants.map((p) => {
+      const existingRating = ratingMap.get(p.participantId) ?? null;
+
+      return {
+        participantId: p.participantId,
+        role: p.role,
+        joinedAt: p.joinedAt,
+        user: {
+          id: p.user.id,
+          isPremium: p.user.isPremium,
+          isProfileSetup: p.user.isProfileSetup,
+          name: p.user.profile?.name ?? null,
+          avatar: p.user.profile?.avatar ?? null,
+          bio: p.user.profile?.bio ?? null,
+        },
+        // Rating context for the calling user
+        isRated: !!existingRating,
+        rating: existingRating?.rating ?? null,
+        review: existingRating?.review ?? null,
+      };
+    });
+
+    // ── 4. Paginate & respond ─────────────────────────────────────
     const totalPages = Math.ceil(totalCount / limit);
 
     return {
-      data: journals.map((j) => ({
-        participantId: j.participantId,
-        journalRating: j.journalRating,
-        journalNoShow: j.journalNoShow,
-        journalSubmittedAt: j.journalSubmittedAt,
-        user: {
-          id: j.user.id,
-          email: j.user.email,
-          isPremium: j.user.isPremium,
-          isProfileSetup: j.user.isProfileSetup,
-          profile: {
-            name: j.user.profile?.name,
-            avatar: j.user.profile?.avatar,
-            bio: j.user.profile?.bio,
-          },
-        },
-      })),
+      data: participants,
       meta: {
-        totalJournals: totalCount,
+        totalParticipants: totalCount,
         totalPages,
         links: {
           currentPage: page,
@@ -1317,26 +1386,317 @@ export const getEventJournalService = async ({
 export const submitEventJournalService = async ({
   event,
   rating,
-  participantId,}: {
+  participantId,
+  user,
+}: {
   event: Event;
   rating: number;
   participantId: string;
+  user: User;
 }): Promise<void> => {
   try {
-    await prisma.eventParticipants.update({
+    // ── 1. Upsert the rating ──────────────────────────────────────
+    //
+    // If the calling user has already rated this participant in this
+    // event, update the existing row. Otherwise create a new one.
+    // Unique constraint: [eventId, raterId, ratedUserId]
+    //
+    await prisma.eventRating.upsert({
       where: {
-        eventId: event.id,
-        participantId,
+        eventId_raterId_ratedUserId: {
+          eventId: event.id,
+          raterId: user.id,
+          ratedUserId: participantId,
+        },
       },
-      data: {
-        journalSubmitted: true,
-        journalRating: rating,
-        journalSubmittedAt: new Date(),
+      update: {
+        rating,
+      },
+      create: {
+        eventId: event.id,
+        raterId: user.id,
+        ratedUserId: participantId,
+        rating,
       },
     });
+
     return;
   } catch (error) {
     if (error instanceof Error) throw error;
     throw new Error('Unknown error occurred in submit event journal service');
+  }
+};
+
+export const getEventSummaryService = async ({
+  event,
+  user,
+  page = DEFAULT_PAGE,
+  limit = DEFAULT_LIMIT,
+}: {
+  event: Event;
+  user: User;
+  page?: number;
+  limit?: number;
+}): Promise<unknown> => {
+  try {
+    const offset = (page - 1) * limit;
+
+    // ── 1. Fetch enriched event ───────────────────────────────────
+    //
+    // Join: EventParticipants → User → Profile
+    // Used for both event summary stats and the orca list
+    //
+    const enrichedEvent = await prisma.event.findUniqueOrThrow({
+      where: { id: event.id },
+      include: {
+        eventParticipants: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                profile: {
+                  select: {
+                    name: true,
+                    avatar: true,
+                    bio: true,
+                  },
+                },
+              },
+            },
+          },
+          orderBy: { joinedAt: 'asc' },
+        },
+      },
+    });
+
+    // ── 2. Event summary stats ────────────────────────────────────
+    const totalParticipants = enrichedEvent.eventParticipants.length;
+
+    // ── 3. Fetch friendship statuses for the calling user ─────────
+    //
+    // Pull all friendship rows where calling user is sender OR receiver
+    // Used to derive the button state per orca in the list
+    //
+    const friendships = await prisma.friends.findMany({
+      where: {
+        OR: [{ senderId: user.id }, { receiverId: user.id }],
+      },
+      select: {
+        senderId: true,
+        receiverId: true,
+        status: true,
+      },
+    });
+
+    // Build a lookup map: otherUserId → { status, senderId }
+    const friendshipMap = new Map(
+      friendships.map((f) => {
+        const otherUserId = f.senderId === user.id ? f.receiverId : f.senderId;
+        return [otherUserId, { status: f.status, senderId: f.senderId }];
+      })
+    );
+
+    // ── 4. Build the orca list (excluding the calling user) ───────
+    //
+    // Paginate in-memory since participants are already fetched
+    //
+    const otherParticipants = enrichedEvent.eventParticipants.filter(
+      (p) => p.participantId !== user.id
+    );
+
+    const totalOrcas = otherParticipants.length;
+    const paginatedOrcas = otherParticipants.slice(offset, offset + limit);
+
+    const orcas = paginatedOrcas.map((p) => {
+      const friendship = friendshipMap.get(p.participantId) ?? null;
+
+      // Derive button state:
+      // - ACCEPTED            → "Message"
+      // - PENDING (any dir.)  → "Pending"
+      // - no row              → "Add orca"
+      let connectionStatus: 'MESSAGE' | 'PENDING' | 'ADD_ORCA' = 'ADD_ORCA';
+
+      if (friendship) {
+        if (friendship.status === FriendshipStatus.ACCEPTED) {
+          connectionStatus = 'MESSAGE';
+        } else if (friendship.status === FriendshipStatus.PENDING) {
+          connectionStatus = 'PENDING';
+        }
+      }
+
+      return {
+        participantId: p.participantId,
+        role: p.role,
+        name: p.user.profile?.name ?? null,
+        avatar: p.user.profile?.avatar ?? null,
+        bio: p.user.profile?.bio ?? null,
+        connectionStatus,
+      };
+    });
+
+    // ── 5. Paginate & respond ─────────────────────────────────────
+    const totalPages = Math.ceil(totalOrcas / limit);
+
+    return {
+      // Event summary block
+      summary: {
+        eventName: enrichedEvent.eventName,
+        startDate: enrichedEvent.startDate,
+        endDate: enrichedEvent.endDate,
+        lat: enrichedEvent.lat,
+        lng: enrichedEvent.lng,
+        totalParticipants,
+      },
+
+      // Orca connection list
+      orcas: {
+        data: orcas,
+        meta: {
+          totalOrcas,
+          totalPages,
+          links: {
+            currentPage: page,
+            nextPage: page < totalPages ? page + 1 : null,
+            previousPage: page > 1 ? page - 1 : null,
+            firstPage: 1,
+            lastPage: totalPages || 1,
+          },
+        },
+      },
+    };
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error('Unknown error occurred in get event summary service');
+  }
+};
+
+export const getSingleEventOrcaService = async ({
+  event,
+  orcaId,
+  user,
+}: {
+  event: Event;
+  orcaId: string;
+  user: User;
+}): Promise<unknown> => {
+  try {
+    // ── 1. Fetch orca's user + profile ────────────────────────────
+    const orca = await prisma.user.findUniqueOrThrow({
+      where: { id: orcaId },
+      select: {
+        id: true,
+        isPremium: true,
+        isProfileSetup: true,
+        profile: {
+          select: {
+            name: true,
+            avatar: true,
+            cover: true,
+            bio: true,
+            location: true,
+            gender: true,
+            age: true,
+            profileInterest: true,
+            countryVisited: true,
+          },
+        },
+      },
+    });
+
+    // ── 2. Fetch orca's role in this event ────────────────────────
+    const eventParticipant = await prisma.eventParticipants.findUniqueOrThrow({
+      where: {
+        eventId_participantId: {
+          eventId: event.id,
+          participantId: orcaId,
+        },
+      },
+      select: { role: true, joinedAt: true },
+    });
+
+    // ── 3. Events joined count ────────────────────────────────────
+    //
+    // Total events the orca has participated in (any role, not DELETED)
+    //
+    const eventsJoinedCount = await prisma.eventParticipants.count({
+      where: {
+        participantId: orcaId,
+        event: {
+          eventStatus: { not: EventStatus.DELETED },
+        },
+      },
+    });
+
+    // ── 4. Connections count ──────────────────────────────────────
+    //
+    // Total ACCEPTED friendships — both directions
+    //
+    const connectionsCount = await prisma.friends.count({
+      where: {
+        OR: [
+          { senderId: orcaId, status: FriendshipStatus.ACCEPTED },
+          { receiverId: orcaId, status: FriendshipStatus.ACCEPTED },
+        ],
+      },
+    });
+
+    // ── 5. Connection status between calling user and orca ────────
+    //
+    // Check both directions of the friendship row
+    // States: ADD_ORCA | PENDING | MESSAGE
+    //
+    const friendship = await prisma.friends.findFirst({
+      where: {
+        OR: [
+          { senderId: user.id, receiverId: orcaId },
+          { senderId: orcaId, receiverId: user.id },
+        ],
+      },
+      select: { status: true, senderId: true },
+    });
+
+    let connectionStatus: 'ADD_ORCA' | 'PENDING' | 'MESSAGE' = 'ADD_ORCA';
+
+    if (friendship) {
+      if (friendship.status === FriendshipStatus.ACCEPTED) {
+        connectionStatus = 'MESSAGE';
+      } else if (friendship.status === FriendshipStatus.PENDING) {
+        connectionStatus = 'PENDING';
+      }
+    }
+
+    // ── 6. Return orca profile ────────────────────────────────────
+    return {
+      id: orca.id,
+      isPremium: orca.isPremium,
+      isProfileSetup: orca.isProfileSetup,
+
+      // Profile fields
+      name: orca.profile?.name ?? null,
+      avatar: orca.profile?.avatar ?? null,
+      cover: orca.profile?.cover ?? null,
+      bio: orca.profile?.bio ?? null,
+      location: orca.profile?.location ?? null,
+      gender: orca.profile?.gender ?? null,
+      age: orca.profile?.age ?? null,
+      profileInterest: orca.profile?.profileInterest ?? [],
+      countryVisited: orca.profile?.countryVisited ?? [],
+
+      // Event context
+      eventRole: eventParticipant.role,
+      joinedAt: eventParticipant.joinedAt,
+
+      // Stats
+      eventsJoinedCount,
+      connectionsCount,
+
+      // Calling user → orca relationship
+      connectionStatus,
+    };
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error(
+      'Unknown error occurred in get get single event orca service'
+    );
   }
 };

@@ -325,6 +325,16 @@ export const checkAccountStatus = asyncHandler(
     const route = req.path;
     const { sub } = req.user as JwtPayload;
     const user = await prisma.user.findUnique({ where: { id: sub } });
+    if (!user) {
+      res.status(401).json({
+        success: false,
+        message:
+          'Authentication failed. User record associated with this token does not exist.',
+        errorType: AuthErrorType.TOKEN_INVALID,
+        traceId,
+      });
+      return;
+    }
     if (user?.accountStatus === AccountStatus.BLOCKED) {
       res.status(401).json({
         success: false,

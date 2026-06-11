@@ -244,7 +244,6 @@ export const changeUserPreference = async ({
   user: User;
 }): Promise<UserPreference> => {
   try {
-    console.log(payload);
     const data = await prisma.userPreference.update({
       where: { userId: user.id },
       data: payload,
