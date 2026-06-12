@@ -9,6 +9,7 @@ import SubscriptionRoutes from '@/app/modules/subscription/subscription.routes';
 import UserTraits from '@/app/modules/survey/survey.routes';
 import UserRoutes from '@/app/modules/user/user.routes';
 import NotificationRoutes from '@/app/modules/notification/notification.routes';
+import ConnectionRoute from '@/app/modules/connection/connection.routes';
 
 const routes: Router[] = [
   UserRoutes,
@@ -20,6 +21,7 @@ const routes: Router[] = [
   EventRoutes,
   SubscriptionRoutes,
   NotificationRoutes,
+  ConnectionRoute
 ];
 
 const v1Routes = Router();

@@ -22,7 +22,7 @@ import {
   buildEmptyResult,
   buildHaversineFragment,
   getBlockedUserIds,
-} from './event.helper';
+} from '@/app/modules/event/event.helper';
 
 export const createEventService = async ({
   payload,

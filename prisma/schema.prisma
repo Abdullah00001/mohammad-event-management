@@ -58,6 +58,7 @@ enum Gender {
 enum FriendshipStatus {
   ACCEPTED
   PENDING
+  REJECTED
 }
 
 enum EventStatus {

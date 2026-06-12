@@ -1,0 +1,4 @@
+export enum BLOCK_STATUS {
+  BLOCKED = 'BLOCKED',
+  UNBLOCKED = 'UNBLOCKED',
+}

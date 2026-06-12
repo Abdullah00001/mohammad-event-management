@@ -145,14 +145,14 @@ export const retrieveMyAdventureLogsController = asyncHandler(
     const user = req.user as User;
     const { eventStatus, page, limit } = req.query as {
       eventStatus: EventStatus;
-      page: number | undefined;
-      limit: number | undefined;
+      page: string | undefined;
+      limit: string | undefined;
     };
     const data = await retrieveMyAdventureLogsService({
       user,
       eventStatus,
-      page,
-      limit,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
     });
     res.status(200).json({
       success: true,
