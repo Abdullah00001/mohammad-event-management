@@ -2,11 +2,12 @@ import { Router } from 'express';
 
 import {
   createEventController,
+  getEventJournalsController,
   getEventsListingController,
   getEventSummaryController,
   getMyActivityController,
   getMySingleActivityController,
-  getSingleEventController,
+  getSingleAdventureDetailsController,
   getSingleEventOrcaController,
   getSingleWildEventController,
   joinEventController,
@@ -103,7 +104,7 @@ router
     checkAccessToken,
     checkAccountStatus,
     findEventByIdMiddleware,
-    getSingleEventController
+    getEventJournalsController
   );
 
 router
@@ -162,7 +163,7 @@ router
     checkAccountStatus,
     findEventByIdMiddleware,
     checkEventHostMiddleware,
-    getSingleEventController
+    getSingleAdventureDetailsController
   )
   .patch(
     checkAccessToken,

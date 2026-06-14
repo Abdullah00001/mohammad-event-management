@@ -8,44 +8,68 @@ export const getMyConnectionService = async ({
   page = DEFAULT_PAGE,
   limit = DEFAULT_LIMIT,
   search,
+  blockedByMe,
+  blockedMe,
 }: {
   user: User;
   page: number | undefined;
   limit: number | undefined;
   search: string | undefined;
+  blockedByMe: boolean | undefined;
+  blockedMe: boolean | undefined;
 }): Promise<unknown> => {
   try {
     const offset = (page - 1) * limit;
 
     // ── 1. Shared where clause ────────────────────────────────────
     //
-    // Fetch all ACCEPTED friendships in both directions where the
-    // calling user is either sender or receiver.
-    // Search is optional — if provided, filter by friend's profile name
-    // (case-insensitive contains match) on the opposite side of each direction.
+    // Fetch all ACCEPTED friendships in both directions.
+    // Search: case-insensitive name match on the opposite side.
+    // ADDED blockedByMe: opposite side must exist in my BlockList as blockedUserId
+    // ADDED blockedMe:   opposite side must exist in my BlockList as blockerId
     //
     const sharedWhere = {
       status: FriendshipStatus.ACCEPTED,
       OR: [
         {
           senderId: user.id,
-          receiver: search
-            ? {
-                profile: {
-                  name: { contains: search, mode: 'insensitive' as const },
-                },
-              }
-            : undefined,
+          receiver: {
+            ...(search
+              ? {
+                  profile: {
+                    name: { contains: search, mode: 'insensitive' as const },
+                  },
+                }
+              : {}),
+            // ADDED: receiver is in my block list (I blocked them)
+            ...(blockedByMe
+              ? { blockedBy: { some: { blockerId: user.id } } }
+              : {}),
+            // ADDED: receiver has blocked me
+            ...(blockedMe
+              ? { blockedUsers: { some: { blockedUserId: user.id } } }
+              : {}),
+          },
         },
         {
           receiverId: user.id,
-          sender: search
-            ? {
-                profile: {
-                  name: { contains: search, mode: 'insensitive' as const },
-                },
-              }
-            : undefined,
+          sender: {
+            ...(search
+              ? {
+                  profile: {
+                    name: { contains: search, mode: 'insensitive' as const },
+                  },
+                }
+              : {}),
+            // ADDED: sender is in my block list (I blocked them)
+            ...(blockedByMe
+              ? { blockedBy: { some: { blockerId: user.id } } }
+              : {}),
+            // ADDED: sender has blocked me
+            ...(blockedMe
+              ? { blockedUsers: { some: { blockedUserId: user.id } } }
+              : {}),
+          },
         },
       ],
     };
@@ -55,7 +79,6 @@ export const getMyConnectionService = async ({
       prisma.friends.findMany({
         where: sharedWhere,
         include: {
-          // Include both sides — we'll pick the "other" user in mapping
           sender: {
             select: {
               id: true,

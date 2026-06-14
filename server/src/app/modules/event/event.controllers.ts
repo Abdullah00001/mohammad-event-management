@@ -12,7 +12,7 @@ import {
   getEventListingService,
   getMyActivityService,
   getMySingleEventService,
-  getSingleEventService,
+  getSingleAdventureDetailsService,
   getSingleWildEventService,
   joinEventService,
   leaveEventService,
@@ -89,12 +89,18 @@ export const getSingleWildEventController = asyncHandler(
   }
 );
 
-export const getSingleEventController = asyncHandler(
+export const getSingleAdventureDetailsController = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
     const traceId = getTraceId();
     const user = req.user as User;
     const event = req.event;
-    const data = await getSingleEventService({ event, user });
+    const { page, limit } = req.query as { page?: string; limit?: string };
+    const data = await getSingleAdventureDetailsService({
+      event,
+      user,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
     res.status(200).json({
       success: true,
       status: 200,
