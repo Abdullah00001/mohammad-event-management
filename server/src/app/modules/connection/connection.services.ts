@@ -8,68 +8,38 @@ export const getMyConnectionService = async ({
   page = DEFAULT_PAGE,
   limit = DEFAULT_LIMIT,
   search,
-  blockedByMe,
-  blockedMe,
 }: {
   user: User;
   page: number | undefined;
   limit: number | undefined;
   search: string | undefined;
-  blockedByMe: boolean | undefined;
-  blockedMe: boolean | undefined;
 }): Promise<unknown> => {
   try {
     const offset = (page - 1) * limit;
 
     // ── 1. Shared where clause ────────────────────────────────────
-    //
-    // Fetch all ACCEPTED friendships in both directions.
-    // Search: case-insensitive name match on the opposite side.
-    // ADDED blockedByMe: opposite side must exist in my BlockList as blockedUserId
-    // ADDED blockedMe:   opposite side must exist in my BlockList as blockerId
-    //
     const sharedWhere = {
       status: FriendshipStatus.ACCEPTED,
       OR: [
         {
           senderId: user.id,
-          receiver: {
-            ...(search
-              ? {
-                  profile: {
-                    name: { contains: search, mode: 'insensitive' as const },
-                  },
-                }
-              : {}),
-            // ADDED: receiver is in my block list (I blocked them)
-            ...(blockedByMe
-              ? { blockedBy: { some: { blockerId: user.id } } }
-              : {}),
-            // ADDED: receiver has blocked me
-            ...(blockedMe
-              ? { blockedUsers: { some: { blockedUserId: user.id } } }
-              : {}),
-          },
+          receiver: search
+            ? {
+                profile: {
+                  name: { contains: search, mode: 'insensitive' as const },
+                },
+              }
+            : undefined,
         },
         {
           receiverId: user.id,
-          sender: {
-            ...(search
-              ? {
-                  profile: {
-                    name: { contains: search, mode: 'insensitive' as const },
-                  },
-                }
-              : {}),
-            // ADDED: sender is in my block list (I blocked them)
-            ...(blockedByMe
-              ? { blockedBy: { some: { blockerId: user.id } } }
-              : {}),
-            // ADDED: sender has blocked me
-            ...(blockedMe
-              ? { blockedUsers: { some: { blockedUserId: user.id } } }
-              : {}),
-          },
+          sender: search
+            ? {
+                profile: {
+                  name: { contains: search, mode: 'insensitive' as const },
+                },
+              }
+            : undefined,
         },
       ],
     };
@@ -84,11 +54,17 @@ export const getMyConnectionService = async ({
               id: true,
               isPremium: true,
               profile: {
-                select: {
-                  name: true,
-                  avatar: true,
-                  bio: true,
-                },
+                select: { name: true, avatar: true, bio: true },
+              },
+              // ADDED: check if I blocked the sender
+              blockedBy: {
+                where: { blockerId: user.id },
+                select: { id: true },
+              },
+              // ADDED: check if sender blocked me
+              blockedUsers: {
+                where: { blockedUserId: user.id },
+                select: { id: true },
               },
             },
           },
@@ -97,11 +73,17 @@ export const getMyConnectionService = async ({
               id: true,
               isPremium: true,
               profile: {
-                select: {
-                  name: true,
-                  avatar: true,
-                  bio: true,
-                },
+                select: { name: true, avatar: true, bio: true },
+              },
+              // ADDED: check if I blocked the receiver
+              blockedBy: {
+                where: { blockerId: user.id },
+                select: { id: true },
+              },
+              // ADDED: check if receiver blocked me
+              blockedUsers: {
+                where: { blockedUserId: user.id },
+                select: { id: true },
               },
             },
           },
@@ -116,7 +98,7 @@ export const getMyConnectionService = async ({
       }),
     ]);
 
-    // ── 3. Shape — resolve the "other" user from each friendship row ──
+    // ── 3. Shape — resolve the "other" user + block flags ─────────
     const friends = rawFriends.map((f) => {
       const friend = f.senderId === user.id ? f.receiver : f.sender;
 
@@ -128,6 +110,9 @@ export const getMyConnectionService = async ({
         avatar: friend.profile?.avatar ?? null,
         bio: friend.profile?.bio ?? null,
         connectedAt: f.createdAt,
+        // ADDED: derived from joined rows — no extra queries needed
+        isBlockedByMe: friend.blockedBy.length > 0,
+        isBlockedMe: friend.blockedUsers.length > 0,
       };
     });
 
@@ -153,6 +138,7 @@ export const getMyConnectionService = async ({
     throw new Error('Unknown error occurred in get get my connection service');
   }
 };
+ 
 
 export const getMySingleConnectionService = async ({ id }: { id: string }) => {
   try {
