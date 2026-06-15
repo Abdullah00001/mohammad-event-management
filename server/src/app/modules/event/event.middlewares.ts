@@ -3,7 +3,7 @@ import { Request, Response, NextFunction } from 'express';
 import { getTraceId } from '@/app/configs/requestContext.configs';
 import { asyncHandler } from '@/app/utils/system.utils';
 import prisma from '@/app/configs/db.configs';
-import { EventRole } from '@prisma/client';
+import { EventRole, User } from '@prisma/client';
 
 export const findEventByIdMiddleware = asyncHandler(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -168,6 +168,43 @@ export const checkIsEventOrcaExistMiddleware = asyncHandler(
       return;
     }
 
+    next();
+    return;
+  }
+);
+
+export const checkOrcaBlockStatus = asyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const { orcaId } = req.params as { orcaId: string };
+    const traceId = getTraceId();
+    const user = req.user as User;
+    if (!orcaId) {
+      res.status(400).json({
+        success: false,
+        status: 400,
+        message: 'Orca id is missing',
+        traceId,
+      });
+      return;
+    }
+    const block = await prisma.blockList.findFirst({
+      where: {
+        OR: [
+          { blockerId: user.id, blockedUserId: orcaId },
+          { blockerId: orcaId, blockedUserId: user.id },
+        ],
+      },
+      select: { blockerId: true },
+    });
+    if (block) {
+      const message =
+        block.blockerId === user.id
+          ? 'You have blocked this user'
+          : 'You have been blocked by this user';
+
+      res.status(403).json({ success: false, status: 403, message, traceId });
+      return;
+    }
     next();
     return;
   }

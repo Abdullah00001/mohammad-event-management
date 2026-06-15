@@ -19,7 +19,6 @@ export const checkIsConnectionExistMiddleware = asyncHandler(
         traceId,
       });
       return;
-      return;
     }
     // ── 1. Check user exists ──────────────────────────────────────
     const targetUser = await prisma.user.findUnique({
@@ -158,6 +157,34 @@ export const blockOneConnectionMiddleware = asyncHandler(
       }
     }
 
+    next();
+    return;
+  }
+);
+
+export const checkIsUserBlockMiddleware = asyncHandler(
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const traceId = getTraceId();
+    const user = req.user as User;
+    const { id } = req.params as { id: string };
+    const block = await prisma.blockList.findFirst({
+      where: {
+        OR: [
+          { blockerId: user.id, blockedUserId: id },
+          { blockerId: id, blockedUserId: user.id },
+        ],
+      },
+      select: { blockerId: true },
+    });
+    if (block) {
+      const message =
+        block.blockerId === user.id
+          ? 'You have blocked this user'
+          : 'You have been blocked by this user';
+
+      res.status(403).json({ success: false, status: 403, message, traceId });
+      return;
+    }
     next();
     return;
   }

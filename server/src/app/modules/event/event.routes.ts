@@ -23,6 +23,7 @@ import {
   checkEventTypeMiddleware,
   checkParticipantOfEventMiddleware,
   checkIsEventOrcaExistMiddleware,
+  checkOrcaBlockStatus,
 } from '@/app/modules/event/event.middlewares';
 import {
   EventCreateSchema,
@@ -32,6 +33,7 @@ import {
 import {
   checkAccessToken,
   checkAccountStatus,
+  checkAdminAccessToken,
 } from '@/app/modules/user/user.middlewares';
 import { validateReqBody, validateReqQuery } from '@/app/utils/system.utils';
 
@@ -134,6 +136,7 @@ router
     checkAccountStatus,
     findEventByIdMiddleware,
     checkIsEventOrcaExistMiddleware,
+    checkOrcaBlockStatus,
     getSingleEventOrcaController
   );
 
@@ -182,5 +185,14 @@ router
     checkEventHostMiddleware,
     removeParticipantsFromEventController
   );
+
+/**
+ * =======================================================
+ * ------ ADMIN Event Management Routes -------
+ * =======================================================
+ */
+
+router.route('/admin/events').get(checkAdminAccessToken);
+router.route('/admin/events/:id').get(checkAdminAccessToken);
 
 export default router;

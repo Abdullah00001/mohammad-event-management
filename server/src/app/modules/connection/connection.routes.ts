@@ -14,6 +14,7 @@ import {
 import {
   blockOneConnectionMiddleware,
   checkIsConnectionExistMiddleware,
+  checkIsUserBlockMiddleware,
   manageMyConnectionRequestsMiddleware,
 } from '@/app/modules/connection/connection.middlewares';
 import { validateReqBody } from '@/app/utils/system.utils';
@@ -34,6 +35,7 @@ router
     checkAccessToken,
     checkAccountStatus,
     checkIsConnectionExistMiddleware,
+    checkIsUserBlockMiddleware,
     getMySingleConnectionController
   );
 
