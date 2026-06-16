@@ -1830,3 +1830,144 @@ export const getSingleEventOrcaService = async ({
     );
   }
 };
+
+export const getEventsForAdminService = async ({
+  limit = DEFAULT_LIMIT,
+  page = DEFAULT_PAGE,
+  search,
+}: {
+  search?: string;
+  page?: number;
+  limit?: number;
+}): Promise<unknown> => {
+  try {
+    const offset = (page - 1) * limit;
+
+    // ── 1. Shared where clause ────────────────────────────────────
+    //
+    // Exclude DELETED events.
+    // Search is optional — case-insensitive match on eventName.
+    //
+    const sharedWhere = {
+      eventStatus: { not: EventStatus.DELETED },
+      ...(search
+        ? { eventName: { contains: search, mode: 'insensitive' as const } }
+        : {}),
+    };
+
+    // ── 2. Fetch events + total count ─────────────────────────────
+    const [rawEvents, totalCount] = await prisma.$transaction([
+      prisma.event.findMany({
+        where: sharedWhere,
+        select: {
+          id: true,
+          eventName: true,
+          startDate: true,
+          endDate: true,
+          eventStatus: true,
+          lat: true,
+          lng: true,
+          isPrivate: true,
+          createdAt: true,
+
+          // Event type badge
+          eventTypes: {
+            select: {
+              eventType: {
+                select: {
+                  id: true,
+                  title: true,
+                  thumbnail: true,
+                },
+              },
+            },
+          },
+
+          // Participant count + host
+          eventParticipants: {
+            where: { leftAt: null },
+            select: {
+              role: true,
+              participantId: true,
+              user: {
+                select: {
+                  id: true,
+                  profile: {
+                    select: { name: true, avatar: true },
+                  },
+                },
+              },
+            },
+          },
+
+          // Max capacity
+          maxParticipantsCount: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: offset,
+        take: limit,
+      }),
+
+      prisma.event.count({
+        where: sharedWhere,
+      }),
+    ]);
+
+    // ── 3. Shape response ─────────────────────────────────────────
+    const events = rawEvents.map((event) => {
+      const host =
+        event.eventParticipants.find((p) => p.role === EventRole.HOST) ?? null;
+      const participantCount = event.eventParticipants.length;
+      const spotsLeft = Math.max(
+        0,
+        event.maxParticipantsCount - participantCount
+      );
+
+      return {
+        id: event.id,
+        eventName: event.eventName,
+        startDate: event.startDate,
+        endDate: event.endDate,
+        eventStatus: event.eventStatus,
+        lat: event.lat,
+        lng: event.lng,
+        isPrivate: event.isPrivate,
+        createdAt: event.createdAt,
+        maxParticipantsCount: event.maxParticipantsCount,
+        participantCount,
+        spotsLeft,
+        eventType: event.eventTypes[0]?.eventType ?? null,
+        host: host
+          ? {
+              id: host.user.id,
+              name: host.user.profile?.name ?? null,
+              avatar: host.user.profile?.avatar ?? null,
+            }
+          : null,
+      };
+    });
+
+    // ── 4. Paginate & respond ─────────────────────────────────────
+    const totalPages = Math.ceil(totalCount / limit);
+
+    return {
+      data: events,
+      meta: {
+        totalEvents: totalCount,
+        totalPages,
+        links: {
+          currentPage: page,
+          nextPage: page < totalPages ? page + 1 : null,
+          previousPage: page > 1 ? page - 1 : null,
+          firstPage: 1,
+          lastPage: totalPages || 1,
+        },
+      },
+    };
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error('Unknown error occurred is get events for admin service');
+  }
+};
+
+// export const

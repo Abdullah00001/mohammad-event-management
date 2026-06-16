@@ -3,11 +3,13 @@ import { Router } from 'express';
 import {
   createEventController,
   getEventJournalsController,
+  getEventsForAdminController,
   getEventsListingController,
   getEventSummaryController,
   getMyActivityController,
   getMySingleActivityController,
   getSingleAdventureDetailsController,
+  getSingleEventForAdminController,
   getSingleEventOrcaController,
   getSingleWildEventController,
   joinEventController,
@@ -192,7 +194,11 @@ router
  * =======================================================
  */
 
-router.route('/admin/events').get(checkAdminAccessToken);
-router.route('/admin/events/:id').get(checkAdminAccessToken);
+router
+  .route('/admin/events')
+  .get(checkAdminAccessToken, getEventsForAdminController);
+router
+  .route('/admin/events/:id')
+  .get(checkAdminAccessToken, getSingleEventForAdminController);
 
 export default router;

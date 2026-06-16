@@ -23,6 +23,7 @@ import {
   submitEventJournalService,
   getEventSummaryService,
   getSingleEventOrcaService,
+  getEventsForAdminService,
 } from '@/app/modules/event/event.services';
 import { asyncHandler } from '@/app/utils/system.utils';
 
@@ -330,6 +331,44 @@ export const getSingleEventOrcaController = asyncHandler(
       status: 200,
       message: 'Event summary retrieved successfully',
       data,
+      traceId,
+    });
+    return;
+  }
+);
+
+export const getEventsForAdminController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const traceId = getTraceId();
+    const { limit, page, search } = req.query as {
+      search?: string;
+      page?: string;
+      limit?: string;
+    };
+    const data = await getEventsForAdminService({
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+      search,
+    });
+    res.status(200).json({
+      success: true,
+      status: 200,
+      message: 'Event retrieved successfully',
+      data,
+      traceId,
+    });
+    return;
+  }
+);
+
+export const getSingleEventForAdminController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const traceId = getTraceId();
+    res.status(200).json({
+      success: true,
+      status: 200,
+      message: 'Event retrieved successfully',
+      data:{},
       traceId,
     });
     return;

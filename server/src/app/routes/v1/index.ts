@@ -5,7 +5,6 @@ import EventTypes from '@/app/modules/eventType/eventType.routes';
 import InterestRoutes from '@/app/modules/interest/interest.routes';
 import ProfileRoutes from '@/app/modules/profile/profile.routes';
 import RecoverRoutes from '@/app/modules/recover/recover.routes';
-import SubscriptionRoutes from '@/app/modules/subscription/subscription.routes';
 import UserTraits from '@/app/modules/survey/survey.routes';
 import UserRoutes from '@/app/modules/user/user.routes';
 import NotificationRoutes from '@/app/modules/notification/notification.routes';
@@ -19,7 +18,6 @@ const routes: Router[] = [
   RecoverRoutes,
   EventTypes,
   EventRoutes,
-  SubscriptionRoutes,
   NotificationRoutes,
   ConnectionRoute
 ];
