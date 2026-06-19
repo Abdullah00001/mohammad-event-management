@@ -1,3 +1,4 @@
+import { isoUtcRegex } from '@/const';
 import { z } from 'zod';
 
 export const EventStatusSchema = z.enum([
@@ -16,9 +17,7 @@ export const EventCreateSchema = z.object({
     .max(100, { message: 'eventName must not exceed 100 characters' })
     .trim(),
 
-  description: z
-    .string({ error: 'description is required' })
-    .trim(),
+  description: z.string({ error: 'description is required' }).trim(),
 
   startDate: z.coerce
     .date({ error: 'startDate must be a valid ISO date' })
@@ -90,8 +89,7 @@ export const querySchema = z.object({
         .number()
         .min(-180, 'Longitude must be >= -180')
         .max(180, 'Longitude must be <= 180')
-    )
-    .optional(),
+    ),
 
   lat: z
     .string()
@@ -101,31 +99,14 @@ export const querySchema = z.object({
         .number()
         .min(-90, 'Latitude must be >= -90')
         .max(90, 'Latitude must be <= 90')
-    )
-    .optional(),
+    ),
 
-  // Date: DD/MM/YY
-  date: z
+  startDate: z
     .string()
-    .regex(/^\d{2}\/\d{2}\/\d{2}$/, 'Date must be in DD/MM/YY format')
-    .refine((val) => {
-      const [dd, mm, yy] = val.split('/').map(Number);
-      const fullYear = 2000 + yy;
-      const parsed = new Date(fullYear, mm - 1, dd);
-      return (
-        parsed.getFullYear() === fullYear &&
-        parsed.getMonth() === mm - 1 &&
-        parsed.getDate() === dd
-      );
-    }, 'Date must be a valid calendar date')
-    .optional(),
-
-  // Time: HH/MM in 24-hour format
-  time: z
-    .string({ error: 'time is required' })
-    .regex(/^(0[1-9]|1[0-2]):([0-5]\d)\s(AM|PM)$/, {
-      message: 'time must be in HH:MM AM/PM format (e.g. 02:30 PM)',
+    .regex(isoUtcRegex, {
+      message: "Invalid UTC date format. Must end with 'Z'",
     })
+    .pipe(z.coerce.date())
     .optional(),
 
   // Max Orcas
@@ -137,6 +118,7 @@ export const querySchema = z.object({
 
   // eventType as UUID
   eventType: z.uuid({ message: 'eventType must be a valid UUID' }).optional(),
+  search: z.string().optional(),
 });
 
 export type EventQueryParams = z.infer<typeof querySchema>;
@@ -163,9 +145,11 @@ export const UpdateEventInformationSchema = z.object({
     .optional(),
 });
 
-export type TUpdateEventInformationPayload = z.infer<typeof UpdateEventInformationSchema>;
+export type TUpdateEventInformationPayload = z.infer<
+  typeof UpdateEventInformationSchema
+>;
 
-export const SubmitEventJournalSchema = z.object({  
+export const SubmitEventJournalSchema = z.object({
   participantId: z.string({ error: 'participantId is required' }),
   rating: z
     .number({ error: 'rating must be a number' })
@@ -174,4 +158,6 @@ export const SubmitEventJournalSchema = z.object({
     .max(5, { message: 'rating must not exceed 5' }),
 });
 
-export type TSubmitEventJournalPayload = z.infer<typeof SubmitEventJournalSchema>;
+export type TSubmitEventJournalPayload = z.infer<
+  typeof SubmitEventJournalSchema
+>;

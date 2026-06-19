@@ -25,7 +25,6 @@ export interface EventItem {
   eventStatus: EventStatus;
   lat: number;
   lng: number;
-  isPrivate: boolean;
   distanceKm: number;
   participantCount: number;
   spotsLeft: number;

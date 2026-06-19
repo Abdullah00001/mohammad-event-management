@@ -30,3 +30,4 @@ export const DEFAULT_LIMIT = 10;
 export const DEFAULT_RADIUS_KM = 5;
 export const EARTH_RADIUS_KM = 6371;
 export const SUBSCRIPTION_FEATURE_CACHE_EXPIRY = '1d';
+export const isoUtcRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;

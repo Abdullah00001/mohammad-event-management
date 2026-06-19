@@ -89,7 +89,7 @@ export const getEventListingService = async ({
 }): Promise<EventListingResult> => {
   try {
     const {
-      date,
+      startDate,
       distance,
       eventType,
       lng: queryLng,
@@ -97,7 +97,7 @@ export const getEventListingService = async ({
       limit = DEFAULT_LIMIT,
       maxOrcas,
       page = DEFAULT_PAGE,
-      time,
+      search,
     } = query;
 
     // ── 1. Resolve the reference coordinates ──────────────────────
@@ -129,11 +129,11 @@ export const getEventListingService = async ({
     // apply a 5 km radius and country-scoping automatically.
     //
     const hasFilters = Boolean(
-      date ||
+      startDate ||
       distance !== undefined ||
       eventType ||
       maxOrcas !== undefined ||
-      time
+      search
     );
 
     const radiusKm: number =
@@ -148,12 +148,7 @@ export const getEventListingService = async ({
     // ── 4. Collect blocked user IDs ───────────────────────────────
     const blockedIds = await getBlockedUserIds(user.id);
 
-    // ── 5. Build Prisma where clause ──────────────────────────────
-    //
-    // CHANGED: Removed the `acceptedPrivateEventIds` query entirely.
-    // Private events are no longer shown in the listing — only public
-    // events created by other users are surfaced here.
-    //
+    // ── 5. Build offset ───────────────────────────────────────────
     const offset = (page - 1) * limit;
 
     // ── 6. Fetch nearby event IDs via raw Haversine SQL ───────────
@@ -180,44 +175,15 @@ export const getEventListingService = async ({
 
     // ── 7. ORM-level filters ──────────────────────────────────────
 
-    // Date filter — match events whose startDate falls on the given date
-    let dateFilter: { gte: Date; lt: Date } | undefined;
-    if (date) {
-      const dayStart = new Date(date);
-      dayStart.setUTCHours(0, 0, 0, 0);
-      const dayEnd = new Date(dayStart);
-      dayEnd.setUTCDate(dayEnd.getUTCDate() + 1);
-      dateFilter = { gte: dayStart, lt: dayEnd };
+    // startDate filter — frontend sends a combined ISO UTC datetime string
+    // (date + time picker merged). We use it as gte so events starting
+    // at or after that exact moment are returned.
+    let startDateFilter: { gte: Date } | undefined;
+    if (startDate) {
+      startDateFilter = { gte: new Date(startDate) };
     }
 
-    // Time filter — match events whose startTime is within the window.
-    // `time` is expected as "HH:MM" (start of a 1-hour window) or a
-    // range string "HH:MM-HH:MM". Adapt to your schema convention.
-    let timeEventIds: string[] | undefined;
-    if (time) {
-      // Support "HH:MM" (exact hour) or "HH:MM-HH:MM" (range)
-      const [startT, endT] = time.includes('-')
-        ? time.split('-')
-        : [time, `${String(timeToMinutes(time) / 60 + 1).padStart(2, '0')}:00`];
-
-      const startMin = timeToMinutes(startT);
-      const endMin = timeToMinutes(endT);
-
-      // Pull all candidate events and filter in JS since startTime is
-      // stored as a VARCHAR "HH:MM" string.
-      const timeRows = await prisma.event.findMany({
-        where: { id: { in: nearbyEventIds } },
-        select: { id: true, startTime: true },
-      });
-      timeEventIds = timeRows
-        .filter((e) => {
-          const m = timeToMinutes(e.startTime);
-          return m >= startMin && m < endMin;
-        })
-        .map((e) => e.id);
-    }
-
-    // EventType filter
+    // EventType filter — resolve matching event IDs from junction table
     let eventTypeEventIds: string[] | undefined;
     if (eventType) {
       const typeRows = await prisma.eventEventType.findMany({
@@ -232,8 +198,6 @@ export const getEventListingService = async ({
 
     // Intersect all filter ID sets
     let filteredIds = nearbyEventIds;
-    if (timeEventIds)
-      filteredIds = filteredIds.filter((id) => timeEventIds!.includes(id));
     if (eventTypeEventIds)
       filteredIds = filteredIds.filter((id) => eventTypeEventIds!.includes(id));
 
@@ -243,24 +207,24 @@ export const getEventListingService = async ({
 
     // ── 8. Fetch events with full relations ───────────────────────
     //
-    // CHANGED: Two rules applied in the where clause:
-    //   1. `isPrivate: false`  — only public events are shown
-    //   2. `eventParticipants.none` merges blocked-user exclusion AND
-    //      logged-in user HOST exclusion into a single relation filter
-    //      (Prisma does not allow two `none` blocks on the same relation)
+    // Rules applied in sharedWhere:
+    //   1. `isPrivate: false`          — only public events
+    //   2. startDate gte filter        — events at or after selected datetime
+    //   3. search on eventName         — case-insensitive contains
+    //   4. AND[0] — exclude blocked hosts
+    //   5. AND[1] — exclude events user already has any presence in
     //
-    // The shared where clause used by both findMany and count:
     const sharedWhere = {
       id: { in: filteredIds },
       eventStatus: { not: EventStatus.DELETED },
-
-      // Only public events
       isPrivate: false,
 
-      ...(dateFilter && { startDate: dateFilter }),
+      ...(startDateFilter && { startDate: startDateFilter }),
 
-      // CHANGED: Split into AND to support two independent `none` conditions
-      // on the same `eventParticipants` relation
+      ...(search && {
+        eventName: { contains: search, mode: 'insensitive' as const },
+      }),
+
       AND: [
         // Exclude events hosted by blocked users
         {
@@ -273,8 +237,7 @@ export const getEventListingService = async ({
             },
           },
         },
-        // CHANGED: Exclude events where the logged-in user has any presence
-        // (host, participant, or any other role) — only joinable events shown
+        // Exclude events where the logged-in user has any presence
         {
           eventParticipants: {
             none: {
@@ -284,9 +247,6 @@ export const getEventListingService = async ({
         },
       ],
     };
-
-    // maxOrcas is cleaner handled via HAVING in SQL; we do a post-fetch
-    // filter below to avoid complex raw SQL duplication.
 
     const [rawEvents, totalCount] = await prisma.$transaction([
       prisma.event.findMany({
@@ -327,13 +287,10 @@ export const getEventListingService = async ({
     ]);
 
     // ── 9. Post-fetch processing ───────────────────────────────────
-
-    // Build a distance lookup from the raw SQL results (already fetched)
     const distanceMap = await buildDistanceMap(filteredIds, refLat, refLng);
 
     let events: EventItem[] = rawEvents.map((event) => {
       const participants = event.eventParticipants;
-      const host = participants.find((p) => p.role === EventRole.HOST);
       const participantCount = participants.length;
       const spotsLeft = Math.max(
         0,
@@ -356,7 +313,7 @@ export const getEventListingService = async ({
         spotsLeft,
         isJoined,
         isOnWaitList,
-        eventType: event.eventTypes[0].eventType,
+        eventType: event.eventTypes[0]?.eventType ?? null,
         createdAt: event.createdAt,
       };
     });
@@ -367,13 +324,7 @@ export const getEventListingService = async ({
     }
 
     // ── 10. Country scoping (Case 1 only) ─────────────────────────
-    //
-    // When no filters are applied we additionally scope results to
-    // the user's country so the default feed feels local.
-    //
     if (!hasFilters && userCountry) {
-      // Country is derived from event coordinates at query time.
-      // We resolve country for each nearby event in parallel.
       const countryChecks = await Promise.all(
         events.map(async (e) => {
           const country = await getCountryFromCoords(e.lat, e.lng);
@@ -595,6 +546,18 @@ export const getSingleAdventureDetailsService = async ({
           },
           orderBy: { joinedAt: 'asc' },
         },
+        // ── JOIN 2: EventType — ADDED ─────────────────────────────
+        eventTypes: {
+          include: {
+            eventType: {
+              select: {
+                id: true,
+                title: true,
+                thumbnail: true,
+              },
+            },
+          },
+        },
       },
     });
 
@@ -759,7 +722,7 @@ export const getSingleAdventureDetailsService = async ({
       inviteLink: enrichedEvent.inviteLink,
       createdAt: enrichedEvent.createdAt,
       updatedAt: enrichedEvent.updatedAt,
-
+      eventType: enrichedEvent.eventTypes[0]?.eventType ?? null,
       // Host
       host: hostParticipant
         ? {
@@ -985,11 +948,7 @@ export const retrieveMyAdventureLogsService = async ({
         updatedAt: event.updatedAt,
 
         // EventType badge (thumbnail + title in UI)
-        eventTypes: event.eventTypes.map((et) => ({
-          id: et.eventType.id,
-          title: et.eventType.title,
-          thumbnail: et.eventType.thumbnail,
-        })),
+        eventTypes: event.eventTypes[0].eventType,
 
         // Caller's own participation record
         myParticipation: {
