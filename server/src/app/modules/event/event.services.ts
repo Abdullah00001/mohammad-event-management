@@ -852,10 +852,15 @@ export const retrieveMyAdventureLogsService = async ({
     const offset = (page - 1) * limit;
 
     // ── Single query: EventParticipants → Event → EventEventType → EventType ──
+    //
+    // CHANGED: Adventure Log = events the logged-in user CREATED, i.e.
+    // where their role is HOST. Not all events they're a participant in.
+    //
     const [myParticipations, totalCount] = await prisma.$transaction([
       prisma.eventParticipants.findMany({
         where: {
           participantId: user.id,
+          role: EventRole.HOST, // CHANGED: scope to events I host only
           event: {
             eventStatus,
             deletedAt: null,
@@ -866,26 +871,17 @@ export const retrieveMyAdventureLogsService = async ({
         take: limit,
         select: {
           role: true,
-          joinedAt: true,
-          noShow: true, // FIXED: was journalNoShow — correct field name from schema
 
           // ── JOIN 1: Event ──────────────────────────────────────────────
           event: {
             select: {
               id: true,
               eventName: true,
-              description: true,
               startDate: true,
-              endDate: true,
-              maxParticipantsCount: true,
               eventStatus: true,
               lat: true,
               lng: true,
-              interests: true,
-              isPrivate: true,
-              inviteLink: true,
-              createdAt: true,
-              updatedAt: true,
+              maxParticipantsCount: true,
 
               // ── JOIN 2: EventEventType → EventType ─────────────────────
               eventTypes: {
@@ -900,7 +896,7 @@ export const retrieveMyAdventureLogsService = async ({
                 },
               },
 
-              // ── JOIN 3: EventParticipants (_count for "4/8 orcas") ──────
+              // ── JOIN 3: count for "9/4 orcas" badge ─────────────────────
               _count: {
                 select: { eventParticipants: true },
               },
@@ -912,6 +908,7 @@ export const retrieveMyAdventureLogsService = async ({
       prisma.eventParticipants.count({
         where: {
           participantId: user.id,
+          role: EventRole.HOST, // CHANGED
           event: {
             eventStatus,
             deletedAt: null,
@@ -932,30 +929,16 @@ export const retrieveMyAdventureLogsService = async ({
       return {
         id: event.id,
         eventName: event.eventName,
-        description: event.description,
         startDate: event.startDate,
-        endDate: event.endDate,
-        maxParticipantsCount: event.maxParticipantsCount,
-        participantCount,
-        spotsLeft,
         eventStatus: event.eventStatus,
         lat: event.lat,
         lng: event.lng,
-        interests: event.interests,
-        isPrivate: event.isPrivate,
-        inviteLink: event.inviteLink,
-        createdAt: event.createdAt,
-        updatedAt: event.updatedAt,
+        maxParticipantsCount: event.maxParticipantsCount,
+        participantCount,
+        spotsLeft,
 
         // EventType badge (thumbnail + title in UI)
-        eventTypes: event.eventTypes[0].eventType,
-
-        // Caller's own participation record
-        myParticipation: {
-          role: participation.role,
-          joinedAt: participation.joinedAt,
-          noShow: participation.noShow,
-        },
+        eventType: event.eventTypes[0]?.eventType ?? null,
       };
     });
 
