@@ -1,6 +1,6 @@
 import { extname, join } from 'path';
 
-import { Profile, Role, User, UserPreference } from '@prisma/client';
+import { EventRole, EventStatus, FriendshipStatus, Profile, Role, User, UserPreference } from '@prisma/client';
 
 import prisma from '@/app/configs/db.configs';
 import {
@@ -42,6 +42,7 @@ export const getProfileInformation = async ({
       },
     });
     if (!profile) throw new Error('Profile not found');
+
     const interests = await prisma.interest.findMany({
       where: {
         id: { in: profile.profileInterest },
@@ -53,44 +54,72 @@ export const getProfileInformation = async ({
         interestIcon: true,
       },
     });
-    const upcomingEvents = [
-      {
-        id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
-        name: 'City Sports Championship',
-        thumbnail:
-          'https://abdullah-sta.s3.eu-north-1.amazonaws.com/eventType/613b101c-f5f9-4bd2-bb73-1a66587c36b2/1778928703959.png',
-        eventType: {
-          id: '6a143688-8d8f-46df-a973-a37a799566e5',
-          title: 'Sports',
+
+    // ── ADDED: Total events joined (any role, not DELETED) ──────────
+    const totalEventsAttended = await prisma.eventParticipants.count({
+      where: {
+        participantId: userId,
+        event: {
+          eventStatus: { not: EventStatus.DELETED },
         },
-        startDate: '2026-06-10T09:00:00.000Z',
-        startTime: '09:00 AM',
       },
-      {
-        id: 'b2c3d4e5-f6a7-8901-bcde-f12345678901',
-        name: 'Jazz & Blues Night',
-        thumbnail:
-          'https://abdullah-sta.s3.eu-north-1.amazonaws.com/eventType/aac94538-e2a6-46b0-824d-97968204db20/1778928774835.png',
-        eventType: {
-          id: 'eca31285-05b0-4f83-8737-7a54455367cd',
-          title: 'Music',
+    });
+
+    // ── ADDED: Total ACCEPTED connections (both directions) ─────────
+    const totalConnections = await prisma.friends.count({
+      where: {
+        status: FriendshipStatus.ACCEPTED,
+        OR: [{ senderId: userId }, { receiverId: userId }],
+      },
+    });
+
+    // ── ADDED: Recent 3 events created (HOST role), ordered by createdAt ──
+    const recentHostedParticipations = await prisma.eventParticipants.findMany({
+      where: {
+        participantId: userId,
+        role: EventRole.HOST,
+        event: {
+          eventStatus: { not: EventStatus.DELETED },
         },
-        startDate: '2026-06-15T18:30:00.000Z',
-        startTime: '06:30 PM',
       },
-      {
-        id: 'c3d4e5f6-a7b8-9012-cdef-123456789012',
-        name: 'Street Food Festival',
-        thumbnail:
-          'https://abdullah-sta.s3.eu-north-1.amazonaws.com/eventType/23da0fe6-7eca-45f9-8139-624dfc3b98d1/1778928852407.png',
-        eventType: {
-          id: 'b35cda8c-6a77-4675-a479-097273c8286e',
-          title: 'Food and Drinks',
+      select: {
+        event: {
+          select: {
+            id: true,
+            eventName: true,
+            startDate: true,
+            createdAt: true,
+            eventTypes: {
+              select: {
+                eventType: {
+                  select: {
+                    id: true,
+                    title: true,
+                    thumbnail: true,
+                  },
+                },
+              },
+            },
+          },
         },
-        startDate: '2026-06-20T12:00:00.000Z',
-        startTime: '12:00 PM',
       },
-    ];
+      orderBy: { event: { createdAt: 'desc' } },
+      take: 3,
+    });
+
+    const upcomingEvents = recentHostedParticipations.map(({ event }) => ({
+      id: event.id,
+      name: event.eventName,
+      thumbnail: event.eventTypes[0]?.eventType.thumbnail ?? null,
+      eventType: event.eventTypes[0]
+        ? {
+            id: event.eventTypes[0].eventType.id,
+            title: event.eventTypes[0].eventType.title,
+          }
+        : null,
+      startDate: event.startDate,
+    }));
+
     return {
       name: profile.name,
       email,
@@ -100,8 +129,8 @@ export const getProfileInformation = async ({
       bio: profile.bio,
       countryVisited: profile.countryVisited,
       profileInterest: interests,
-      totalEventsAttended: 0,
-      totalConnections: 0,
+      totalEventsAttended,
+      totalConnections,
       upcomingEvents,
     };
   } catch (error) {

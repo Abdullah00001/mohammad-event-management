@@ -429,7 +429,7 @@ export const getEventsForAdminController = asyncHandler(
 );
 
 export const getSingleEventForAdminController = asyncHandler(
-  async (req: Request, res: Response): Promise<void> => {
+  async (_req: Request, res: Response): Promise<void> => {
     const traceId = getTraceId();
     res.status(200).json({
       success: true,

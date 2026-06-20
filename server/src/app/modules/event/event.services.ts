@@ -13,7 +13,7 @@ import {
   TEventCreatePayload,
   TUpdateEventInformationPayload,
 } from '@/app/modules/event/event.schemas';
-import { getCountryFromCoords, timeToMinutes } from '@/app/utils/system.utils';
+import { getCountryFromCoords } from '@/app/utils/system.utils';
 import { DEFAULT_LIMIT, DEFAULT_PAGE, DEFAULT_RADIUS_KM } from '@/const';
 import { getRedisClient } from '@/app/configs/redis.config';
 import { EventItem, EventListingResult } from '@/app/modules/event/event.types';
