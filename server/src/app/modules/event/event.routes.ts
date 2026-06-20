@@ -3,9 +3,11 @@ import { Router } from 'express';
 import {
   createEventController,
   getEventJournalsController,
+  getEventParticipantsController,
   getEventsForAdminController,
   getEventsListingController,
   getEventSummaryController,
+  getEventWaitListController,
   getMyActivityController,
   getMySingleActivityController,
   getSingleAdventureDetailsController,
@@ -13,6 +15,7 @@ import {
   getSingleEventOrcaController,
   getSingleWildEventController,
   joinEventController,
+  joinWaitListController,
   leaveEventController,
   removeParticipantsFromEventController,
   retrieveMyAdventureLogsController,
@@ -91,6 +94,15 @@ router
     checkAccountStatus,
     findEventByIdMiddleware,
     joinEventController
+  );
+
+router
+  .route('/activity/:id/waitlist')
+  .post(
+    checkAccessToken,
+    checkAccountStatus,
+    findEventByIdMiddleware,
+    joinWaitListController
   );
 
 router
@@ -176,6 +188,26 @@ router
     findEventByIdMiddleware,
     checkEventHostMiddleware,
     updateEventController
+  );
+
+router
+  .route('/adventure/:id/participants')
+  .get(
+    checkAccessToken,
+    checkAccountStatus,
+    findEventByIdMiddleware,
+    checkEventHostMiddleware,
+    getEventParticipantsController
+  );
+
+router
+  .route('/adventure/:id/waitlist')
+  .get(
+    checkAccessToken,
+    checkAccountStatus,
+    findEventByIdMiddleware,
+    checkEventHostMiddleware,
+    getEventWaitListController
   );
 
 router

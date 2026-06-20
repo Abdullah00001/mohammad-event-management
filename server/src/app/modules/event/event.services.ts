@@ -511,6 +511,131 @@ export const getSingleWildEventService = async ({
 export const getSingleAdventureDetailsService = async ({
   event,
   user,
+}: {
+  event: Event;
+  user: User;
+}): Promise<unknown> => {
+  try {
+    // ── 1. Fetch event core fields ────────────────────────────────
+    //
+    // CHANGED: removed paginated participants + waitList from this
+    // service entirely — they now live in their own dedicated
+    // paginated services. This is the pure event detail view.
+    //
+    const enrichedEvent = await prisma.event.findUniqueOrThrow({
+      where: { id: event.id },
+      select: {
+        id: true,
+        eventName: true,
+        description: true,
+        startDate: true,
+        endDate: true,
+        maxParticipantsCount: true,
+        eventStatus: true,
+        lat: true,
+        lng: true,
+
+        // EventType badge
+        eventTypes: {
+          select: {
+            eventType: {
+              select: {
+                id: true,
+                title: true,
+                thumbnail: true,
+              },
+            },
+          },
+        },
+
+        // Count only — for "3/6 orcas" badge
+        _count: {
+          select: { eventParticipants: true },
+        },
+      },
+    });
+
+    // ── 2. Fetch host separately ────────────────────────────────────
+    const hostParticipant = await prisma.eventParticipants.findFirst({
+      where: { eventId: event.id, role: EventRole.HOST },
+      select: {
+        user: {
+          select: {
+            id: true,
+            profile: { select: { name: true, avatar: true } },
+          },
+        },
+      },
+    });
+
+    // ── 3. Caller's own participation status ────────────────────────
+    const currentUserParticipant = await prisma.eventParticipants.findUnique({
+      where: {
+        eventId_participantId: {
+          eventId: event.id,
+          participantId: user.id,
+        },
+      },
+      select: { role: true },
+    });
+
+    const currentUserOnWaitList = await prisma.waitList.findUnique({
+      where: {
+        eventId_userId: {
+          eventId: event.id,
+          userId: user.id,
+        },
+      },
+      select: { id: true },
+    });
+
+    // ── 4. Derive computed fields ───────────────────────────────────
+    const participantCount = enrichedEvent._count.eventParticipants;
+    const availableSlots = Math.max(
+      0,
+      enrichedEvent.maxParticipantsCount - participantCount
+    );
+
+    // ── 5. Return clean event detail ────────────────────────────────
+    return {
+      id: enrichedEvent.id,
+      eventName: enrichedEvent.eventName,
+      description: enrichedEvent.description,
+      startDate: enrichedEvent.startDate,
+      endDate: enrichedEvent.endDate,
+      eventStatus: enrichedEvent.eventStatus,
+      lat: enrichedEvent.lat,
+      lng: enrichedEvent.lng,
+
+      eventType: enrichedEvent.eventTypes[0]?.eventType ?? null,
+
+      maxParticipantsCount: enrichedEvent.maxParticipantsCount,
+      participantCount,
+      availableSlots,
+
+      host: hostParticipant
+        ? {
+            id: hostParticipant.user.id,
+            name: hostParticipant.user.profile?.name ?? null,
+            avatar: hostParticipant.user.profile?.avatar ?? null,
+          }
+        : null,
+
+      currentUser: {
+        isParticipant: !!currentUserParticipant,
+        role: currentUserParticipant?.role ?? null,
+        isOnWaitList: !!currentUserOnWaitList,
+      },
+    };
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error('Unknown error occurred in get single event service');
+  }
+};
+
+export const getEventParticipantsService = async ({
+  event,
+  user,
   page = DEFAULT_PAGE,
   limit = DEFAULT_LIMIT,
 }: {
@@ -522,47 +647,8 @@ export const getSingleAdventureDetailsService = async ({
   try {
     const offset = (page - 1) * limit;
 
-    // ── 1. Fetch event core fields ────────────────────────────────
-    const enrichedEvent = await prisma.event.findUniqueOrThrow({
-      where: { id: event.id },
-      include: {
-        // ── JOIN 1: WaitList ──────────────────────────────────────
-        waitLists: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                isPremium: true,
-                profile: {
-                  select: {
-                    name: true,
-                    avatar: true,
-                    gender: true,
-                    age: true,
-                  },
-                },
-              },
-            },
-          },
-          orderBy: { joinedAt: 'asc' },
-        },
-        // ── JOIN 2: EventType — ADDED ─────────────────────────────
-        eventTypes: {
-          include: {
-            eventType: {
-              select: {
-                id: true,
-                title: true,
-                thumbnail: true,
-              },
-            },
-          },
-        },
-      },
-    });
-
-    // ── 2. Fetch paginated participants + total count ──────────────
-    const [rawParticipants, participantCount] = await prisma.$transaction([
+    // ── 1. Fetch paginated participants + total count ──────────────
+    const [rawParticipants, totalCount] = await prisma.$transaction([
       prisma.eventParticipants.findMany({
         where: {
           eventId: event.id,
@@ -600,20 +686,15 @@ export const getSingleAdventureDetailsService = async ({
       }),
     ]);
 
-    // ── 3. Collect participant IDs for bulk flag queries ───────────
+    // ── 2. Collect participant IDs for bulk flag queries ────────────
     //
-    // Scoped to current page only — no need to fetch all participants
+    // Scoped to current page only
     //
     const participantIds = rawParticipants
       .filter((p) => p.participantId !== user.id)
       .map((p) => p.participantId);
 
-    // ── 4. Fetch block relationships in bulk ──────────────────────
-    //
-    // Two directions:
-    //   a) Host blocked participant  — blockerId = user.id
-    //   b) Participant blocked host  — blockedUserId = user.id
-    //
+    // ── 3. Fetch block relationships in bulk ────────────────────────
     const [hostBlockedRows, participantBlockedRows] = await Promise.all([
       prisma.blockList.findMany({
         where: {
@@ -636,7 +717,7 @@ export const getSingleAdventureDetailsService = async ({
       participantBlockedRows.map((r) => r.blockerId)
     );
 
-    // ── 5. Fetch friendship relationships in bulk ─────────────────
+    // ── 4. Fetch friendship relationships in bulk ───────────────────
     const friendships = await prisma.friends.findMany({
       where: {
         status: FriendshipStatus.ACCEPTED,
@@ -654,35 +735,7 @@ export const getSingleAdventureDetailsService = async ({
       )
     );
 
-    // ── 6. Fetch host separately (not paginated) ──────────────────
-    const hostParticipant = await prisma.eventParticipants.findFirst({
-      where: { eventId: event.id, role: EventRole.HOST },
-      select: {
-        user: {
-          select: {
-            id: true,
-            isPremium: true,
-            profile: { select: { name: true, avatar: true } },
-          },
-        },
-      },
-    });
-
-    // ── 7. Caller's own participation status ──────────────────────
-    const currentUserParticipant = await prisma.eventParticipants.findUnique({
-      where: {
-        eventId_participantId: {
-          eventId: event.id,
-          participantId: user.id,
-        },
-      },
-      select: { role: true },
-    });
-
-    const currentUserOnWaitList =
-      enrichedEvent.waitLists.find((w) => w.userId === user.id) ?? null;
-
-    // ── 8. Shape participants with flags ──────────────────────────
+    // ── 5. Shape participants with flags ────────────────────────────
     const participants = rawParticipants.map((p) => ({
       role: p.role,
       joinedAt: p.joinedAt,
@@ -699,45 +752,13 @@ export const getSingleAdventureDetailsService = async ({
       isFriendWithHost: friendSet.has(p.participantId),
     }));
 
-    const availableSlots = Math.max(
-      0,
-      enrichedEvent.maxParticipantsCount - participantCount
-    );
-
-    // ── 9. Paginate & respond ─────────────────────────────────────
-    const totalPages = Math.ceil(participantCount / limit);
+    // ── 6. Paginate & respond ───────────────────────────────────────
+    const totalPages = Math.ceil(totalCount / limit);
 
     return {
-      id: enrichedEvent.id,
-      eventName: enrichedEvent.eventName,
-      description: enrichedEvent.description,
-      startDate: enrichedEvent.startDate,
-      endDate: enrichedEvent.endDate,
-      maxParticipantsCount: enrichedEvent.maxParticipantsCount,
-      eventStatus: enrichedEvent.eventStatus,
-      lat: enrichedEvent.lat,
-      lng: enrichedEvent.lng,
-      interests: enrichedEvent.interests,
-      isPrivate: enrichedEvent.isPrivate,
-      inviteLink: enrichedEvent.inviteLink,
-      createdAt: enrichedEvent.createdAt,
-      updatedAt: enrichedEvent.updatedAt,
-      eventType: enrichedEvent.eventTypes[0]?.eventType ?? null,
-      // Host
-      host: hostParticipant
-        ? {
-            id: hostParticipant.user.id,
-            isPremium: hostParticipant.user.isPremium,
-            name: hostParticipant.user.profile?.name ?? null,
-            avatar: hostParticipant.user.profile?.avatar ?? null,
-          }
-        : null,
-
-      // Paginated participants
-      participants,
-      availableSlots,
-      participantsMeta: {
-        totalParticipants: participantCount,
+      data: participants,
+      meta: {
+        totalParticipants: totalCount,
         totalPages,
         links: {
           currentPage: page,
@@ -747,31 +768,89 @@ export const getSingleAdventureDetailsService = async ({
           lastPage: totalPages || 1,
         },
       },
+    };
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error('Unknown error occurred in get event participants service');
+  }
+};
 
-      // WaitList
-      waitList: enrichedEvent.waitLists.map((w) => ({
-        joinedAt: w.joinedAt,
-        user: {
-          id: w.user.id,
-          isPremium: w.user.isPremium,
-          name: w.user.profile?.name ?? null,
-          avatar: w.user.profile?.avatar ?? null,
-          gender: w.user.profile?.gender ?? null,
-          age: w.user.profile?.age ?? null,
+export const getEventWaitListService = async ({
+  event,
+  page = DEFAULT_PAGE,
+  limit = DEFAULT_LIMIT,
+}: {
+  event: Event;
+  page?: number;
+  limit?: number;
+}): Promise<unknown> => {
+  try {
+    const offset = (page - 1) * limit;
+
+    // ── 1. Fetch paginated waitlist + total count ───────────────────
+    const [rawWaitList, totalCount] = await prisma.$transaction([
+      prisma.waitList.findMany({
+        where: { eventId: event.id },
+        select: {
+          joinedAt: true,
+          user: {
+            select: {
+              id: true,
+              isPremium: true,
+              profile: {
+                select: {
+                  name: true,
+                  avatar: true,
+                  gender: true,
+                  age: true,
+                },
+              },
+            },
+          },
         },
-      })),
-      waitListCount: enrichedEvent.waitLists.length,
+        orderBy: { joinedAt: 'asc' },
+        skip: offset,
+        take: limit,
+      }),
 
-      // Caller context
-      currentUser: {
-        isParticipant: !!currentUserParticipant,
-        role: currentUserParticipant?.role ?? null,
-        isOnWaitList: !!currentUserOnWaitList,
+      prisma.waitList.count({
+        where: { eventId: event.id },
+      }),
+    ]);
+
+    // ── 2. Shape response ─────────────────────────────────────────
+    const waitList = rawWaitList.map((w) => ({
+      joinedAt: w.joinedAt,
+      user: {
+        id: w.user.id,
+        isPremium: w.user.isPremium,
+        name: w.user.profile?.name ?? null,
+        avatar: w.user.profile?.avatar ?? null,
+        gender: w.user.profile?.gender ?? null,
+        age: w.user.profile?.age ?? null,
+      },
+    }));
+
+    // ── 3. Paginate & respond ───────────────────────────────────────
+    const totalPages = Math.ceil(totalCount / limit);
+
+    return {
+      data: waitList,
+      meta: {
+        totalWaitListed: totalCount,
+        totalPages,
+        links: {
+          currentPage: page,
+          nextPage: page < totalPages ? page + 1 : null,
+          previousPage: page > 1 ? page - 1 : null,
+          firstPage: 1,
+          lastPage: totalPages || 1,
+        },
       },
     };
   } catch (error) {
     if (error instanceof Error) throw error;
-    throw new Error('Unknown error occurred in get single event service');
+    throw new Error('Unknown error occurred in get event waitlist service');
   }
 };
 
@@ -1223,6 +1302,29 @@ export const joinEventService = async ({
   } catch (error) {
     if (error instanceof Error) throw error;
     throw new Error('Unknown error occurred in join event service');
+  }
+};
+
+
+export const joinWaitListService = async ({
+  event,
+  user,
+}: {
+  event: Event;
+  user: User;
+}): Promise<unknown> => {
+  try {
+    const waitListEntry = await prisma.waitList.create({
+      data: {
+        eventId: event.id,
+        userId: user.id,
+      },
+    });
+
+    return waitListEntry;
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error('Unknown error occurred in join waitlist service');
   }
 };
 

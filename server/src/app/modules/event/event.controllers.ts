@@ -24,6 +24,9 @@ import {
   getEventSummaryService,
   getSingleEventOrcaService,
   getEventsForAdminService,
+  getEventParticipantsService,
+  getEventWaitListService,
+  joinWaitListService,
 } from '@/app/modules/event/event.services';
 import { asyncHandler } from '@/app/utils/system.utils';
 
@@ -95,8 +98,31 @@ export const getSingleAdventureDetailsController = asyncHandler(
     const traceId = getTraceId();
     const user = req.user as User;
     const event = req.event;
-    const { page, limit } = req.query as { page?: string; limit?: string };
     const data = await getSingleAdventureDetailsService({
+      event,
+      user,
+    });
+    res.status(200).json({
+      success: true,
+      status: 200,
+      message: 'Event retrieve successful',
+      data,
+      traceId,
+    });
+    return;
+  }
+);
+
+export const getEventParticipantsController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const traceId = getTraceId();
+    const user = req.user as User;
+    const event = req.event;
+    const { page, limit } = req.query as {
+      page?: number;
+      limit?: number;
+    };
+    const data = await getEventParticipantsService({
       event,
       user,
       page: page ? Number(page) : undefined,
@@ -105,8 +131,32 @@ export const getSingleAdventureDetailsController = asyncHandler(
     res.status(200).json({
       success: true,
       status: 200,
-      message: 'Event retrieve successful',
-      data,
+      message: 'Event participants retrieve successful',
+      ...(data as { data: unknown; meta: unknown }),
+      traceId,
+    });
+    return;
+  }
+);
+
+export const getEventWaitListController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const traceId = getTraceId();
+    const event = req.event;
+    const { page, limit } = req.query as {
+      page?: number;
+      limit?: number;
+    };
+    const data = await getEventWaitListService({
+      event,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
+    res.status(200).json({
+      success: true,
+      status: 200,
+      message: 'Event waitlist retrieve successful',
+      ...(data as { data: unknown; meta: unknown }),
       traceId,
     });
     return;
@@ -225,6 +275,23 @@ export const joinEventController = asyncHandler(
       success: true,
       status: 200,
       message: 'User joined event successfully',
+      traceId,
+    });
+    return;
+  }
+);
+
+export const joinWaitListController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const traceId = getTraceId();
+    const user = req.user as User;
+    const event = req.event;
+    const response = await joinWaitListService({ event, user });
+    res.status(201).json({
+      success: true,
+      status: 201,
+      message: 'Joined waitlist successful',
+      data: response,
       traceId,
     });
     return;
@@ -368,7 +435,7 @@ export const getSingleEventForAdminController = asyncHandler(
       success: true,
       status: 200,
       message: 'Event retrieved successfully',
-      data:{},
+      data: {},
       traceId,
     });
     return;
