@@ -1127,8 +1127,11 @@ export const getMySingleEventService = async ({
   user: User;
 }): Promise<unknown> => {
   try {
-    // Reuse the same logic as getSingleEventService but with an added
-    // where clause to ensure the logged-in user is a PARTICIPANT (not HOST).
+    // ── 1. Fetch event, scoped to logged-in user being a TRAVELER ──
+    //
+    // CHANGED: switched include → select. Card view only needs the
+    // host's identity + counts, not the full participants/waitlist arrays.
+    //
     const enrichedEvent = await prisma.event.findFirstOrThrow({
       where: {
         id: event.id,
@@ -1139,73 +1142,50 @@ export const getMySingleEventService = async ({
           },
         },
       },
-      include: {
-        // JOIN 1: EventParticipants
-        eventParticipants: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                email: true,
-                isPremium: true,
-                isProfileSetup: true,
-                profile: {
-                  select: {
-                    name: true,
-                    avatar: true,
-                    gender: true,
-                    age: true,
-                  },
-                },
-              },
-            },
-          },
-          orderBy: { joinedAt: 'asc' },
+      select: {
+        id: true,
+        eventName: true,
+        description: true,
+        startDate: true,
+        endDate: true,
+        maxParticipantsCount: true,
+        eventStatus: true,
+        lat: true,
+        lng: true,
+
+        // ADDED: count instead of full participants array
+        _count: {
+          select: { eventParticipants: true },
         },
 
-        // JOIN 2: WaitList
-        waitLists: {
-          include: {
+        // CHANGED: only fetch the host row, not all participants
+        eventParticipants: {
+          where: { role: EventRole.HOST },
+          take: 1,
+          select: {
             user: {
               select: {
                 id: true,
-                email: true,
-                isPremium: true,
-                isProfileSetup: true,
                 profile: {
-                  select: {
-                    name: true,
-                    avatar: true,
-                    gender: true,
-                    age: true,
-                  },
+                  select: { name: true, avatar: true },
                 },
               },
             },
           },
-          orderBy: { joinedAt: 'asc' },
         },
       },
     });
 
-    const participantCount = enrichedEvent.eventParticipants.length;
+    // ── 2. Derive computed fields ───────────────────────────────────
+    const participantCount = enrichedEvent._count.eventParticipants;
     const availableSlots = Math.max(
       0,
       enrichedEvent.maxParticipantsCount - participantCount
     );
 
-    const host =
-      enrichedEvent.eventParticipants.find((p) => p.role === EventRole.HOST) ??
-      null;
+    const hostParticipant = enrichedEvent.eventParticipants[0] ?? null;
 
-    const currentUserParticipant =
-      enrichedEvent.eventParticipants.find(
-        (p) => p.participantId === user.id
-      ) ?? null;
-
-    const currentUserOnWaitList =
-      enrichedEvent.waitLists.find((w) => w.userId === user.id) ?? null;
-
+    // ── 3. Return slim event for the activity detail card ──────────
     return {
       id: enrichedEvent.id,
       eventName: enrichedEvent.eventName,
@@ -1216,27 +1196,23 @@ export const getMySingleEventService = async ({
       eventStatus: enrichedEvent.eventStatus,
       lat: enrichedEvent.lat,
       lng: enrichedEvent.lng,
-      interests: enrichedEvent.interests,
-      isPrivate: enrichedEvent.isPrivate,
-      inviteLink: enrichedEvent.inviteLink,
-      createdAt: enrichedEvent.createdAt,
-      updatedAt: enrichedEvent.updatedAt,
 
-      // JOIN 1
-      participants: enrichedEvent.eventParticipants,
       participantCount,
       availableSlots,
-      host,
 
-      // JOIN 2
-      waitList: enrichedEvent.waitLists,
-      waitListCount: enrichedEvent.waitLists.length,
+      // Host — name + avatar only, shown as "Hosted by <name>"
+      host: hostParticipant
+        ? {
+            id: hostParticipant.user.id,
+            name: hostParticipant.user.profile?.name ?? null,
+            avatar: hostParticipant.user.profile?.avatar ?? null,
+          }
+        : null,
 
-      // Caller context
+      // Caller's own join status — drives "Pod Joined" button state
       currentUser: {
-        isParticipant: !!currentUserParticipant,
-        role: currentUserParticipant?.role ?? null,
-        isOnWaitList: !!currentUserOnWaitList,
+        isParticipant: true, // guaranteed by the where clause above
+        role: EventRole.TRAVELER,
       },
     };
   } catch (error) {
