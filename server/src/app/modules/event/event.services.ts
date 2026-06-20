@@ -1015,66 +1015,53 @@ export const getMyActivityService = async ({
     // ── 2. Pagination offset ───────────────────────────────────────
     const offset = (page - 1) * limit;
 
-    // ── 3. Fetch events + total count ─────────────────────────────
+    // ── 3. Shared where clause ──────────────────────────────────────
     //
-    // Scope: events where the logged-in user is a PARTICIPANT (not HOST)
+    // Scope: events where the logged-in user is a TRAVELER (not HOST)
+    //
+    const sharedWhere = {
+      ...statusFilter,
+      eventParticipants: {
+        some: {
+          participantId: user.id,
+          role: EventRole.TRAVELER,
+        },
+      },
+    };
+
+    // ── 4. Fetch events + total count ─────────────────────────────
+    //
+    // CHANGED: Slimmed select — card view only needs counts and badge
+    // info, not full participant/waitlist user objects.
     //
     const [rawEvents, totalCount] = await prisma.$transaction([
       prisma.event.findMany({
-        where: {
-          ...statusFilter,
-          eventParticipants: {
-            some: {
-              participantId: user.id,
-              role: EventRole.TRAVELER,
-            },
-          },
-        },
-        include: {
-          // ── JOIN 1: EventParticipants ────────────────────────────
-          eventParticipants: {
-            include: {
-              user: {
+        where: sharedWhere,
+        select: {
+          id: true,
+          eventName: true,
+          startDate: true,
+          eventStatus: true,
+          lat: true,
+          lng: true,
+          maxParticipantsCount: true,
+
+          // ADDED: EventType badge (thumbnail + title shown on each card)
+          eventTypes: {
+            select: {
+              eventType: {
                 select: {
                   id: true,
-                  email: true,
-                  isPremium: true,
-                  isProfileSetup: true,
-                  profile: {
-                    select: {
-                      name: true,
-                      avatar: true,
-                      gender: true,
-                      age: true,
-                    },
-                  },
+                  title: true,
+                  thumbnail: true,
                 },
               },
             },
-            orderBy: { joinedAt: 'asc' },
           },
 
-          // ── JOIN 2: WaitList ─────────────────────────────────────
-          waitLists: {
-            include: {
-              user: {
-                select: {
-                  id: true,
-                  email: true,
-                  isPremium: true,
-                  isProfileSetup: true,
-                  profile: {
-                    select: {
-                      name: true,
-                      avatar: true,
-                      gender: true,
-                      age: true,
-                    },
-                  },
-                },
-              },
-            },
-            orderBy: { joinedAt: 'asc' },
+          // CHANGED: only count, not full participant objects
+          _count: {
+            select: { eventParticipants: true },
           },
         },
         orderBy: { startDate: 'asc' },
@@ -1083,75 +1070,33 @@ export const getMyActivityService = async ({
       }),
 
       prisma.event.count({
-        where: {
-          ...statusFilter,
-          eventParticipants: {
-            some: {
-              participantId: user.id,
-              role: EventRole.TRAVELER,
-            },
-          },
-        },
+        where: sharedWhere,
       }),
     ]);
 
-    // ── 4. Shape each event identically to getSingleEventService ──
-    const events = rawEvents.map((enrichedEvent) => {
-      const host =
-        enrichedEvent.eventParticipants.find(
-          (p) => p.role === EventRole.HOST
-        ) ?? null;
-
-      const participantCount = enrichedEvent.eventParticipants.length;
+    // ── 5. Shape each event for the activity card ──────────────────
+    const events = rawEvents.map((event) => {
+      const participantCount = event._count.eventParticipants;
       const availableSlots = Math.max(
         0,
-        enrichedEvent.maxParticipantsCount - participantCount
+        event.maxParticipantsCount - participantCount
       );
 
-      const currentUserParticipant =
-        enrichedEvent.eventParticipants.find(
-          (p) => p.participantId === user.id
-        ) ?? null;
-
-      const currentUserOnWaitList =
-        enrichedEvent.waitLists.find((w) => w.userId === user.id) ?? null;
-
       return {
-        id: enrichedEvent.id,
-        eventName: enrichedEvent.eventName,
-        description: enrichedEvent.description,
-        startDate: enrichedEvent.startDate,
-        endDate: enrichedEvent.endDate,
-        maxParticipantsCount: enrichedEvent.maxParticipantsCount,
-        eventStatus: enrichedEvent.eventStatus,
-        lat: enrichedEvent.lat,
-        lng: enrichedEvent.lng,
-        interests: enrichedEvent.interests,
-        isPrivate: enrichedEvent.isPrivate,
-        inviteLink: enrichedEvent.inviteLink,
-        createdAt: enrichedEvent.createdAt,
-        updatedAt: enrichedEvent.updatedAt,
-
-        // JOIN 1
-        participants: enrichedEvent.eventParticipants,
-        participantCount,
+        id: event.id,
+        eventName: event.eventName,
+        startDate: event.startDate,
+        eventStatus: event.eventStatus,
+        lat: event.lat,
+        lng: event.lng,
+        maxParticipantsCount: event.maxParticipantsCount,
+        participantCount, // numerator for "9/4 orcas" style badge
         availableSlots,
-        host,
-
-        // JOIN 2
-        waitList: enrichedEvent.waitLists,
-        waitListCount: enrichedEvent.waitLists.length,
-
-        // Caller context
-        currentUser: {
-          isParticipant: !!currentUserParticipant,
-          role: currentUserParticipant?.role ?? null,
-          isOnWaitList: !!currentUserOnWaitList,
-        },
+        eventType: event.eventTypes[0]?.eventType ?? null,
       };
     });
 
-    // ── 5. Paginate & respond ─────────────────────────────────────
+    // ── 6. Paginate & respond ─────────────────────────────────────
     const totalPages = Math.ceil(totalCount / limit);
 
     return {
