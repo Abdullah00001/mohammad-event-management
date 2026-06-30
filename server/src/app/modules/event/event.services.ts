@@ -1079,7 +1079,8 @@ export const getMyActivityService = async ({
 
     // ── 3. Shared where clause ──────────────────────────────────────
     //
-    // Scope: events where the logged-in user is a TRAVELER (not HOST)
+    // Scope: events where the logged-in user is an active TRAVELER
+    // FIXED: added leftAt: null — exclude events the user has left
     //
     const sharedWhere = {
       ...statusFilter,
@@ -1087,15 +1088,12 @@ export const getMyActivityService = async ({
         some: {
           participantId: user.id,
           role: EventRole.TRAVELER,
+          leftAt: null, // FIXED: only show events user hasn't left
         },
       },
     };
 
     // ── 4. Fetch events + total count ─────────────────────────────
-    //
-    // CHANGED: Slimmed select — card view only needs counts and badge
-    // info, not full participant/waitlist user objects.
-    //
     const [rawEvents, totalCount] = await prisma.$transaction([
       prisma.event.findMany({
         where: sharedWhere,
@@ -1108,7 +1106,7 @@ export const getMyActivityService = async ({
           lng: true,
           maxParticipantsCount: true,
 
-          // ADDED: EventType badge (thumbnail + title shown on each card)
+          // EventType badge
           eventTypes: {
             select: {
               eventType: {
@@ -1121,7 +1119,7 @@ export const getMyActivityService = async ({
             },
           },
 
-          // CHANGED: only count, not full participant objects
+          // Count only
           _count: {
             select: { eventParticipants: true },
           },
@@ -1152,7 +1150,7 @@ export const getMyActivityService = async ({
         lat: event.lat,
         lng: event.lng,
         maxParticipantsCount: event.maxParticipantsCount,
-        participantCount, // numerator for "9/4 orcas" style badge
+        participantCount,
         availableSlots,
         eventType: event.eventTypes[0]?.eventType ?? null,
       };
@@ -1190,10 +1188,6 @@ export const getMySingleEventService = async ({
 }): Promise<unknown> => {
   try {
     // ── 1. Fetch event, scoped to logged-in user being a TRAVELER ──
-    //
-    // CHANGED: switched include → select. Card view only needs the
-    // host's identity + counts, not the full participants/waitlist arrays.
-    //
     const enrichedEvent = await prisma.event.findFirstOrThrow({
       where: {
         id: event.id,
@@ -1215,12 +1209,25 @@ export const getMySingleEventService = async ({
         lat: true,
         lng: true,
 
-        // ADDED: count instead of full participants array
+        // ADDED: eventType badge
+        eventTypes: {
+          select: {
+            eventType: {
+              select: {
+                id: true,
+                title: true,
+                thumbnail: true,
+              },
+            },
+          },
+        },
+
+        // Count instead of full participants array
         _count: {
           select: { eventParticipants: true },
         },
 
-        // CHANGED: only fetch the host row, not all participants
+        // Only fetch the host row
         eventParticipants: {
           where: { role: EventRole.HOST },
           take: 1,
@@ -1259,10 +1266,12 @@ export const getMySingleEventService = async ({
       lat: enrichedEvent.lat,
       lng: enrichedEvent.lng,
 
+      // ADDED: eventType badge
+      eventType: enrichedEvent.eventTypes[0]?.eventType ?? null,
+
       participantCount,
       availableSlots,
 
-      // Host — name + avatar only, shown as "Hosted by <name>"
       host: hostParticipant
         ? {
             id: hostParticipant.user.id,
@@ -1271,9 +1280,8 @@ export const getMySingleEventService = async ({
           }
         : null,
 
-      // Caller's own join status — drives "Pod Joined" button state
       currentUser: {
-        isParticipant: true, // guaranteed by the where clause above
+        isParticipant: true,
         role: EventRole.TRAVELER,
       },
     };
@@ -1341,8 +1349,8 @@ export const leaveEventService = async ({
         eventId_participantId: {
           eventId: event.id,
           participantId: user.id,
-          role: EventRole.TRAVELER,
         },
+        role: EventRole.TRAVELER,
       },
       data: {
         leftAt: new Date(),

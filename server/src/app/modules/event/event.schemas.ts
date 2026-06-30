@@ -34,7 +34,7 @@ export const EventCreateSchema = z.object({
   maxParticipantsCount: z
     .number({ error: 'maxParticipantsCount must be a number' })
     .int({ message: 'maxParticipantsCount must be an integer' })
-    .min(10, { message: 'maxParticipantsCount must be at least 2' })
+    .min(2, { message: 'maxParticipantsCount must be at least 2' })
     .max(500, { message: 'maxParticipantsCount must not exceed 500' })
     .default(10),
 
