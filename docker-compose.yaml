@@ -79,6 +79,57 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "ps -ef | grep -q '[n]odemon' || ps -ef | grep -q '[n]ode .*dist/index.js'",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+  corn:
+    container_name: event_management_corn_container
+    build:
+      context: .
+      dockerfile: corn/Dockerfile.dev
+      args:
+        DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:myStrongPostgresPassword@postgres:5432/event_management}
+    env_file:
+      - ./corn/.env
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: myStrongRedisPassword
+      DATABASE_URL: postgresql://postgres:myStrongPostgresPassword@postgres:5432/event_management
+      NODE_ENV: development
+      PRISMA_CONFIG_PATH: ./prisma.config.ts
+    volumes:
+      - ./corn/src:/app/src
+      - ./corn/nodemon.json:/app/nodemon.json
+      - ./prisma:/app/prisma
+      - ./prisma.config.ts:/app/prisma.config.ts
+      - corn_node_modules:/app/node_modules
+      - ./corn/logs:/app/logs
+    networks:
+      - nowor_backend_network
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "ps -ef | grep -q '[n]odemon' || ps -ef | grep -q '[n]ode .*dist/index.js'",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
     restart: unless-stopped
   server:
     build:
@@ -118,6 +169,10 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      worker:
+        condition: service_healthy
+      corn:
+        condition: service_healthy
     restart: unless-stopped
 
 networks:
@@ -129,4 +184,5 @@ volumes:
   nowor_redis_volume:
   nowor_postgres_volume:
   worker_node_modules:
+  corn_node_modules:
   server_node_modules:

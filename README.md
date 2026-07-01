@@ -42,7 +42,10 @@ This starts:
 - Redis
 - Redis UI
 - worker service
+- corn scheduler service
 - server service
+
+The server container now waits for the worker and corn scheduler to be running before it starts, so background processing is available before API requests are served.
 
 ## Useful scripts
 

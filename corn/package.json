@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "name": "mohammad-event-management-worker",
+  "name": "blacktrium-ecommerce-corn",
   "author": "",
   "description": "",
   "license": "ISC",
@@ -10,14 +10,11 @@
   "scripts": {
     "build": "bash scripts/build.sh",
     "start": "node ./dist/index.js",
-    "dev": "npx prisma generate --config ${PRISMA_CONFIG_PATH:-../prisma.config.ts} --schema ${PRISMA_SCHEMA_PATH:-../prisma/schema.prisma} && nodemon",
-    "postinstall": "npx prisma generate --config ${PRISMA_CONFIG_PATH:-../prisma.config.ts} --schema ${PRISMA_SCHEMA_PATH:-../prisma/schema.prisma}",
+    "dev": "nodemon",
     "format": "prettier --write \"src/**/*.ts\"",
     "lint": "eslint \"src/**/*.{ts,js}\" --quiet"
   },
   "dependencies": {
-    "@prisma/client": "^6.19.2",
-    "prisma": "^6.19.2",
     "axios": "^1.13.2",
     "bullmq": "^5.67.2",
     "dotenv": "^17.2.3",
@@ -25,13 +22,17 @@
     "helmet": "^8.1.0",
     "ioredis": "^5.6.0",
     "morgan": "^1.10.1",
+    "node-cron": "^4.5.0",
     "nodemailer": "^7.0.12",
     "uuid": "^13.0.0",
-    "winston": "^3.19.0"
+    "winston": "^3.19.0",
+    "@prisma/client": "^6.19.2",
+    "prisma": "^6.19.2"
   },
   "devDependencies": {
     "@types/morgan": "^1.9.10",
     "@types/node": "^25.0.10",
+    "@types/node-cron": "^3.0.11",
     "@types/nodemailer": "^7.0.5",
     "@typescript-eslint/eslint-plugin": "^8.53.1",
     "@typescript-eslint/parser": "^8.53.1",

@@ -1,0 +1,21 @@
+FROM node:20-alpine
+WORKDIR /app
+RUN apk add --no-cache dumb-init
+
+# Copy Prisma config and schema BEFORE npm install (so postinstall hook can run)
+COPY prisma.config.ts ./
+COPY prisma ./prisma/
+
+COPY corn/package*.json ./
+COPY corn/tsconfig.json ./
+ARG DATABASE_URL="postgresql://postgres:myStrongPostgresPassword@postgres:5432/event_management"
+ENV DATABASE_URL=${DATABASE_URL}
+ENV PRISMA_CONFIG_PATH=./prisma.config.ts
+ENV PRISMA_SCHEMA_PATH=./prisma/schema.prisma
+RUN npm install
+
+# Copy corn sources after npm install
+COPY corn/ ./
+
+ENTRYPOINT ["/usr/bin/dumb-init", "--"]
+CMD ["npm", "run", "dev"]

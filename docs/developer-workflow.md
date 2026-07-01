@@ -9,8 +9,9 @@ Both `server/` and `worker/` run inside containers, using the same shared root P
 - `prisma.config.ts` — shared Prisma config
 - `server/` — server service source code and dev Dockerfile
 - `worker/` — worker service source code and dev Dockerfile
+- `corn/` — scheduler service source code and dev Dockerfile for decoupled background jobs
 - `scripts/sync_prisma.sh` — helper for install and Prisma generation
-- `scripts/migration_generate.sh` — helper that runs Prisma migration and generation in the `server` and `worker` containers
+- `scripts/migration_generate.sh` — helper that runs Prisma migration and generation in the `server`, `worker`, and `corn` containers
 - `package.json` — root helper scripts
 
 ## Philosophy
@@ -60,6 +61,8 @@ docker compose up -d --build
 ```
 
 This starts the required database and cache services before any Prisma migration or schema change.
+
+The stack now starts the decoupled `worker` and `corn` background services in parallel, and the `server` container waits for them to be running before it boots.
 
 ### Step 4: Generate Prisma clients
 

@@ -78,7 +78,7 @@ const start = async (): Promise<void> => {
 
   allWorkers = [createEmailWorker(), createSystemWorker()];
   logger.info(
-    `${TAG} ${allWorkers.length} worker(s) active — listening for jobs`
+    `${TAG} Ready — ${allWorkers.length} worker(s) active — listening for jobs`
   );
 };
 
