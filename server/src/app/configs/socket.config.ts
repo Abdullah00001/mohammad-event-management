@@ -1,6 +1,6 @@
 import { Server as HttpServer } from 'node:http';
 
-import { Server } from 'socket.io';
+import { Namespace, Server } from 'socket.io';
 
 import { AuthenticatedSocket } from '@/app/@types/jwt.types';
 import logger from '@/app/configs/logger.configs';
@@ -9,10 +9,12 @@ import {
   socketTraceMiddleware,
 } from '@/app/middlewares/socket.middlewares';
 import { corsWhiteList } from '@/const';
-import { chatNamespace, notificationNamespace } from '@/app/sockets';
-import {baseUrl} from "@/const"
+import { chatNamespace, notificationNamespace } from '@/app/sockets/namespace';
+import { baseUrl } from '@/const';
 
 export let io: Server;
+export let chatNameSpace: Namespace;
+export let notificationNameSpace: Namespace;
 
 const initializeSocket = (server: HttpServer) => {
   io = new Server(server, {
@@ -34,8 +36,8 @@ const initializeSocket = (server: HttpServer) => {
     });
   });
 
-  const chatNameSpace = io.of(`${baseUrl.v1}/chat`);
-  const notificationNameSpace = io.of(`${baseUrl.v1}/notification`);
+  chatNameSpace = io.of(`${baseUrl.v1}/chat`);
+  notificationNameSpace = io.of(`${baseUrl.v1}/notification`);
 
   chatNameSpace.use(socketTraceMiddleware);
   chatNameSpace.use(socketAuthMiddleware);

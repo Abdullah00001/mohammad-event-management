@@ -31,3 +31,25 @@ export const DEFAULT_RADIUS_KM = 5;
 export const EARTH_RADIUS_KM = 6371;
 export const SUBSCRIPTION_FEATURE_CACHE_EXPIRY = '1d';
 export const isoUtcRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
+
+export const SOCKET_EVENTS = {
+  // ===== Chat Namespace =====
+  // Client → Server
+  
+
+  // Server → Client
+  
+
+  // ===== Notification Namespace =====
+  // Client → Server
+
+
+  // Server → Client
+
+
+  // ===== Common =====
+  ERROR: 'error',
+  MESSAGE_ERROR: 'message_error',
+} as const;
+
+export type SocketEvent = (typeof SOCKET_EVENTS)[keyof typeof SOCKET_EVENTS];

@@ -68,7 +68,7 @@ export const socketAuthMiddleware = async (
     // Attach user payload to socket for downstream use
     socket.user = user as User;
 
-    socket.use((packet, nextPacket) => {
+    socket.use((_packet, nextPacket) => {
       const packetTraceId = socket.traceId ?? uuidv4();
       requestContext.run({ traceId: packetTraceId }, () => nextPacket());
     });
