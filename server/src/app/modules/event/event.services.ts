@@ -212,7 +212,8 @@ export const getEventListingService = async ({
     //   2. startDate gte filter        — events at or after selected datetime
     //   3. search on eventName         — case-insensitive contains
     //   4. AND[0] — exclude blocked hosts
-    //   5. AND[1] — exclude events user already has any presence in
+    //   5. AND[1] — exclude events user has ACTIVE presence in
+    //               FIXED: leftAt: null — events user left reappear in wild
     //
     const sharedWhere = {
       id: { in: filteredIds },
@@ -237,11 +238,22 @@ export const getEventListingService = async ({
             },
           },
         },
-        // Exclude events where the logged-in user has any presence
+        // FIXED: exclude only ACTIVE presence — leftAt: null
+        // once a user leaves an event, leftAt is set and event
+        // reappears in the wild feed as joinable again
         {
           eventParticipants: {
             none: {
               participantId: user.id,
+              leftAt: null,
+            },
+          },
+        },
+        // ADDED: exclude events where the user is on the waitlist
+        {
+          waitLists: {
+            none: {
+              userId: user.id,
             },
           },
         },
@@ -1313,7 +1325,6 @@ export const joinEventService = async ({
   }
 };
 
-
 export const joinWaitListService = async ({
   event,
   user,
@@ -1717,10 +1728,48 @@ export const getSingleEventOrcaService = async ({
       select: { role: true, joinedAt: true },
     });
 
-    // ── 3. Events joined count ────────────────────────────────────
+    // ── 3. Fetch event basic details ──────────────────────────────
     //
-    // Total events the orca has participated in (any role, not DELETED)
+    // ADDED: eventName, eventStatus, startDate, eventType for context
     //
+    const enrichedEvent = await prisma.event.findUniqueOrThrow({
+      where: { id: event.id },
+      select: {
+        id: true,
+        eventName: true,
+        eventStatus: true,
+        startDate: true,
+        eventTypes: {
+          select: {
+            eventType: {
+              select: {
+                id: true,
+                title: true,
+                thumbnail: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // ── 4. Resolve interest objects from profileInterest IDs ───────
+    //
+    // ADDED: join Interest table to get full interest details
+    //
+    const interests = await prisma.interest.findMany({
+      where: {
+        id: { in: orca.profile?.profileInterest ?? [] },
+        isDeleted: false,
+      },
+      select: {
+        id: true,
+        interestName: true,
+        interestIcon: true,
+      },
+    });
+
+    // ── 5. Events joined count ────────────────────────────────────
     const eventsJoinedCount = await prisma.eventParticipants.count({
       where: {
         participantId: orcaId,
@@ -1730,10 +1779,7 @@ export const getSingleEventOrcaService = async ({
       },
     });
 
-    // ── 4. Connections count ──────────────────────────────────────
-    //
-    // Total ACCEPTED friendships — both directions
-    //
+    // ── 6. Connections count ──────────────────────────────────────
     const connectionsCount = await prisma.friends.count({
       where: {
         OR: [
@@ -1743,11 +1789,7 @@ export const getSingleEventOrcaService = async ({
       },
     });
 
-    // ── 5. Connection status between calling user and orca ────────
-    //
-    // Check both directions of the friendship row
-    // States: ADD_ORCA | PENDING | MESSAGE
-    //
+    // ── 7. Connection status between calling user and orca ────────
     const friendship = await prisma.friends.findFirst({
       where: {
         OR: [
@@ -1768,7 +1810,7 @@ export const getSingleEventOrcaService = async ({
       }
     }
 
-    // ── 6. Return orca profile ────────────────────────────────────
+    // ── 8. Return orca profile ─────────────────────────────────────
     return {
       id: orca.id,
       isPremium: orca.isPremium,
@@ -1782,12 +1824,22 @@ export const getSingleEventOrcaService = async ({
       location: orca.profile?.location ?? null,
       gender: orca.profile?.gender ?? null,
       age: orca.profile?.age ?? null,
-      profileInterest: orca.profile?.profileInterest ?? [],
+      // ADDED: resolved interest objects instead of raw IDs
+      profileInterest: interests,
       countryVisited: orca.profile?.countryVisited ?? [],
 
       // Event context
       eventRole: eventParticipant.role,
       joinedAt: eventParticipant.joinedAt,
+
+      // ADDED: event basic details
+      event: {
+        id: enrichedEvent.id,
+        eventName: enrichedEvent.eventName,
+        eventStatus: enrichedEvent.eventStatus,
+        startDate: enrichedEvent.startDate,
+        eventType: enrichedEvent.eventTypes[0]?.eventType ?? null,
+      },
 
       // Stats
       eventsJoinedCount,
@@ -1943,4 +1995,68 @@ export const getEventsForAdminService = async ({
   }
 };
 
-// export const
+// ── Accept waitlist → join event ──────────────────────────────────────────────
+export const acceptWaitListService = async ({
+  event,
+  participantId,
+}: {
+  event: Event;
+  participantId: string;
+}): Promise<unknown> => {
+  try {
+    // Remove from waitlist and create EventParticipants row atomically
+    const [, participant] = await prisma.$transaction([
+      prisma.waitList.delete({
+        where: {
+          eventId_userId: {
+            eventId: event.id,
+            userId: participantId,
+          },
+        },
+      }),
+ 
+      prisma.eventParticipants.create({
+        data: {
+          eventId: event.id,
+          participantId,
+          role: EventRole.TRAVELER,
+        },
+        select: {
+          participantId: true,
+          role: true,
+          joinedAt: true,
+        },
+      }),
+    ]);
+ 
+    return participant;
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error('Unknown error occurred in accept waitlist service');
+  }
+};
+ 
+// ── Remove from waitlist ──────────────────────────────────────────────────────
+export const removeFromWaitListService = async ({
+  event,
+  participantId,
+}: {
+  event: Event;
+  participantId: string;
+}): Promise<void> => {
+  try {
+    await prisma.waitList.delete({
+      where: {
+        eventId_userId: {
+          eventId: event.id,
+          userId: participantId,
+        },
+      },
+    });
+ 
+    return;
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error('Unknown error occurred in remove from waitlist service');
+  }
+};

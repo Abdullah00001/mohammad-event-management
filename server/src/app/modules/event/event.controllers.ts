@@ -27,6 +27,8 @@ import {
   getEventParticipantsService,
   getEventWaitListService,
   joinWaitListService,
+  removeFromWaitListService,
+  acceptWaitListService,
 } from '@/app/modules/event/event.services';
 import { asyncHandler } from '@/app/utils/system.utils';
 
@@ -436,6 +438,41 @@ export const getSingleEventForAdminController = asyncHandler(
       status: 200,
       message: 'Event retrieved successfully',
       data: {},
+      traceId,
+    });
+    return;
+  }
+);
+
+// ── Accept waitlist controller ────────────────────────────────────────────────
+export const acceptWaitListController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const traceId = getTraceId();
+    const event = req.event;
+    const { participantId } = req.params as { participantId: string };
+    const response = await acceptWaitListService({ event, participantId });
+    res.status(201).json({
+      success: true,
+      status: 201,
+      message: 'Waitlist participant accepted successfully',
+      data: response,
+      traceId,
+    });
+    return;
+  }
+);
+
+// ── Remove from waitlist controller ──────────────────────────────────────────
+export const removeFromWaitListController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const traceId = getTraceId();
+    const event = req.event;
+    const { participantId } = req.params as { participantId: string };
+    await removeFromWaitListService({ event, participantId });
+    res.status(200).json({
+      success: true,
+      status: 200,
+      message: 'User removed from waitlist successfully',
       traceId,
     });
     return;

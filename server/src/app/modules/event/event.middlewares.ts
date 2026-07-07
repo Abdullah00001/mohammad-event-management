@@ -209,3 +209,90 @@ export const checkOrcaBlockStatus = asyncHandler(
     return;
   }
 );
+
+
+// ── 1. Check user exists ──────────────────────────────────────────────────────
+export const checkWaitListUserExistMiddleware = asyncHandler(
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const traceId = getTraceId();
+    const { participantId } = req.params as { participantId: string };
+ 
+    const user = await prisma.user.findUnique({
+      where: { id: participantId },
+      select: { id: true },
+    });
+ 
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        status: 404,
+        message: 'User not found',
+        traceId,
+      });
+      return;
+    }
+ 
+    next();
+    return;
+  }
+);
+ 
+// ── 2. Check user is on the waitlist ─────────────────────────────────────────
+export const checkIsOnWaitListMiddleware = asyncHandler(
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const traceId = getTraceId();
+    const event = req.event;
+    const { participantId } = req.params as { participantId: string };
+ 
+    const waitListEntry = await prisma.waitList.findUnique({
+      where: {
+        eventId_userId: {
+          eventId: event.id,
+          userId: participantId,
+        },
+      },
+      select: { id: true },
+    });
+ 
+    if (!waitListEntry) {
+      res.status(404).json({
+        success: false,
+        status: 404,
+        message: 'User is not on the waitlist for this event',
+        traceId,
+      });
+      return;
+    }
+ 
+    next();
+    return;
+  }
+);
+ 
+// ── 3. Check event has enough capacity (POST only) ────────────────────────────
+export const checkEventCapacityMiddleware = asyncHandler(
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const traceId = getTraceId();
+    const event = req.event;
+ 
+    const participantCount = await prisma.eventParticipants.count({
+      where: {
+        eventId: event.id,
+        leftAt: null,
+      },
+    });
+ 
+    if (participantCount >= event.maxParticipantsCount) {
+      res.status(400).json({
+        success: false,
+        status: 400,
+        message: 'Event is at full capacity',
+        traceId,
+      });
+      return;
+    }
+ 
+    next();
+    return;
+  }
+);

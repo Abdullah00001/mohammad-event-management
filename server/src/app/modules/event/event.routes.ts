@@ -1,6 +1,7 @@
 import { Router } from 'express';
 
 import {
+  acceptWaitListController,
   createEventController,
   getEventJournalsController,
   getEventParticipantsController,
@@ -17,6 +18,7 @@ import {
   joinEventController,
   joinWaitListController,
   leaveEventController,
+  removeFromWaitListController,
   removeParticipantsFromEventController,
   retrieveMyAdventureLogsController,
   submitEventJournalController,
@@ -29,6 +31,9 @@ import {
   checkParticipantOfEventMiddleware,
   checkIsEventOrcaExistMiddleware,
   checkOrcaBlockStatus,
+  checkWaitListUserExistMiddleware,
+  checkIsOnWaitListMiddleware,
+  checkEventCapacityMiddleware,
 } from '@/app/modules/event/event.middlewares';
 import {
   EventCreateSchema,
@@ -208,6 +213,28 @@ router
     findEventByIdMiddleware,
     checkEventHostMiddleware,
     getEventWaitListController
+  );
+
+router
+  .route('/adventure/:id/waitlist/:participantId')
+  .post(
+    checkAccessToken,
+    checkAccountStatus,
+    findEventByIdMiddleware,
+    checkEventHostMiddleware,
+    checkWaitListUserExistMiddleware,
+    checkIsOnWaitListMiddleware,
+    checkEventCapacityMiddleware,
+    acceptWaitListController
+  )
+  .delete(
+    checkAccessToken,
+    checkAccountStatus,
+    findEventByIdMiddleware,
+    checkEventHostMiddleware,
+    checkWaitListUserExistMiddleware,
+    checkIsOnWaitListMiddleware,
+    removeFromWaitListController
   );
 
 router
