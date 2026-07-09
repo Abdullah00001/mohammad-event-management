@@ -1,5 +1,4 @@
 import { createReadStream } from 'fs';
-import { unlink } from 'fs/promises';
 
 import { DeleteObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import { lookup } from 'mime-types';

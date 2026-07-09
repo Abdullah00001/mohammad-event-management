@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { AuthenticatedSocket } from '@/app/@types/jwt.types';
 import prisma from '@/app/configs/db.configs';
 import logger from '@/app/configs/logger.configs';
-import { requestContext } from '@/app/configs/requestContext.configs';
+import { getTraceId, requestContext } from '@/app/configs/requestContext.configs';
 import { getRedisClient } from '@/app/configs/redis.config';
 import {
   extractTokenFromSocketHeader,
@@ -89,4 +89,33 @@ export const socketAuthMiddleware = async (
     logger.error(`Socket auth error: ${err}`);
     next(new Error('INTERNAL_ERROR: Authentication failed'));
   }
+};
+
+export const globalSocketErrorMiddleware = (
+  err: Error,
+  socket: AuthenticatedSocket
+) => {
+  const traceId = getTraceId() || socket.traceId;
+  if (err instanceof Error) {
+    logger.error({
+      traceId,
+      message: err.message,
+      stack: err.stack,
+    });
+    socket.emit('error', {
+      success: false,
+      message: err.message || 'Internal Server Error',
+      traceId,
+    });
+    return;
+  }
+  logger.error({
+    traceId,
+    message: 'Unexpected Socket Error Occurred',
+  });
+  socket.emit('error', {
+    success: false,
+    message: 'Internal Server Error',
+    traceId,
+  });
 };
