@@ -89,10 +89,12 @@ export const SOCKET_EVENTS = {
 
   // ===== Notifications =====
   // Client → Server
+  NOTIFICATION_COUNT: 'notification:count',
   NOTIFICATION_MARK_READ: 'notification:mark-read',
   NOTIFICATION_MARK_ALL_READ: 'notification:mark-all-read',
 
   // Server → Client
+  NOTIFICATION_COUNT_RESPONSE: 'notification:count-response',
   NOTIFICATION_NEW: 'notification:new',
   NOTIFICATION_READ: 'notification:read',
   NOTIFICATION_ALL_READ: 'notification:all-read',

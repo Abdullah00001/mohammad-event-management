@@ -3,7 +3,7 @@ import { AuthenticatedSocket } from '@/app/@types/jwt.types';
 import {
   TEventChatMessagePayload,
   eventChatMessageSchema,
-} from '@/app/sockets/schemas/chat.schema';
+} from '@/app/sockets/schemas/chat.schemas';
 import { validateSocketPayload } from '@/app/utils/system.utils';
 
 export const sendMessageOnEventChatHandler: TEventHandler<
