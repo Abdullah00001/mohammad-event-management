@@ -1,4 +1,3 @@
 import { IEventRegistration } from '@/app/sockets/types/helper.types';
 
-export const notificationEventRegistry: IEventRegistration[] = [
-];
+export const notificationEventRegistry: IEventRegistration[] = [];

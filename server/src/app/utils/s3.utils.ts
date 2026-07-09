@@ -31,7 +31,8 @@ export async function singleUploadToS3({
       Body: stream,
     });
     await s3Client.send(command);
-    await unlink(filePath);
+    stream.destroy();
+    await unlinkFile({ filePath });
     return `https://${bucketName}.s3.${regionName}.amazonaws.com/${key}`;
   } catch (error) {
     await unlinkFile({ filePath });

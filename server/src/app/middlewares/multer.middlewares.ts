@@ -3,6 +3,9 @@ import path from 'path';
 import { NextFunction, Request, Response } from 'express';
 import multer, { diskStorage, FileFilterCallback, MulterError } from 'multer';
 
+import { allowedAttachmentMimeTypes } from '@/const';
+import { getTraceId } from '@/app/configs/requestContext.configs';
+
 const storage = diskStorage({
   destination: (_req: Request, _file, cb) => {
     cb(null, './public/temp');
@@ -59,6 +62,31 @@ const baseUpload = multer({
   fileFilter: imageFileFilter,
 });
 
+const attachmentFileFilter = (
+  _req: Request,
+  file: Express.Multer.File,
+  cb: FileFilterCallback
+) => {
+  if (
+    (allowedAttachmentMimeTypes as readonly string[]).includes(file.mimetype)
+  ) {
+    cb(null, true);
+  } else {
+    cb(
+      Object.assign(new Error('Invalid attachment type!'), {
+        code: 'LIMIT_INVALID_ATTACHMENT_TYPE',
+      }) as any,
+      false
+    );
+  }
+};
+
+const attachmentBaseUpload = multer({
+  storage: storage,
+  limits: { fileSize: 50 * 1024 * 1024, files: 10 }, // Global max limit for attachments (e.g., 50MB)
+  fileFilter: attachmentFileFilter,
+});
+
 // ============================================================================
 // UPLOAD FIELDS MIDDLEWARE
 // ============================================================================
@@ -101,7 +129,7 @@ export const uploadFields = (
   return (req: Request, res: Response, next: NextFunction) => {
     // Store config for error handler
     req.fieldConfig = fieldsConfig;
-
+    const traceId = getTraceId();
     const multerFields = fieldsConfig.map((field) => ({
       name: field.name,
       maxCount: field.maxCount,
@@ -119,6 +147,7 @@ export const uploadFields = (
           success: false,
           status: 400,
           message: 'At least one file must be uploaded.',
+          traceId,
         });
       }
 
@@ -180,6 +209,64 @@ export const uploadSingle = (fieldName: string, required: boolean = false) => {
   };
 };
 
+export const uploadAttachmentSingle = (
+  fieldName: string,
+  required: boolean = false
+) => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    req.fileLimit = 1;
+    req.fieldName = fieldName;
+    attachmentBaseUpload.single(fieldName)(req, res, (err: unknown) => {
+      if (err) return next(err);
+
+      if (required && !req.file) {
+        return next(
+          Object.assign(new Error(`'${fieldName}' attachment is required.`), {
+            code: 'LIMIT_FILE_REQUIRED',
+            field: fieldName,
+          })
+        );
+      }
+      next();
+    });
+  };
+};
+
+export const uploadAttachmentArray = (
+  fieldName: string,
+  maxCount: number,
+  required: boolean = false
+) => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    req.fileLimit = maxCount;
+    req.fieldName = fieldName;
+    req.fileRequired = required;
+    attachmentBaseUpload.array(fieldName, maxCount)(
+      req,
+      res,
+      (err: unknown) => {
+        if (err) return next(err);
+
+        const files = req.files as Express.Multer.File[] | undefined;
+        const hasFiles = files && files.length > 0;
+
+        if (required && !hasFiles) {
+          return next(
+            Object.assign(
+              new Error(`'${fieldName}' attachments are required.`),
+              {
+                code: 'LIMIT_FILE_REQUIRED',
+                field: fieldName,
+              }
+            )
+          );
+        }
+        next();
+      }
+    );
+  };
+};
+
 // ================================================
 // ERROR HANDLER
 // ================================================
@@ -189,6 +276,7 @@ export const handleMulterError = (
   res: Response,
   next: NextFunction
 ) => {
+  const traceId = getTraceId();
   if (err instanceof MulterError) {
     const fileLimit = req.fileLimit || 10;
     const fieldName = req.fieldName || 'file';
@@ -198,6 +286,7 @@ export const handleMulterError = (
         success: false,
         status: 400,
         message: 'File size too large. Maximum allowed size is 5MB per file.',
+        traceId,
       });
       return;
     }
@@ -206,6 +295,7 @@ export const handleMulterError = (
         success: false,
         status: 400,
         message: `Too many files. Maximum allowed is ${fileLimit} files.`,
+        traceId,
       });
       return;
     }
@@ -216,6 +306,7 @@ export const handleMulterError = (
         success: false,
         status: 400,
         message: `Unexpected field '${err.field}'. Expected fields: ${allowedFields}.`,
+        traceId,
       });
       return;
     }
@@ -223,6 +314,7 @@ export const handleMulterError = (
       success: false,
       status: 400,
       message: err.message || 'File upload error.',
+      traceId,
     });
     return;
   }
@@ -232,6 +324,7 @@ export const handleMulterError = (
       success: false,
       status: 400,
       message: err.message,
+      traceId,
     });
     return;
   }
@@ -240,6 +333,73 @@ export const handleMulterError = (
       success: false,
       status: 400,
       message: err.message,
+      traceId,
+    });
+    return;
+  }
+
+  next(err);
+};
+
+export const handleAttachmentMulterError = (
+  err: any,
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  const traceId = getTraceId();
+  if (err instanceof MulterError) {
+    const fileLimit = req.fileLimit || 10;
+    const fieldName = req.fieldName || 'file';
+
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      res.status(400).json({
+        success: false,
+        status: 400,
+        message:
+          'Attachment size too large. Maximum allowed size is 50MB per file.',
+        traceId,
+      });
+      return;
+    }
+    if (err.code === 'LIMIT_FILE_COUNT') {
+      res.status(400).json({
+        success: false,
+        status: 400,
+        message: `Too many attachments. Maximum allowed is ${fileLimit}.`,
+        traceId,
+      });
+      return;
+    }
+    if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+      const allowedFields =
+        req.fieldConfig?.map((f) => f.name).join(', ') || fieldName;
+      res.status(400).json({
+        success: false,
+        status: 400,
+        message: `Unexpected field '${err.field}'. Expected fields: ${allowedFields}.`,
+        traceId,
+      });
+      return;
+    }
+    res.status(400).json({
+      success: false,
+      status: 400,
+      message: err.message || 'Attachment upload error.',
+      traceId,
+    });
+    return;
+  }
+
+  if (
+    err?.code === 'LIMIT_FILE_REQUIRED' ||
+    err?.code === 'LIMIT_INVALID_ATTACHMENT_TYPE'
+  ) {
+    res.status(400).json({
+      success: false,
+      status: 400,
+      message: err.message,
+      traceId,
     });
     return;
   }
