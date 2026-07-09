@@ -1,5 +1,6 @@
-import logger from '@/app/configs/logger.configs';
+import { globalSocketErrorMiddleware } from '@/app/middlewares/globalSocketError.middlewares';
 import { TRegisterHandler } from '@/app/sockets/types/helper.types';
+import { AuthenticatedSocket } from '@/app/@types/jwt.types';
 
 const registerHandler = ({ events, socket }: TRegisterHandler) => {
   events.forEach(({ eventName, handler }) => {
@@ -7,10 +8,10 @@ const registerHandler = ({ events, socket }: TRegisterHandler) => {
       try {
         await handler(socket, data);
       } catch (error) {
-        logger.error(`Error in event handler for ${eventName}: ${error}`);
-        socket.emit('error', {
-          message: `Error in event handler for ${eventName}`,
-        });
+        globalSocketErrorMiddleware(
+          error as Error,
+          socket as AuthenticatedSocket
+        );
       }
     });
   });

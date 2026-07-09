@@ -11,6 +11,7 @@ import {
 import { corsWhiteList } from '@/const';
 import { chatNamespace, notificationNamespace } from '@/app/sockets/namespace';
 import { baseUrl } from '@/const';
+import { globalSocketErrorMiddleware } from '@/app/middlewares/globalSocketError.middlewares';
 
 export let io: Server;
 export let chatNameSpace: Namespace;
@@ -30,6 +31,10 @@ const initializeSocket = (server: HttpServer) => {
   io.on('connection', (socket) => {
     const s = socket as AuthenticatedSocket;
     logger.info(`Socket Connected: ${s.id} | userId: ${s.user?.id}`);
+
+    s.on('error', (err) => {
+      globalSocketErrorMiddleware(err, s);
+    });
 
     s.on('disconnect', () => {
       logger.info(`Socket Disconnected: ${s.id}`);

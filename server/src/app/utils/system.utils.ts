@@ -303,3 +303,33 @@ export function timeToMinutes(time: string): number {
   const [h, m] = time.split(':').map(Number);
   return h * 60 + m;
 }
+
+export const validateSocketPayload = <T>(
+  data: T,
+  schema: ZodType<T>
+): { data: T; error: null } | { data: null; error: unknown } => {
+  try {
+    const result = schema.safeParse(data);
+
+    if (!result.success) {
+      const errors = result.error.issues.map((issue) => ({
+        field: issue.path.join('.') || 'data',
+        message: issue.message,
+      }));
+
+      return { data: null, error: { errors } };
+    }
+
+    return { data: result.data, error: null };
+  } catch (error) {
+    logger.error('CAUGHT ERROR in validateSocketPayload utility:', error);
+    logger.error(
+      'Error stack:',
+      error instanceof Error ? error.stack : 'No stack'
+    );
+    return {
+      data: null,
+      error: { errors: [{ field: 'unknown', message: 'Unknown error' }] },
+    };
+  }
+};

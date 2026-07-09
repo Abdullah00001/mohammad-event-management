@@ -33,21 +33,73 @@ export const SUBSCRIPTION_FEATURE_CACHE_EXPIRY = '1d';
 export const isoUtcRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
 
 export const SOCKET_EVENTS = {
-  // ===== Chat Namespace =====
+  // ===== Conversation (Private) =====
   // Client → Server
-  SEND_MESSAGE_ON_EVENT_CHAT: 'chat:send_message_on_event_chat:',
+  CONVERSATION_JOIN: 'conversation:join',
+  CONVERSATION_LEAVE: 'conversation:leave',
+  CONVERSATION_CLEAR: 'conversation:clear',
+  CONVERSATION_DELETE: 'conversation:delete',
 
   // Server → Client
-  MESSAGE_RECEIVED_ON_EVENT_CHAT: 'chat:message_received_on_event_chat:',
+  CONVERSATION_JOINED: 'conversation:joined',
+  CONVERSATION_LEFT: 'conversation:left',
+  CONVERSATION_CLEARED: 'conversation:cleared',
+  CONVERSATION_DELETED: 'conversation:deleted',
 
-  // ===== Notification Namespace =====
+  // ===== Private Messaging =====
   // Client → Server
+  MESSAGE_SEND: 'message:send',
+  MESSAGE_EDIT: 'message:edit',
+  MESSAGE_DELETE: 'message:delete',
+  MESSAGE_DELETE_FOR_ME: 'message:delete-for-me',
+  MESSAGE_READ: 'message:read',
 
   // Server → Client
+  MESSAGE_RECEIVED: 'message:received',
+  MESSAGE_CONFIRMED: 'message:confirmed',
+  MESSAGE_EDITED: 'message:edited',
+  MESSAGE_DELETED: 'message:deleted',
+  MESSAGE_DELETED_FOR_ME: 'message:deleted-for-me',
+  MESSAGE_READ_RESPONSE: 'message:read-response',
+
+  // ===== Event Group Chat =====
+  // Client → Server
+  EVENT_JOIN: 'event:join',
+  EVENT_LEAVE: 'event:leave',
+  MESSAGE_SEND_EVENT: 'message:send-event',
+  MESSAGE_EDIT_EVENT: 'message:edit-event',
+  MESSAGE_DELETE_EVENT: 'message:delete-event',
+
+  // Server → Client
+  EVENT_JOINED: 'event:joined',
+  EVENT_LEFT: 'event:left',
+  MESSAGE_RECEIVED_EVENT: 'message:received-event',
+  MESSAGE_CONFIRMED_EVENT: 'message:confirmed-event',
+  MESSAGE_EDITED_EVENT: 'message:edited-event',
+  MESSAGE_DELETED_EVENT: 'message:deleted-event',
+
+  // ===== Typing =====
+  // Client → Server
+  TYPING_START: 'typing:start',
+  TYPING_STOP: 'typing:stop',
+
+  // Server → Client
+  TYPING_START_RESPONSE: 'typing:start-response',
+  TYPING_STOP_RESPONSE: 'typing:stop-response',
+
+  // ===== Notifications =====
+  // Client → Server
+  NOTIFICATION_MARK_READ: 'notification:mark-read',
+  NOTIFICATION_MARK_ALL_READ: 'notification:mark-all-read',
+
+  // Server → Client
+  NOTIFICATION_NEW: 'notification:new',
+  NOTIFICATION_READ: 'notification:read',
+  NOTIFICATION_ALL_READ: 'notification:all-read',
 
   // ===== Common =====
-  ERROR: 'error',
-  MESSAGE_ERROR: 'message_error',
+  ERROR: 'error:server',
+  MESSAGE_ERROR: 'message:error',
 } as const;
 
 export type SocketEvent = (typeof SOCKET_EVENTS)[keyof typeof SOCKET_EVENTS];

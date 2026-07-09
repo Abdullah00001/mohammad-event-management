@@ -458,6 +458,7 @@ model Message {
   senderId       String
   sender         User         @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
   content        String
+  attachments   String[]     @default([]) // array of attachment URLs
   isEdited       Boolean      @default(false)
   deletedAt      DateTime?    // soft delete for everyone (if sender deletes)
   createdAt      DateTime     @default(now())
@@ -478,6 +479,7 @@ model EventMessage {
   senderId  String
   sender    User      @relation("SentEventMessages", fields: [senderId], references: [id], onDelete: Cascade)
   content   String
+  attachments   String[]     @default([]) // array of attachment URLs
   isEdited  Boolean   @default(false)
   deletedAt DateTime? // soft delete for everyone (if sender or host deletes)
   createdAt DateTime  @default(now())

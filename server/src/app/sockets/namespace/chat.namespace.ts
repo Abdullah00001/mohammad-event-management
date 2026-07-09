@@ -4,6 +4,7 @@ import { AuthenticatedSocket } from '@/app/@types/jwt.types';
 import logger from '@/app/configs/logger.configs';
 import registerHandler from '@/app/sockets/helpers/registerHandler.helper';
 import { chatEventRegistry } from '@/app/sockets/events/chat.events';
+import { globalSocketErrorMiddleware } from '@/app/middlewares/globalSocketError.middlewares';
 
 const chatNamespace = (chat: Namespace): void => {
   
@@ -13,6 +14,10 @@ const chatNamespace = (chat: Namespace): void => {
       `Chat Namespace Connected: ${user.id} | userId: ${user.user?.id}`
     );
     if (user.user?.id) socket.join(`user_${user.user.id}`);
+
+    socket.on('error', (err) => {
+      globalSocketErrorMiddleware(err, user);
+    });
 
     registerHandler({ socket, events: chatEventRegistry });
 
