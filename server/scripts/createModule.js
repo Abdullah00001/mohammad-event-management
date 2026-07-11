@@ -27,7 +27,6 @@ const files = {
   [`${moduleName}.middlewares.ts`]: '',
   [`${moduleName}.routes.ts`]: '',
   [`${moduleName}.schemas.ts`]: '',
-  [`${moduleName}.model.ts`]: '',
   [`${moduleName}.dto.ts`]: '',
   [`${moduleName}.types.ts`]: '',
 };

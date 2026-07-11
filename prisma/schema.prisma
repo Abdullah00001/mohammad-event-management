@@ -101,6 +101,11 @@ enum InviteStatus {
   DECLINED
 }
 
+enum ConversationType {
+  PRIVATE
+  GROUP
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  CORE USER
 // ─────────────────────────────────────────────────────────────────────────────
@@ -132,7 +137,7 @@ model User {
   updatedAt             DateTime          @updatedAt
   stripeCustomerId      String?           @unique
 
-  // Relations
+// ===== Relations =====
   profile               Profile?
   userTraits            UserTraits?
   userPreference        UserPreference?
@@ -141,11 +146,6 @@ model User {
   blockedUsers          BlockList[]       @relation("BlockerRelation")
   blockedBy             BlockList[]       @relation("BlockedRelation")
   eventParticipants     EventParticipants[]
-  conversationsAsA      Conversation[]    @relation("ConversationUserA")
-  conversationsAsB      Conversation[]    @relation("ConversationUserB")
-  conversationSettings  ConversationSettings[]
-  sentMessages          Message[]         @relation("SentMessages")
-  sentEventMessages     EventMessage[]    @relation("SentEventMessages")
   notifications         Notification[]
   strikes               Strike[]          // audit log of strikes
 
@@ -153,12 +153,14 @@ model User {
   travelMode            UserTravelMode?
   devices               Device[]
   waitLists             WaitList[]
-
-  // Pod invites received
   podInvites            PodInvite[]
-  ratingsGiven   EventRating[] @relation("RaterRatings")
-  // Ratings received by this user
-  ratingsReceived EventRating[] @relation("RatedRatings")
+  ratingsGiven          EventRating[]     @relation("RaterRatings")
+  ratingsReceived       EventRating[]     @relation("RatedRatings")
+
+  // ===== NEW unified messaging relations =====
+  conversationParticipants ConversationParticipant[]  // reverse of ConversationParticipant.user
+  conversationSettings     ConversationSettings[]    // reverse of ConversationSettings.user
+  messagesSent             Message[]                 // reverse of Message.sender
 
   @@index([role])
   @@index([accountStatus])
@@ -272,11 +274,13 @@ model Event {
   inviteLink           String?     @unique
 
   eventParticipants    EventParticipants[]
-  messages             EventMessage[]
   eventTypes           EventEventType[]
   invites              PodInvite[]
   waitLists            WaitList[]
   ratings EventRating[]
+
+  // 👇 Add this reverse relation
+  conversation         Conversation?   // one-to-one with Conversation
 
   createdAt            DateTime    @default(now())
   updatedAt            DateTime    @updatedAt
@@ -421,70 +425,70 @@ model Device {
 //  MESSAGING – 1:1 CONVERSATIONS (with per‑user delete/clear)
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ─── Conversation ──────────────────────────────────────────────────
 model Conversation {
-  id        String   @id @default(uuid())
-  userAId   String
-  userA     User     @relation("ConversationUserA", fields: [userAId], references: [id], onDelete: Cascade)
-  userBId   String
-  userB     User     @relation("ConversationUserB", fields: [userBId], references: [id], onDelete: Cascade)
-  messages  Message[]
-  settings  ConversationSettings[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(uuid())
+  type         ConversationType @default(PRIVATE)
+  
+  // For GROUP chats: link directly to the Event (one-to-one)
+  eventId      String?  @unique // ensures one conversation per event
+  event        Event?   @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
-  @@unique([userAId, userBId])
-  @@index([userAId])
-  @@index([userBId])
+  participants ConversationParticipant[]
+  messages     Message[]
+  settings     ConversationSettings[]
+
+  deletedAt    DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([type])
+  @@index([eventId])
+  @@index([updatedAt])
 }
 
-model ConversationSettings {
-  id             String       @id @default(uuid())
+// ─── Conversation Participant ─────────────────────────────────────
+model ConversationParticipant {
+  id             String   @id @default(uuid())
   conversationId String
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   userId         String
-  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  clearedAt      DateTime?    // hide all messages before this date (clear chat for this user)
-  deletedAt      DateTime?    // soft delete entire conversation for this user
-  createdAt      DateTime     @default(now())
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  joinedAt       DateTime @default(now())
 
   @@unique([conversationId, userId])
   @@index([userId])
 }
 
+// ─── Conversation Settings (per‑user) ────────────────────────────
+model ConversationSettings {
+  id             String   @id @default(uuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clearedAt      DateTime? // hide all messages before this date
+  deletedAt      DateTime? // soft delete entire conversation for this user
+  createdAt      DateTime @default(now())
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+}
+
+// ─── Unified Message ──────────────────────────────────────────────
 model Message {
-  id             String       @id @default(uuid())
+  id             String   @id @default(uuid())
   conversationId String
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   senderId       String
-  sender         User         @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  sender         User     @relation(fields: [senderId], references: [id], onDelete: Cascade)
   content        String
-  attachments   String[]     @default([]) // array of attachment URLs
-  isEdited       Boolean      @default(false)
-  deletedAt      DateTime?    // soft delete for everyone (if sender deletes)
-  createdAt      DateTime     @default(now())
+  attachments    String[] @default([]) // array of attachment URLs
+  isEdited       Boolean  @default(false)
+  deletedAt      DateTime? // soft delete for everyone (sender or host)
+  createdAt      DateTime @default(now())
 
   @@index([conversationId, createdAt])
-  @@index([senderId])
-  @@index([deletedAt])
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  EVENT GROUP CHAT
-// ─────────────────────────────────────────────────────────────────────────────
-
-model EventMessage {
-  id        String    @id @default(uuid())
-  eventId   String
-  event     Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  senderId  String
-  sender    User      @relation("SentEventMessages", fields: [senderId], references: [id], onDelete: Cascade)
-  content   String
-  attachments   String[]     @default([]) // array of attachment URLs
-  isEdited  Boolean   @default(false)
-  deletedAt DateTime? // soft delete for everyone (if sender or host deletes)
-  createdAt DateTime  @default(now())
-
-  @@index([eventId, createdAt])
   @@index([senderId])
   @@index([deletedAt])
 }

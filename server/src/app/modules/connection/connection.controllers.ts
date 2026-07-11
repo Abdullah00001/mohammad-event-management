@@ -8,8 +8,10 @@ import {
   getMyConnectionService,
   getMySingleConnectionService,
   manageMyConnectionRequestService,
+  sendFriendRequestService,
 } from '@/app/modules/connection/connection.services';
 import { User } from '@prisma/client';
+import { TSendFriendRequestPayload } from '@/app/modules/connection/connection.schemas';
 
 export const getMyConnectionController = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
@@ -98,12 +100,29 @@ export const blockOneConnectionController = asyncHandler(
     const traceId = getTraceId();
     const user = req.user as User;
     const { id } = req.params as { id: string };
-    const {blockStatus}=req.body;
-    await blockOneConnectionService({ user, id,blockStatus });
+    const { blockStatus } = req.body;
+    await blockOneConnectionService({ user, id, blockStatus });
     res.status(200).json({
       success: true,
       status: 200,
       message: `Connection blocking successful`,
+      traceId,
+    });
+    return;
+  }
+);
+
+export const sendFriendRequestController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const traceId = getTraceId();
+    const user = req.user as User;
+    const payload = req.body as TSendFriendRequestPayload;
+    const data = await sendFriendRequestService({ payload, user });
+    res.status(200).json({
+      success: true,
+      status: 200,
+      message: 'Request send successful',
+      data,
       traceId,
     });
     return;

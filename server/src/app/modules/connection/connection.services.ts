@@ -1,7 +1,8 @@
 import { DEFAULT_LIMIT, DEFAULT_PAGE } from '@/const';
-import { EventStatus, FriendshipStatus, User } from '@prisma/client';
+import { ConversationType, EventStatus, FriendshipStatus, User } from '@prisma/client';
 import prisma from '@/app/configs/db.configs';
 import { BLOCK_STATUS } from '@/app/modules/connection/connection.types';
+import { TSendFriendRequestPayload } from '@/app/modules/connection/connection.schemas';
 
 export const getMyConnectionService = async ({
   user,
@@ -138,7 +139,6 @@ export const getMyConnectionService = async ({
     throw new Error('Unknown error occurred in get get my connection service');
   }
 };
- 
 
 export const getMySingleConnectionService = async ({ id }: { id: string }) => {
   try {
@@ -324,10 +324,58 @@ export const manageMyConnectionRequestService = async ({
   requestId: string;
 }): Promise<void> => {
   try {
-    await prisma.friends.update({
-      where: { id: requestId, receiverId: user.id },
-      data: { status: requestStatus },
+    await prisma.$transaction(async (tx) => {
+      // ── 1. Update the friend request status ───────────────────────
+      const updatedRequest = await tx.friends.update({
+        where: { id: requestId, receiverId: user.id },
+        data: { status: requestStatus },
+        select: { senderId: true, receiverId: true },
+      });
+
+      // ── 2. ADDED: If ACCEPTED — create PRIVATE conversation ───────
+      //
+      // Only runs when the request is accepted, not rejected.
+      // Creates the conversation, adds both users as participants,
+      // and creates ConversationSettings for each user.
+      //
+      if (requestStatus === FriendshipStatus.ACCEPTED) {
+        const conversation = await tx.conversation.create({
+          data: {
+            type: ConversationType.PRIVATE,
+          },
+          select: { id: true },
+        });
+
+        // Add both users as ConversationParticipants
+        await tx.conversationParticipant.createMany({
+          data: [
+            {
+              conversationId: conversation.id,
+              userId: updatedRequest.senderId,
+            },
+            {
+              conversationId: conversation.id,
+              userId: updatedRequest.receiverId,
+            },
+          ],
+        });
+
+        // Create ConversationSettings for both users
+        await tx.conversationSettings.createMany({
+          data: [
+            {
+              conversationId: conversation.id,
+              userId: updatedRequest.senderId,
+            },
+            {
+              conversationId: conversation.id,
+              userId: updatedRequest.receiverId,
+            },
+          ],
+        });
+      }
     });
+
     return;
   } catch (error) {
     if (error instanceof Error) throw error;
@@ -371,5 +419,37 @@ export const blockOneConnectionService = async ({
   } catch (error) {
     if (error instanceof Error) throw error;
     throw new Error('Unknown error occurred in block one connection service');
+  }
+};
+
+export const sendFriendRequestService = async ({
+  payload,
+  user,
+}: {
+  user: User;
+  payload: TSendFriendRequestPayload;
+}): Promise<unknown> => {
+  try {
+    const { receiverId, requestStatus } = payload;
+
+    const friendRequest = await prisma.friends.create({
+      data: {
+        senderId: user.id,
+        receiverId,
+        status: requestStatus,
+      },
+      select: {
+        id: true,
+        senderId: true,
+        receiverId: true,
+        status: true,
+        createdAt: true,
+      },
+    });
+
+    return friendRequest;
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error('Unknown error occurred in send friend request service');
   }
 };

@@ -189,3 +189,28 @@ export const checkIsUserBlockMiddleware = asyncHandler(
     return;
   }
 );
+
+export const checkReceiverExistMiddleware = asyncHandler(
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const traceId = getTraceId();
+    const { receiverId } = req.body as { receiverId: string };
+
+    const receiver = await prisma.user.findUnique({
+      where: { id: receiverId },
+      select: { id: true },
+    });
+
+    if (!receiver) {
+      res.status(404).json({
+        success: false,
+        status: 404,
+        message: 'Receiver not found',
+        traceId,
+      });
+      return;
+    }
+
+    next();
+    return;
+  }
+);

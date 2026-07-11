@@ -26,3 +26,14 @@ export const blockOneConnectionSchema = z.object({
 });
 
 export type BlockOneConnectionInput = z.infer<typeof blockOneConnectionSchema>;
+
+export const sendFriendRequestSchema = z
+  .object({
+    receiverId: z.uuid({ message: 'receiverId must be a valid UUID' }),
+    requestStatus: z.enum([FriendshipStatus.PENDING], {
+      message: `requestStatus must be ${FriendshipStatus.PENDING}`,
+    }),
+  })
+  .strict();
+
+export type TSendFriendRequestPayload = z.infer<typeof sendFriendRequestSchema>;

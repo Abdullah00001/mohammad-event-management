@@ -5,6 +5,7 @@ import {
   Event,
   Prisma,
   FriendshipStatus,
+  ConversationType,
 } from '@prisma/client';
 
 import prisma from '@/app/configs/db.configs';
@@ -30,7 +31,7 @@ export const createEventService = async ({
 }: {
   user: User;
   payload: TEventCreatePayload;
-}): Promise<{ eventId: string }> => {
+}): Promise<{ eventId: string; conversationId: string }> => {
   try {
     const {
       description,
@@ -43,7 +44,9 @@ export const createEventService = async ({
       endDate,
       isPrivate,
     } = payload;
+
     const event = await prisma.$transaction(async (tx) => {
+      // ── 1. Create the event ───────────────────────────────────────
       const event = await tx.event.create({
         data: {
           description,
@@ -57,6 +60,7 @@ export const createEventService = async ({
         },
       });
 
+      // ── 2. Assign event type ──────────────────────────────────────
       await tx.eventEventType.create({
         data: {
           eventTypeId,
@@ -64,6 +68,7 @@ export const createEventService = async ({
         },
       });
 
+      // ── 3. Add host as participant ────────────────────────────────
       await tx.eventParticipants.create({
         data: {
           role: EventRole.HOST,
@@ -71,9 +76,27 @@ export const createEventService = async ({
           participantId: user.id,
         },
       });
-      return event;
+
+      // ── 4. ADDED: Create GROUP conversation linked to the event ───
+      const conversation = await tx.conversation.create({
+        data: {
+          type: ConversationType.GROUP,
+          eventId: event.id,
+        },
+      });
+
+      // ── 5. ADDED: Add host as first ConversationParticipant ───────
+      await tx.conversationParticipant.create({
+        data: {
+          conversationId: conversation.id,
+          userId: user.id,
+        },
+      });
+
+      return { event, conversationId: conversation.id };
     });
-    return { eventId: event.id };
+
+    return { eventId: event.event.id, conversationId: event.conversationId };
   } catch (error) {
     if (error instanceof Error) throw error;
     throw new Error('Unknown error occurred in create event service');
@@ -529,11 +552,6 @@ export const getSingleAdventureDetailsService = async ({
 }): Promise<unknown> => {
   try {
     // ── 1. Fetch event core fields ────────────────────────────────
-    //
-    // CHANGED: removed paginated participants + waitList from this
-    // service entirely — they now live in their own dedicated
-    // paginated services. This is the pure event detail view.
-    //
     const enrichedEvent = await prisma.event.findUniqueOrThrow({
       where: { id: event.id },
       select: {
@@ -563,6 +581,11 @@ export const getSingleAdventureDetailsService = async ({
         // Count only — for "3/6 orcas" badge
         _count: {
           select: { eventParticipants: true },
+        },
+
+        // ADDED: conversation linked to this event
+        conversation: {
+          select: { id: true },
         },
       },
     });
@@ -621,6 +644,9 @@ export const getSingleAdventureDetailsService = async ({
 
       eventType: enrichedEvent.eventTypes[0]?.eventType ?? null,
 
+      // ADDED: conversationId for the pod chat
+      conversationId: enrichedEvent.conversation?.id ?? null,
+
       maxParticipantsCount: enrichedEvent.maxParticipantsCount,
       participantCount,
       availableSlots,
@@ -664,7 +690,7 @@ export const getEventParticipantsService = async ({
       prisma.eventParticipants.findMany({
         where: {
           eventId: event.id,
-          leftAt: null, // active only
+          leftAt: null,
         },
         select: {
           role: true,
@@ -698,10 +724,7 @@ export const getEventParticipantsService = async ({
       }),
     ]);
 
-    // ── 2. Collect participant IDs for bulk flag queries ────────────
-    //
-    // Scoped to current page only
-    //
+    // ── 2. Collect participant IDs (excluding calling user) ────────
     const participantIds = rawParticipants
       .filter((p) => p.participantId !== user.id)
       .map((p) => p.participantId);
@@ -747,24 +770,74 @@ export const getEventParticipantsService = async ({
       )
     );
 
-    // ── 5. Shape participants with flags ────────────────────────────
-    const participants = rawParticipants.map((p) => ({
-      role: p.role,
-      joinedAt: p.joinedAt,
-      user: {
-        id: p.user.id,
-        isPremium: p.user.isPremium,
-        name: p.user.profile?.name ?? null,
-        avatar: p.user.profile?.avatar ?? null,
-        gender: p.user.profile?.gender ?? null,
-        age: p.user.profile?.age ?? null,
+    // ── 5. ADDED: Fetch existing PRIVATE conversations between ──────
+    //      the calling user and each participant on this page
+    //
+    // A private conversation exists when both users are participants
+    // in the same PRIVATE conversation.
+    //
+    const privateConversations = await prisma.conversation.findMany({
+      where: {
+        type: ConversationType.PRIVATE,
+        participants: {
+          some: { userId: user.id },
+        },
+        AND: [
+          {
+            participants: {
+              some: { userId: { in: participantIds } },
+            },
+          },
+        ],
       },
-      isBlockedByHost: hostBlockedSet.has(p.participantId),
-      isHostBlockedByParticipant: participantBlockedSet.has(p.participantId),
-      isFriendWithHost: friendSet.has(p.participantId),
-    }));
+      select: {
+        id: true,
+        participants: {
+          select: { userId: true },
+        },
+      },
+    });
 
-    // ── 6. Paginate & respond ───────────────────────────────────────
+    // Build a map: otherUserId → conversationId
+    const conversationMap = new Map<string, string>();
+    for (const conv of privateConversations) {
+      const otherUser = conv.participants.find((p) => p.userId !== user.id);
+      if (otherUser) {
+        conversationMap.set(otherUser.userId, conv.id);
+      }
+    }
+
+    // ── 6. Shape participants with flags + conversationId ───────────
+    const participants = rawParticipants.map((p) => {
+      const isFriend = friendSet.has(p.participantId);
+
+      // ADDED: conversationId — only populated if already friends AND
+      // a private conversation already exists between the two users.
+      // null if not friends yet or conversation hasn't been created.
+      const conversationId =
+        isFriend && conversationMap.has(p.participantId)
+          ? conversationMap.get(p.participantId)!
+          : null;
+
+      return {
+        role: p.role,
+        joinedAt: p.joinedAt,
+        user: {
+          id: p.user.id,
+          isPremium: p.user.isPremium,
+          name: p.user.profile?.name ?? null,
+          avatar: p.user.profile?.avatar ?? null,
+          gender: p.user.profile?.gender ?? null,
+          age: p.user.profile?.age ?? null,
+        },
+        isBlockedByHost: hostBlockedSet.has(p.participantId),
+        isHostBlockedByParticipant: participantBlockedSet.has(p.participantId),
+        isFriendWithHost: isFriend,
+        conversationId,
+      };
+    });
+
+    // ── 7. Paginate & respond ───────────────────────────────────────
     const totalPages = Math.ceil(totalCount / limit);
 
     return {
@@ -893,15 +966,44 @@ export const removeParticipantsFromEventService = async ({
   participantId: string;
 }): Promise<void> => {
   try {
-    await prisma.eventParticipants.delete({
-      where: {
-        eventId_participantId: {
-          eventId: event.id,
-          participantId,
+    await prisma.$transaction(async (tx) => {
+      // ── 1. Remove from event participants ─────────────────────────
+      //
+      // FIXED: role is not part of @@unique([eventId, participantId])
+      // so it goes as a sibling filter, not inside the unique key
+      //
+      await tx.eventParticipants.delete({
+        where: {
+          eventId_participantId: {
+            eventId: event.id,
+            participantId,
+          },
           role: EventRole.TRAVELER,
         },
-      },
+      });
+
+      // ── 2. ADDED: Remove from the event's GROUP conversation ──────
+      //
+      // Find the conversation linked to this event and remove the
+      // participant from ConversationParticipant
+      //
+      const conversation = await tx.conversation.findUnique({
+        where: { eventId: event.id },
+        select: { id: true },
+      });
+
+      if (conversation) {
+        await tx.conversationParticipant.delete({
+          where: {
+            conversationId_userId: {
+              conversationId: conversation.id,
+              userId: participantId,
+            },
+          },
+        });
+      }
     });
+
     return;
   } catch (error) {
     if (error instanceof Error) throw error;
@@ -917,10 +1019,27 @@ export const deleteEventService = async ({
   event: Event;
 }): Promise<void> => {
   try {
-    await prisma.event.update({
-      where: { id: event.id },
-      data: { eventStatus: EventStatus.DELETED },
+    await prisma.$transaction(async (tx) => {
+      // ── 1. Soft delete the event ──────────────────────────────────
+      await tx.event.update({
+        where: { id: event.id },
+        data: {
+          eventStatus: EventStatus.DELETED,
+          deletedAt: new Date(),
+        },
+      });
+
+      // ── 2. Soft delete the linked GROUP conversation ──────────────
+      //
+      // Conversation has a deletedAt field — set it to now so the
+      // conversation is hidden but data is preserved.
+      //
+      await tx.conversation.updateMany({
+        where: { eventId: event.id },
+        data: { deletedAt: new Date() },
+      });
     });
+
     return;
   } catch (error) {
     if (error instanceof Error) throw error;
@@ -1221,7 +1340,7 @@ export const getMySingleEventService = async ({
         lat: true,
         lng: true,
 
-        // ADDED: eventType badge
+        // EventType badge
         eventTypes: {
           select: {
             eventType: {
@@ -1254,6 +1373,11 @@ export const getMySingleEventService = async ({
             },
           },
         },
+
+        // ADDED: conversation linked to this event
+        conversation: {
+          select: { id: true },
+        },
       },
     });
 
@@ -1278,8 +1402,10 @@ export const getMySingleEventService = async ({
       lat: enrichedEvent.lat,
       lng: enrichedEvent.lng,
 
-      // ADDED: eventType badge
       eventType: enrichedEvent.eventTypes[0]?.eventType ?? null,
+
+      // ADDED: conversationId for the pod chat
+      conversationId: enrichedEvent.conversation?.id ?? null,
 
       participantCount,
       availableSlots,
@@ -1311,13 +1437,36 @@ export const joinEventService = async ({
   user: User;
 }): Promise<void> => {
   try {
-    await prisma.eventParticipants.create({
-      data: {
-        eventId: event.id,
-        participantId: user.id,
-        role: EventRole.TRAVELER,
-      },
+    await prisma.$transaction(async (tx) => {
+      // ── 1. Add user as TRAVELER to the event ──────────────────────
+      await tx.eventParticipants.create({
+        data: {
+          eventId: event.id,
+          participantId: user.id,
+          role: EventRole.TRAVELER,
+        },
+      });
+
+      // ── 2. ADDED: Add user to the event's GROUP conversation ──────
+      //
+      // Fetch the conversation linked to this event and add the
+      // joining user as a ConversationParticipant
+      //
+      const conversation = await tx.conversation.findUnique({
+        where: { eventId: event.id },
+        select: { id: true },
+      });
+
+      if (conversation) {
+        await tx.conversationParticipant.create({
+          data: {
+            conversationId: conversation.id,
+            userId: user.id,
+          },
+        });
+      }
     });
+
     return;
   } catch (error) {
     if (error instanceof Error) throw error;
@@ -1355,25 +1504,45 @@ export const leaveEventService = async ({
   user: User;
 }): Promise<void> => {
   try {
-    await prisma.eventParticipants.update({
-      where: {
-        eventId_participantId: {
-          eventId: event.id,
-          participantId: user.id,
+    await prisma.$transaction(async (tx) => {
+      // ── 1. Soft delete — set leftAt on the participant row ────────
+      await tx.eventParticipants.update({
+        where: {
+          eventId_participantId: {
+            eventId: event.id,
+            participantId: user.id,
+          },
+          role: EventRole.TRAVELER,
         },
-        role: EventRole.TRAVELER,
-      },
-      data: {
-        leftAt: new Date(),
-      },
+        data: {
+          leftAt: new Date(),
+        },
+      });
+
+      // ── 2. ADDED: Remove from the event's GROUP conversation ──────
+      const conversation = await tx.conversation.findUnique({
+        where: { eventId: event.id },
+        select: { id: true },
+      });
+
+      if (conversation) {
+        await tx.conversationParticipant.delete({
+          where: {
+            conversationId_userId: {
+              conversationId: conversation.id,
+              userId: user.id,
+            },
+          },
+        });
+      }
     });
+
     return;
   } catch (error) {
     if (error instanceof Error) throw error;
     throw new Error('Unknown error occurred in leave event service');
   }
 };
-
 export const getEventJournalService = async ({
   limit = DEFAULT_LIMIT,
   page = DEFAULT_PAGE,
@@ -1654,6 +1823,7 @@ export const getEventSummaryService = async ({
     return {
       // Event summary block
       summary: {
+        eventId: enrichedEvent.id,
         eventName: enrichedEvent.eventName,
         startDate: enrichedEvent.startDate,
         endDate: enrichedEvent.endDate,
@@ -1662,21 +1832,21 @@ export const getEventSummaryService = async ({
         totalParticipants,
       },
 
-      // Orca connection list
-      orcas: {
-        data: orcas,
-        meta: {
-          totalOrcas,
-          totalPages,
-          links: {
-            currentPage: page,
-            nextPage: page < totalPages ? page + 1 : null,
-            previousPage: page > 1 ? page - 1 : null,
-            firstPage: 1,
-            lastPage: totalPages || 1,
-          },
-        },
-      },
+      // // Orca connection list
+      // orcas: {
+      //   data: orcas,
+      //   meta: {
+      //     totalOrcas,
+      //     totalPages,
+      //     links: {
+      //       currentPage: page,
+      //       nextPage: page < totalPages ? page + 1 : null,
+      //       previousPage: page > 1 ? page - 1 : null,
+      //       firstPage: 1,
+      //       lastPage: totalPages || 1,
+      //     },
+      //   },
+      // },
     };
   } catch (error) {
     if (error instanceof Error) throw error;
@@ -2004,18 +2174,19 @@ export const acceptWaitListService = async ({
   participantId: string;
 }): Promise<unknown> => {
   try {
-    // Remove from waitlist and create EventParticipants row atomically
-    const [, participant] = await prisma.$transaction([
-      prisma.waitList.delete({
+    const participant = await prisma.$transaction(async (tx) => {
+      // ── 1. Remove from waitlist ───────────────────────────────────
+      await tx.waitList.delete({
         where: {
           eventId_userId: {
             eventId: event.id,
             userId: participantId,
           },
         },
-      }),
- 
-      prisma.eventParticipants.create({
+      });
+
+      // ── 2. Add as TRAVELER to event ───────────────────────────────
+      const participant = await tx.eventParticipants.create({
         data: {
           eventId: event.id,
           participantId,
@@ -2026,16 +2197,32 @@ export const acceptWaitListService = async ({
           role: true,
           joinedAt: true,
         },
-      }),
-    ]);
- 
+      });
+
+      // ── 3. ADDED: Add to the event's GROUP conversation ───────────
+      const conversation = await tx.conversation.findUnique({
+        where: { eventId: event.id },
+        select: { id: true },
+      });
+
+      if (conversation) {
+        await tx.conversationParticipant.create({
+          data: {
+            conversationId: conversation.id,
+            userId: participantId,
+          },
+        });
+      }
+
+      return participant;
+    });
+
     return participant;
   } catch (error) {
     if (error instanceof Error) throw error;
     throw new Error('Unknown error occurred in accept waitlist service');
   }
 };
- 
 // ── Remove from waitlist ──────────────────────────────────────────────────────
 export const removeFromWaitListService = async ({
   event,
@@ -2053,7 +2240,7 @@ export const removeFromWaitListService = async ({
         },
       },
     });
- 
+
     return;
   } catch (error) {
     if (error instanceof Error) throw error;

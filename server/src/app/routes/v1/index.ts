@@ -10,6 +10,7 @@ import UserRoutes from '@/app/modules/user/user.routes';
 import NotificationRoutes from '@/app/modules/notification/notification.routes';
 import ConnectionRoute from '@/app/modules/connection/connection.routes';
 import AttachmentRoutes from '@/app/modules/attachment/attachment.routes';
+import Conversations from '@/app/modules/conversations/conversations.routes';
 
 const routes: Router[] = [
   UserRoutes,
@@ -22,6 +23,7 @@ const routes: Router[] = [
   NotificationRoutes,
   ConnectionRoute,
   AttachmentRoutes,
+  Conversations,
 ];
 
 const v1Routes = Router();

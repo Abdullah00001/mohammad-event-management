@@ -10,17 +10,20 @@ import {
   getMyConnectionRequestsController,
   getMySingleConnectionController,
   manageMyConnectionRequestsController,
+  sendFriendRequestController,
 } from '@/app/modules/connection/connection.controllers';
 import {
   blockOneConnectionMiddleware,
   checkIsConnectionExistMiddleware,
   checkIsUserBlockMiddleware,
+  checkReceiverExistMiddleware,
   manageMyConnectionRequestsMiddleware,
 } from '@/app/modules/connection/connection.middlewares';
 import { validateReqBody } from '@/app/utils/system.utils';
 import {
   blockOneConnectionSchema,
   manageMyConnectionRequestSchema,
+  sendFriendRequestSchema,
 } from '@/app/modules/connection/connection.schemas';
 
 const router = Router();
@@ -41,10 +44,14 @@ router
 
 router
   .route('/connections/requests')
-  .get(checkAccessToken, checkAccountStatus, getMyConnectionRequestsController);
-
-router
-  .route('/connections/requests')
+  .get(checkAccessToken, checkAccountStatus, getMyConnectionRequestsController)
+  .post(
+    checkAccessToken,
+    checkAccountStatus,
+    validateReqBody(sendFriendRequestSchema),
+    checkReceiverExistMiddleware,
+    sendFriendRequestController
+  )
   .patch(
     checkAccessToken,
     checkAccountStatus,

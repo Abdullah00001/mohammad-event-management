@@ -39,6 +39,7 @@ export const getProfileInformation = async ({
         countryVisited: true,
         profileInterest: true,
         cover: true,
+        userId: true,
       },
     });
     if (!profile) throw new Error('Profile not found');
@@ -127,6 +128,7 @@ export const getProfileInformation = async ({
       avatar: profile.avatar,
       location: profile.location,
       bio: profile.bio,
+      userId: profile.userId,
       countryVisited: profile.countryVisited,
       profileInterest: interests,
       totalEventsAttended,
