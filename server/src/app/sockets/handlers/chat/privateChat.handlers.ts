@@ -1,5 +1,5 @@
+// server/src/app/sockets/handlers/chat/privateChat.handlers.ts
 import { AuthenticatedSocket } from '@/app/@types/jwt.types';
-import { Namespace } from 'socket.io';
 import prisma from '@/app/configs/db.configs';
 import { SOCKET_EVENTS } from '@/const';
 import { validateSocketPayload } from '@/app/utils/system.utils';
@@ -20,6 +20,7 @@ import {
 import { getPushNotificationQueue } from '@/app/queues/queues';
 import { EPushNotificationJobName } from '@/app/@types/queue.types';
 import logger from '@/app/configs/logger.configs';
+import { notificationNameSpace } from '@/app/configs/socket.config';
 
 // ─── Send Message (Unified for Private & Event) ──────────────────
 export const handleSendMessage = async (
@@ -120,43 +121,52 @@ export const handleSendMessage = async (
     data: { updatedAt: new Date() },
   });
 
-  // 8. Notify offline participants (via push notifications & in-app)
+  // 8. Notify other participants (in‑app + push)
   const otherParticipants = await getOtherParticipants(conversationId, userId);
-  if (otherParticipants.length > 0) {
-    const pushQueue = getPushNotificationQueue();
-    for (const participant of otherParticipants) {
-      // Create in‑app notification
-      await prisma.notification.create({
-        data: {
-          userId: participant.userId,
-          notificationTitle: 'New message',
-          notificationDescription: `${participant.name || 'Someone'}: ${content.slice(0, 50)}${content.length > 50 ? '…' : ''}`,
-          type: 'CHAT_MESSAGE',
-          metadata: {
+  const senderUser = await prisma.user.findUnique({
+    where: { id: userId },
+    include: { profile: true },
+  });
+  const senderName = senderUser?.profile?.name || 'User';
+
+  for (const participant of otherParticipants) {
+    // ── In‑App Notification ──
+    const notification = await prisma.notification.create({
+      data: {
+        userId: participant.userId,
+        notificationTitle: 'New message',
+        notificationDescription: `${senderName}: ${content.slice(0, 50)}${content.length > 50 ? '…' : ''}`,
+        type: 'CHAT_MESSAGE',
+        metadata: {
+          conversationId,
+          senderId: userId,
+          messageId: message.id,
+        },
+      },
+    });
+
+    // Emit real‑time socket event
+    notificationNameSpace
+      .to(`user_${participant.userId}`)
+      .emit(SOCKET_EVENTS.NOTIFICATION_NEW, notification);
+
+    // ── Push Notification (FCM) ──
+    if (participant.fcmTokens && participant.fcmTokens.length > 0) {
+      const pushQueue = getPushNotificationQueue();
+      await pushQueue.add(EPushNotificationJobName.SEND_MULTICAST, {
+        jobName: EPushNotificationJobName.SEND_MULTICAST,
+        tokens: participant.fcmTokens,
+        payload: {
+          title: 'New message',
+          body: `${senderName}: ${content.slice(0, 50)}${content.length > 50 ? '…' : ''}`,
+          data: {
+            type: 'CHAT_MESSAGE',
             conversationId,
-            senderId: userId,
             messageId: message.id,
           },
         },
+        traceId: `chat-${conversationId}-${Date.now()}`,
       });
-
-      // Enqueue push notification job
-      if (participant.fcmTokens && participant.fcmTokens.length > 0) {
-        await pushQueue.add(EPushNotificationJobName.SEND_MULTICAST, {
-          jobName: EPushNotificationJobName.SEND_MULTICAST,
-          tokens: participant.fcmTokens,
-          payload: {
-            title: 'New message',
-            body: `${participant.name || 'Someone'}: ${content.slice(0, 50)}${content.length > 50 ? '…' : ''}`,
-            data: {
-              type: 'CHAT_MESSAGE',
-              conversationId,
-              messageId: message.id,
-            },
-          },
-          traceId: `chat-${conversationId}-${Date.now()}`,
-        });
-      }
     }
   }
 
@@ -182,7 +192,6 @@ export const handleMessageRead = async (
 
   const { conversationId, messageId } = validated.data as ReadMessagePayload;
 
-  // Update clearedAt to mark all previous messages as read.
   await prisma.conversationSettings.update({
     where: {
       conversationId_userId: { conversationId, userId },
@@ -192,7 +201,6 @@ export const handleMessageRead = async (
     },
   });
 
-  // Notify others in the room
   socket
     .to(`conversation:${conversationId}`)
     .emit(SOCKET_EVENTS.MESSAGE_READ_RESPONSE, {

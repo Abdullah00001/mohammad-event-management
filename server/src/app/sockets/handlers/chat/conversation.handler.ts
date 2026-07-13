@@ -1,3 +1,4 @@
+// server/src/app/sockets/handlers/chat/conversation.handler.ts
 import { AuthenticatedSocket } from '@/app/@types/jwt.types';
 import prisma from '@/app/configs/db.configs';
 import { SOCKET_EVENTS } from '@/const';
@@ -9,7 +10,6 @@ import {
 import { isConversationParticipant } from '@/app/sockets/helpers/chat.helpers';
 import logger from '@/app/configs/logger.configs';
 
-// ─── Join Conversation ─────────────────────────────────────────────
 export const handleConversationJoin = async (
   socket: AuthenticatedSocket,
   data: unknown
@@ -31,20 +31,15 @@ export const handleConversationJoin = async (
 
   const { conversationId } = validated.data as ConversationIdPayload;
 
-  // Verify user is a participant
-  const isParticipant = await isConversationParticipant(conversationId, userId);
-  if (!isParticipant) {
+  if (!(await isConversationParticipant(conversationId, userId))) {
     socket.emit(SOCKET_EVENTS.ERROR, {
       message: 'You are not a participant of this conversation',
     });
     return;
   }
 
-  // Check if user has soft-deleted this conversation
   const settings = await prisma.conversationSettings.findUnique({
-    where: {
-      conversationId_userId: { conversationId, userId },
-    },
+    where: { conversationId_userId: { conversationId, userId } },
   });
   if (settings?.deletedAt) {
     socket.emit(SOCKET_EVENTS.ERROR, {
@@ -58,7 +53,6 @@ export const handleConversationJoin = async (
   logger.debug(`User ${userId} joined conversation ${conversationId}`);
 };
 
-// ─── Leave Conversation ────────────────────────────────────────────
 export const handleConversationLeave = async (
   socket: AuthenticatedSocket,
   data: unknown
@@ -84,7 +78,6 @@ export const handleConversationLeave = async (
   logger.debug(`User ${userId} left conversation ${conversationId}`);
 };
 
-// ─── Clear Conversation ────────────────────────────────────────────
 export const handleConversationClear = async (
   socket: AuthenticatedSocket,
   data: unknown
@@ -106,29 +99,20 @@ export const handleConversationClear = async (
 
   const { conversationId } = validated.data as ConversationIdPayload;
 
-  // Verify user is a participant
-  const isParticipant = await isConversationParticipant(conversationId, userId);
-  if (!isParticipant) {
-    socket.emit(SOCKET_EVENTS.ERROR, {
-      message: 'Not a participant',
-    });
+  if (!(await isConversationParticipant(conversationId, userId))) {
+    socket.emit(SOCKET_EVENTS.ERROR, { message: 'Not a participant' });
     return;
   }
 
   await prisma.conversationSettings.update({
-    where: {
-      conversationId_userId: { conversationId, userId },
-    },
-    data: {
-      clearedAt: new Date(),
-    },
+    where: { conversationId_userId: { conversationId, userId } },
+    data: { clearedAt: new Date() },
   });
 
   socket.emit(SOCKET_EVENTS.CONVERSATION_CLEARED, { conversationId });
   logger.debug(`User ${userId} cleared conversation ${conversationId}`);
 };
 
-// ─── Delete Conversation ───────────────────────────────────────────
 export const handleConversationDelete = async (
   socket: AuthenticatedSocket,
   data: unknown
@@ -150,25 +134,16 @@ export const handleConversationDelete = async (
 
   const { conversationId } = validated.data as ConversationIdPayload;
 
-  // Verify user is a participant
-  const isParticipant = await isConversationParticipant(conversationId, userId);
-  if (!isParticipant) {
-    socket.emit(SOCKET_EVENTS.ERROR, {
-      message: 'Not a participant',
-    });
+  if (!(await isConversationParticipant(conversationId, userId))) {
+    socket.emit(SOCKET_EVENTS.ERROR, { message: 'Not a participant' });
     return;
   }
 
   await prisma.conversationSettings.update({
-    where: {
-      conversationId_userId: { conversationId, userId },
-    },
-    data: {
-      deletedAt: new Date(),
-    },
+    where: { conversationId_userId: { conversationId, userId } },
+    data: { deletedAt: new Date() },
   });
 
-  // Leave the room after deleting
   socket.leave(`conversation:${conversationId}`);
   socket.emit(SOCKET_EVENTS.CONVERSATION_DELETED, { conversationId });
   logger.debug(`User ${userId} deleted conversation ${conversationId}`);
