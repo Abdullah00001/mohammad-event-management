@@ -8,10 +8,9 @@ import {
   getSingleConversationController,
   deleteSingleConversationController,
 } from '@/app/modules/conversations/conversations.controllers';
-import {
-  getConversationQuerySchema,
-} from '@/app/modules/conversations/conversations.schemas';
+import { getConversationQuerySchema } from '@/app/modules/conversations/conversations.schemas';
 import { validateReqQuery } from '@/app/utils/system.utils';
+import { checkConversationAccessMiddleware } from '@/app/modules/conversations/conversations.middlewares';
 
 const router = Router();
 
@@ -26,10 +25,16 @@ router
 
 router
   .route('/conversations/:id')
-  .get(checkAccessToken, checkAccountStatus, getSingleConversationController)
+  .get(
+    checkAccessToken,
+    checkAccountStatus,
+    checkConversationAccessMiddleware,
+    getSingleConversationController
+  )
   .delete(
     checkAccessToken,
     checkAccountStatus,
+    checkConversationAccessMiddleware,
     deleteSingleConversationController
   );
 

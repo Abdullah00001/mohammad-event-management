@@ -43,7 +43,8 @@ export const getMySingleConnectionController = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
     const traceId = getTraceId();
     const { id } = req.params as { id: string };
-    const data = await getMySingleConnectionService({ id });
+    const user = req.user as User;
+    const data = await getMySingleConnectionService({ id, user });
     res.status(200).json({
       success: true,
       status: 200,

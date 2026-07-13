@@ -1,5 +1,10 @@
 import { DEFAULT_LIMIT, DEFAULT_PAGE } from '@/const';
-import { ConversationType, EventStatus, FriendshipStatus, User } from '@prisma/client';
+import {
+  ConversationType,
+  EventStatus,
+  FriendshipStatus,
+  User,
+} from '@prisma/client';
 import prisma from '@/app/configs/db.configs';
 import { BLOCK_STATUS } from '@/app/modules/connection/connection.types';
 import { TSendFriendRequestPayload } from '@/app/modules/connection/connection.schemas';
@@ -140,7 +145,13 @@ export const getMyConnectionService = async ({
   }
 };
 
-export const getMySingleConnectionService = async ({ id }: { id: string }) => {
+export const getMySingleConnectionService = async ({
+  id,
+  user,
+}: {
+  id: string;
+  user: User;
+}) => {
   try {
     // ── 1. Fetch friend's user + profile ──────────────────────────
     const friend = await prisma.user.findUniqueOrThrow({
@@ -166,9 +177,6 @@ export const getMySingleConnectionService = async ({ id }: { id: string }) => {
     });
 
     // ── 2. Events joined count ────────────────────────────────────
-    //
-    // Total events the friend has participated in (any role, not DELETED)
-    //
     const eventsJoinedCount = await prisma.eventParticipants.count({
       where: {
         participantId: id,
@@ -179,9 +187,6 @@ export const getMySingleConnectionService = async ({ id }: { id: string }) => {
     });
 
     // ── 3. Connections count ──────────────────────────────────────
-    //
-    // Total ACCEPTED friendships in both directions
-    //
     const connectionsCount = await prisma.friends.count({
       where: {
         OR: [
@@ -191,11 +196,48 @@ export const getMySingleConnectionService = async ({ id }: { id: string }) => {
       },
     });
 
-    // ── 4. Return friend profile ──────────────────────────────────
+    // ── 4. FIXED: Resolve interest objects from profileInterest IDs
     //
-    // connectionStatus is always MESSAGE — this service is only reachable
-    // after checkIsConnectionExistMiddleware confirms ACCEPTED friendship
+    // Raw IDs replaced with full Interest objects — same pattern as
+    // getSingleEventOrcaService and getProfileInformation
     //
+    const interests = await prisma.interest.findMany({
+      where: {
+        id: { in: friend.profile?.profileInterest ?? [] },
+        isDeleted: false,
+      },
+      select: {
+        id: true,
+        interestName: true,
+        interestIcon: true,
+      },
+    });
+
+    // ── 5. ADDED: Fetch existing PRIVATE conversation ─────────────
+    //
+    // Since this service is only reachable after
+    // checkIsConnectionExistMiddleware confirms ACCEPTED friendship,
+    // the PRIVATE conversation was created when the request was accepted.
+    //
+    const privateConversation = await prisma.conversation.findFirst({
+      where: {
+        type: ConversationType.PRIVATE,
+        deletedAt: null,
+        participants: {
+          some: { userId: user.id },
+        },
+        AND: [
+          {
+            participants: {
+              some: { userId: id },
+            },
+          },
+        ],
+      },
+      select: { id: true },
+    });
+
+    // ── 6. Return friend profile ──────────────────────────────────
     return {
       id: friend.id,
       isPremium: friend.isPremium,
@@ -209,7 +251,8 @@ export const getMySingleConnectionService = async ({ id }: { id: string }) => {
       location: friend.profile?.location ?? null,
       gender: friend.profile?.gender ?? null,
       age: friend.profile?.age ?? null,
-      profileInterest: friend.profile?.profileInterest ?? [],
+      // FIXED: resolved interest objects instead of raw IDs
+      profileInterest: interests,
       countryVisited: friend.profile?.countryVisited ?? [],
 
       // Stats
@@ -218,6 +261,9 @@ export const getMySingleConnectionService = async ({ id }: { id: string }) => {
 
       // Always MESSAGE — confirmed friend
       connectionStatus: 'MESSAGE' as const,
+
+      // ADDED: conversationId for the DM chat
+      conversationId: privateConversation?.id ?? null,
     };
   } catch (error) {
     if (error instanceof Error) throw error;
@@ -226,7 +272,6 @@ export const getMySingleConnectionService = async ({ id }: { id: string }) => {
     );
   }
 };
-
 export const getMyConnectionRequestsService = async ({
   user,
   limit = DEFAULT_LIMIT,

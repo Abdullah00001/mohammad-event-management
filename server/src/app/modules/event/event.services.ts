@@ -1899,9 +1899,6 @@ export const getSingleEventOrcaService = async ({
     });
 
     // ── 3. Fetch event basic details ──────────────────────────────
-    //
-    // ADDED: eventName, eventStatus, startDate, eventType for context
-    //
     const enrichedEvent = await prisma.event.findUniqueOrThrow({
       where: { id: event.id },
       select: {
@@ -1924,9 +1921,6 @@ export const getSingleEventOrcaService = async ({
     });
 
     // ── 4. Resolve interest objects from profileInterest IDs ───────
-    //
-    // ADDED: join Interest table to get full interest details
-    //
     const interests = await prisma.interest.findMany({
       where: {
         id: { in: orca.profile?.profileInterest ?? [] },
@@ -1980,7 +1974,35 @@ export const getSingleEventOrcaService = async ({
       }
     }
 
-    // ── 8. Return orca profile ─────────────────────────────────────
+    // ── 8. ADDED: Fetch existing PRIVATE conversation ─────────────
+    //
+    // Only look up if already friends — otherwise conversationId is null
+    //
+    let conversationId: string | null = null;
+
+    if (connectionStatus === 'MESSAGE') {
+      const privateConversation = await prisma.conversation.findFirst({
+        where: {
+          type: ConversationType.PRIVATE,
+          deletedAt: null,
+          participants: {
+            some: { userId: user.id },
+          },
+          AND: [
+            {
+              participants: {
+                some: { userId: orcaId },
+              },
+            },
+          ],
+        },
+        select: { id: true },
+      });
+
+      conversationId = privateConversation?.id ?? null;
+    }
+
+    // ── 9. Return orca profile ─────────────────────────────────────
     return {
       id: orca.id,
       isPremium: orca.isPremium,
@@ -1994,7 +2016,6 @@ export const getSingleEventOrcaService = async ({
       location: orca.profile?.location ?? null,
       gender: orca.profile?.gender ?? null,
       age: orca.profile?.age ?? null,
-      // ADDED: resolved interest objects instead of raw IDs
       profileInterest: interests,
       countryVisited: orca.profile?.countryVisited ?? [],
 
@@ -2002,7 +2023,7 @@ export const getSingleEventOrcaService = async ({
       eventRole: eventParticipant.role,
       joinedAt: eventParticipant.joinedAt,
 
-      // ADDED: event basic details
+      // Event basic details
       event: {
         id: enrichedEvent.id,
         eventName: enrichedEvent.eventName,
@@ -2017,6 +2038,10 @@ export const getSingleEventOrcaService = async ({
 
       // Calling user → orca relationship
       connectionStatus,
+
+      // ADDED: private conversationId — populated if already friends
+      // and a PRIVATE conversation exists, null otherwise
+      conversationId,
     };
   } catch (error) {
     if (error instanceof Error) throw error;
@@ -2025,7 +2050,6 @@ export const getSingleEventOrcaService = async ({
     );
   }
 };
-
 export const getEventsForAdminService = async ({
   limit = DEFAULT_LIMIT,
   page = DEFAULT_PAGE,
