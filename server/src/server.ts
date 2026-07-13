@@ -7,6 +7,7 @@ import { connectDatabase } from '@/app/configs/db.configs';
 import { connectRedis } from '@/app/configs/redis.config';
 import initializeSocket from '@/app/configs/socket.config';
 import { shutdown } from '@/app/utils/shutdown.utils';
+import { initializeFirebase } from '@/app/configs/firebase.configs';
 
 config();
 
@@ -16,6 +17,7 @@ const server: Server = createServer(app);
 async function main(): Promise<void> {
   await connectRedis();
   await connectDatabase();
+  initializeFirebase();
   initializeSocket(server);
   server.listen(port, '0.0.0.0', () => {
     console.log(`🧰 Worker status: ready`);

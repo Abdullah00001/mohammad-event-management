@@ -7,6 +7,7 @@ import { connectRedis, disconnectRedis } from '@/app/configs/redis.configs';
 import { connectDatabase, disconnectDatabase } from '@/app/configs/db.configs';
 import { createEmailWorker } from '@/app/workers/email.workers';
 import { createSystemWorker } from '@/app/workers/system.worker';
+import { initializeFirebase } from '@/app/configs/firebase.configs';
 
 // ─────────────────────────────────────────────────────────────
 // Registry — add every new Worker instance here
@@ -75,7 +76,7 @@ const start = async (): Promise<void> => {
   // Connect to both Redis and the database before workers start polling
   await connectRedis();
   await connectDatabase();
-
+  initializeFirebase();
   allWorkers = [createEmailWorker(), createSystemWorker()];
   logger.info(
     `${TAG} Ready — ${allWorkers.length} worker(s) active — listening for jobs`
