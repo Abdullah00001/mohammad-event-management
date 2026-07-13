@@ -3,6 +3,7 @@ import 'dotenv/config';
 import logger from '@/app/configs/logger.configs';
 import { connectDatabase, disconnectDatabase } from '@/app/configs/db.configs';
 import { connectRedis, disconnectRedis } from '@/app/configs/redis.configs';
+import { initializeFirebase } from '@/app/configs/firebase.configs';
 
 const TAG = '[Corn]';
 
@@ -45,7 +46,7 @@ const start = async (): Promise<void> => {
 
   await connectRedis();
   await connectDatabase();
-
+  initializeFirebase();
   await import('@/app/jobs');
   logger.info(`${TAG} Ready — schedules loaded and running`);
 };
