@@ -33,7 +33,7 @@ export const SUBSCRIPTION_FEATURE_CACHE_EXPIRY = '1d';
 export const isoUtcRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
 
 export const SOCKET_EVENTS = {
-  // ===== Conversation (Private) =====
+  // ===== Conversation Management =====
   // Client → Server
   CONVERSATION_JOIN: 'conversation:join',
   CONVERSATION_LEAVE: 'conversation:leave',
@@ -46,7 +46,7 @@ export const SOCKET_EVENTS = {
   CONVERSATION_CLEARED: 'conversation:cleared',
   CONVERSATION_DELETED: 'conversation:deleted',
 
-  // ===== Private Messaging =====
+  // ===== Messaging (Unified) =====
   // Client → Server
   MESSAGE_SEND: 'message:send',
   MESSAGE_READ: 'message:read',
@@ -55,18 +55,6 @@ export const SOCKET_EVENTS = {
   MESSAGE_RECEIVED: 'message:received',
   MESSAGE_CONFIRMED: 'message:confirmed',
   MESSAGE_READ_RESPONSE: 'message:read-response',
-
-  // ===== Event Group Chat =====
-  // Client → Server
-  EVENT_JOIN: 'event:join',
-  EVENT_LEAVE: 'event:leave',
-  MESSAGE_SEND_EVENT: 'message:send-event',
-
-  // Server → Client
-  EVENT_JOINED: 'event:joined',
-  EVENT_LEFT: 'event:left',
-  MESSAGE_RECEIVED_EVENT: 'message:received-event',
-  MESSAGE_CONFIRMED_EVENT: 'message:confirmed-event',
 
   // ===== Typing =====
   // Client → Server
