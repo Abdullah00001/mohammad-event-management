@@ -49,17 +49,11 @@ export const SOCKET_EVENTS = {
   // ===== Private Messaging =====
   // Client → Server
   MESSAGE_SEND: 'message:send',
-  MESSAGE_EDIT: 'message:edit',
-  MESSAGE_DELETE: 'message:delete',
-  MESSAGE_DELETE_FOR_ME: 'message:delete-for-me',
   MESSAGE_READ: 'message:read',
 
   // Server → Client
   MESSAGE_RECEIVED: 'message:received',
   MESSAGE_CONFIRMED: 'message:confirmed',
-  MESSAGE_EDITED: 'message:edited',
-  MESSAGE_DELETED: 'message:deleted',
-  MESSAGE_DELETED_FOR_ME: 'message:deleted-for-me',
   MESSAGE_READ_RESPONSE: 'message:read-response',
 
   // ===== Event Group Chat =====
@@ -67,16 +61,12 @@ export const SOCKET_EVENTS = {
   EVENT_JOIN: 'event:join',
   EVENT_LEAVE: 'event:leave',
   MESSAGE_SEND_EVENT: 'message:send-event',
-  MESSAGE_EDIT_EVENT: 'message:edit-event',
-  MESSAGE_DELETE_EVENT: 'message:delete-event',
 
   // Server → Client
   EVENT_JOINED: 'event:joined',
   EVENT_LEFT: 'event:left',
   MESSAGE_RECEIVED_EVENT: 'message:received-event',
   MESSAGE_CONFIRMED_EVENT: 'message:confirmed-event',
-  MESSAGE_EDITED_EVENT: 'message:edited-event',
-  MESSAGE_DELETED_EVENT: 'message:deleted-event',
 
   // ===== Typing =====
   // Client → Server

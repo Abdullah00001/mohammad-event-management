@@ -1,21 +1,35 @@
 import { z } from 'zod';
 
-export const eventChatMessageSchema = z
-  .object({
-    eventId: z.uuid({ error: 'Invalid Event ID' }),
-    content: z
-      .string({ error: 'Must be string' })
-      .min(1, { message: 'Message cannot be empty' })
-      .max(2000, { message: 'Message cannot exceed 2000 characters' }),
-    attachments: z
-      .array(
-        z
-          .url({ message: 'Invalid URL' })
-          .refine((url) => url.startsWith('https://') && url.includes('.s3.'))
-      )
-      .max(10, { message: 'Maximum 10 attachments are allowed' })
-      .optional(),
-  })
-  .strict();
+export const conversationIdSchema = z.object({
+  conversationId: z.uuid(),
+});
 
-export type TEventChatMessagePayload = z.infer<typeof eventChatMessageSchema>;
+export const messageIdSchema = z.object({
+  messageId: z.uuid(),
+});
+
+export const sendMessageSchema = z.object({
+  conversationId: z.uuid(),
+  content: z.string().min(1).max(2000),
+  attachments: z.array(z.url()).default([]),
+  tempId: z.string().min(1),
+});
+
+export const readMessageSchema = z.object({
+  conversationId: z.uuid(),
+  messageId: z.uuid().optional(),
+});
+
+export const typingSchema = z.object({
+  conversationId: z.uuid(),
+});
+
+export const eventJoinSchema = z.object({
+  eventId: z.uuid(),
+});
+
+export type ConversationIdPayload = z.infer<typeof conversationIdSchema>;
+export type SendMessagePayload = z.infer<typeof sendMessageSchema>;
+export type ReadMessagePayload = z.infer<typeof readMessageSchema>;
+export type TypingPayload = z.infer<typeof typingSchema>;
+export type EventJoinPayload = z.infer<typeof eventJoinSchema>;
