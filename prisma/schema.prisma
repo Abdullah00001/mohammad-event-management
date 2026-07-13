@@ -17,6 +17,11 @@ generator workerClient {
   output   = "../worker/node_modules/.prisma/client"
 }
 
+generator cornClient {
+  provider = "prisma-client-js"
+  output   = "../corn/node_modules/.prisma/client"
+}
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
@@ -124,6 +129,7 @@ model User {
   strikeCount           Int               @default(0)
   penaltyEndDate        DateTime?
   lastStrikeDate        DateTime?         // when the last strike was received (for 90‑day reset)
+  trustScore            Int               @default(100)  // internal admin-only reliability score
 
   // Attendance streak (for 30-day strike reset mechanic)
   lastEventAttendedDate DateTime?

@@ -29,6 +29,7 @@ import {
   joinWaitListService,
   removeFromWaitListService,
   acceptWaitListService,
+  getEventFeasibilityService,
 } from '@/app/modules/event/event.services';
 import { asyncHandler } from '@/app/utils/system.utils';
 
@@ -473,6 +474,24 @@ export const removeFromWaitListController = asyncHandler(
       success: true,
       status: 200,
       message: 'User removed from waitlist successfully',
+      traceId,
+    });
+    return;
+  }
+);
+
+// ── Feasibility check controller ─────────────────────────────────────────────
+export const getEventFeasibilityController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const traceId = getTraceId();
+    const user = req.user as User;
+    const event = req.event;
+    const data = await getEventFeasibilityService({ event, user });
+    res.status(200).json({
+      success: true,
+      status: 200,
+      message: 'Feasibility check completed',
+      data,
       traceId,
     });
     return;

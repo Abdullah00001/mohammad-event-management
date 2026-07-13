@@ -1,8 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
 
 import { getTraceId } from '@/app/configs/requestContext.configs';
-import { asyncHandler } from '@/app/utils/system.utils';
+import { asyncHandler, getCountryFromCoords } from '@/app/utils/system.utils';
 import prisma from '@/app/configs/db.configs';
+import { getRedisClient } from '@/app/configs/redis.config';
 import { EventRole, User } from '@prisma/client';
 
 export const findEventByIdMiddleware = asyncHandler(
@@ -292,6 +293,74 @@ export const checkEventCapacityMiddleware = asyncHandler(
       return;
     }
  
+    next();
+    return;
+  }
+);
+
+// ── Penalty enforcement — prevent banned users from creating/joining ──────────
+export const checkUserPenaltyMiddleware = asyncHandler(
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const traceId = getTraceId();
+    const user = req.user as User;
+
+    if (user.penaltyEndDate && new Date() < new Date(user.penaltyEndDate)) {
+      res.status(403).json({
+        success: false,
+        status: 403,
+        message: `Your account is temporarily restricted due to repeated no-shows or late cancellations. The restriction will be lifted on ${new Date(user.penaltyEndDate).toISOString()}.`,
+        data: {
+          penaltyEndDate: user.penaltyEndDate,
+          strikeCount: user.strikeCount,
+        },
+        traceId,
+      });
+      return;
+    }
+
+    next();
+    return;
+  }
+);
+
+// ── Location-based creation guard ─────────────────────────────────────────────
+export const checkEventCreationLocationMiddleware = asyncHandler(
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const traceId = getTraceId();
+    const user = req.user as User;
+    const { lat, lng } = req.body as { lat: number; lng: number };
+
+    if (!user.isPremium) {
+      const redisClient = getRedisClient();
+      const cachedLocation = await redisClient.get(`user:location:${user.id}`);
+      
+      if (!cachedLocation) {
+        res.status(403).json({
+          success: false,
+          status: 403,
+          message: 'Unable to verify your location. Please enable location services.',
+          traceId,
+        });
+        return;
+      }
+
+      const parsed = JSON.parse(cachedLocation) as { lat: number; lng: number };
+      const [userCountry, eventCountry] = await Promise.all([
+        getCountryFromCoords(parsed.lat, parsed.lng),
+        getCountryFromCoords(lat, lng),
+      ]);
+
+      if (userCountry && eventCountry && userCountry !== eventCountry) {
+        res.status(403).json({
+          success: false,
+          status: 403,
+          message: 'Free users can only create events in their current country. Upgrade to Premium for international event creation.',
+          traceId,
+        });
+        return;
+      }
+    }
+
     next();
     return;
   }

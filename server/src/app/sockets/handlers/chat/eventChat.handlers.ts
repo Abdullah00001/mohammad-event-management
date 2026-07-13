@@ -18,8 +18,8 @@ export const sendMessageOnEventChatHandler: TEventHandler<
     });
     return;
   }
-  const { content, eventId, attachments } =
-    payload.data as TEventChatMessagePayload;
+  // TODO: implement logic
+  // const { content, eventId, attachments } = payload.data as TEventChatMessagePayload;
 
   
 };

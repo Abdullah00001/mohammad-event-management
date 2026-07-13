@@ -33,3 +33,15 @@ export interface EventItem {
   eventType: { id: string; title: string; thumbnail: string };
   createdAt: Date;
 }
+
+// ── Feasibility check types ─────────────────────────────────────────────────
+export interface IFeasibilityWarning {
+  type: 'DISTANCE' | 'OVERLAP' | 'TRAVEL_TIME';
+  message: string;
+  metadata: Record<string, string | number | boolean>;
+}
+
+export interface IFeasibilityResult {
+  canJoin: boolean;
+  warnings: IFeasibilityWarning[];
+}

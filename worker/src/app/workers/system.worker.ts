@@ -3,15 +3,16 @@ import { Job, Worker } from 'bullmq';
 import logger from '@/app/configs/logger.configs';
 import { getRedisClient } from '@/app/configs/redis.configs';
 import { requestContext } from '@/app/configs/requestContext.configs';
-import  prisma  from '@/app/configs/db.configs';
+import prisma from '@/app/configs/db.configs';
+import { EventStatus } from '@prisma/client';
+import { getPushNotificationQueue } from '@/app/queues/queues';
 import { getCountryFromGps } from '@/app/utils/geocoder.utils';
-import {Redis} from 'ioredis';
 
 export const createSystemWorker = (): Worker => {
   const SystemWorker = new Worker(
     'system-queue',
     async (job: Job) => {
-      const { id, name, data } = job;
+      const { name, data } = job;
       const traceId = (job.data as any)?.traceId ?? 'NO_TRACE_ID';
       return requestContext.run({ traceId }, async () => {
         try {
@@ -52,6 +53,207 @@ export const createSystemWorker = (): Worker => {
                   `Country code ${countryInfo.countryCode} already in visited list for userId: ${userId}`
                 );
               }
+              return;
+            }
+            case 'reset-user-strikes': {
+              const { userId, previousStrikeCount } = data as {
+                userId: string;
+                previousStrikeCount: number;
+              };
+
+              await prisma.user.update({
+                where: { id: userId },
+                data: {
+                  strikeCount: 0,
+                  penaltyEndDate: null,
+                  lastStrikeDate: null,
+                },
+              });
+
+              logger.info(
+                `Reset strikes for userId: ${userId} (was ${previousStrikeCount})`
+              );
+              return;
+            }
+            case 'update-event-status': {
+              const { eventId, targetStatus } = data as {
+                eventId: string;
+                targetStatus: EventStatus;
+              };
+
+              const event = await prisma.event.update({
+                where: { id: eventId },
+                data: { eventStatus: targetStatus },
+                select: { id: true, lat: true, lng: true, eventName: true },
+              });
+
+              logger.info(
+                `Updated event status to ${targetStatus} for eventId: ${eventId}`
+              );
+
+              // ── Automated No-Show Evaluation ───────────────────────
+              if (targetStatus === 'COMPLETED') {
+                logger.info(`Evaluating no-shows for completed event ${eventId}`);
+                
+                // Fetch active participants (not host, hasn't left)
+                const participants = await prisma.eventParticipants.findMany({
+                  where: {
+                    eventId,
+                    role: { not: 'HOST' },
+                    leftAt: null,
+                  },
+                  select: { id: true, participantId: true, user: { select: { strikeCount: true } } },
+                });
+
+                if (participants.length > 0) {
+                  const redis = getRedisClient();
+                  // Check 2km radius to be forgiving
+                  const nearbyUserIds = await redis.georadius(
+                    'users:locations',
+                    event.lng,
+                    event.lat,
+                    2,
+                    'km'
+                  ) as string[];
+
+                  const noShowParticipants = participants.filter(
+                    (p) => !nearbyUserIds.includes(p.participantId)
+                  );
+
+                  if (noShowParticipants.length > 0) {
+                    for (const p of noShowParticipants) {
+                      const newStrikeCount = p.user.strikeCount + 2;
+                      let penaltyEndDate: Date | null = null;
+                      
+                      // Enforce Ban Logic
+                      if (newStrikeCount >= 5) {
+                        penaltyEndDate = new Date();
+                        penaltyEndDate.setMonth(penaltyEndDate.getMonth() + 1);
+                      } else if (newStrikeCount >= 3) {
+                        penaltyEndDate = new Date();
+                        penaltyEndDate.setDate(penaltyEndDate.getDate() + 7);
+                      }
+
+                      // Transaction for atomic update
+                      await prisma.$transaction([
+                        prisma.eventParticipants.update({
+                          where: { id: p.id },
+                          data: { noShow: true },
+                        }),
+                        prisma.user.update({
+                          where: { id: p.participantId },
+                          data: {
+                            strikeCount: { increment: 2 },
+                            trustScore: { decrement: 5 },
+                            ...(penaltyEndDate && { penaltyEndDate }),
+                          },
+                        }),
+                      ]);
+                      
+                      logger.info(`Penalized ${p.participantId} for no-show on event ${eventId}`);
+                    }
+
+                    // Send push notifications to penalized users
+                    const penalizedUserIds = noShowParticipants.map(p => p.participantId);
+                    const devices = await prisma.device.findMany({
+                      where: { userId: { in: penalizedUserIds } },
+                      select: { fcmToken: true },
+                    });
+
+                    const tokens = devices.map((d) => d.fcmToken).filter(Boolean);
+                    if (tokens.length > 0) {
+                      const pushQueue = getPushNotificationQueue();
+                      await pushQueue.add('send-multicast', {
+                        jobName: 'send-multicast',
+                        tokens,
+                        payload: {
+                          title: 'No-Show Penalty Applied',
+                          body: `You were marked as a no-show for "${event.eventName}". 2 strikes have been added to your account.`,
+                          data: { eventId, type: 'NO_SHOW_PENALTY' },
+                        },
+                        traceId: `noshow-${eventId}-${Date.now()}`,
+                      });
+                    }
+                  }
+                }
+              }
+              return;
+            }
+            case 'notify-nearby-users': {
+              const { eventId, eventName, lat, lng, hostId } = data as {
+                eventId: string;
+                eventName: string;
+                lat: number;
+                lng: number;
+                hostId: string;
+              };
+
+              const redis = getRedisClient();
+              const nearbyUserIds = await redis.georadius(
+                'users:locations',
+                lng,
+                lat,
+                50,
+                'km'
+              );
+
+              const targetUserIds = (nearbyUserIds as string[]).filter(
+                (id) => id !== hostId
+              );
+
+              if (targetUserIds.length === 0) {
+                logger.info(`No nearby users found for event ${eventId}`);
+                return;
+              }
+
+              // 1. Save In-App Notifications to DB
+              const notificationsData = targetUserIds.map((userId) => ({
+                userId,
+                notificationTitle: 'New Event Nearby!',
+                notificationDescription: `An event "${eventName}" was just created near you.`,
+                type: 'EVENT_NEARBY' as const,
+                metadata: { eventId },
+              }));
+
+              await prisma.notification.createMany({
+                data: notificationsData,
+              });
+
+              // 2. Socket Notification (Trigger client to refetch notifications)
+              await redis.publish(
+                'socket:notification',
+                JSON.stringify({
+                  type: 'NEW_NOTIFICATION',
+                  userIds: targetUserIds,
+                })
+              );
+
+              // 2. Push Notification
+              const devices = await prisma.device.findMany({
+                where: { userId: { in: targetUserIds } },
+                select: { fcmToken: true },
+              });
+
+              const tokens = devices.map((d) => d.fcmToken).filter(Boolean);
+
+              if (tokens.length > 0) {
+                const pushQueue = getPushNotificationQueue();
+                await pushQueue.add('send-multicast', {
+                  jobName: 'send-multicast',
+                  tokens,
+                  payload: {
+                    title: 'New Event Nearby!',
+                    body: `An event "${eventName}" was just created near you.`,
+                    data: {
+                      eventId,
+                      type: 'NEW_NEARBY_EVENT',
+                    },
+                  },
+                  traceId: `nearby-event-${eventId}-${Date.now()}`,
+                });
+                logger.info(`Enqueued push notification for ${tokens.length} devices near event ${eventId}`);
+              }
+
               return;
             }
             default:

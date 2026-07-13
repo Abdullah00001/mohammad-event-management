@@ -1,7 +1,6 @@
-// configs/queue.config.ts
 import { QueueOptions } from 'bullmq';
 
-import { getRedisClient } from '@/app/configs/redis.config';
+import { getRedisClient } from '@/app/configs/redis.configs';
 
 export function createQueueOptions(): QueueOptions {
   return {
@@ -17,3 +16,5 @@ export function createQueueOptions(): QueueOptions {
     },
   };
 }
+
+// End of queue configs

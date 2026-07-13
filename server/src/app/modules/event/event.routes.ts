@@ -23,6 +23,7 @@ import {
   retrieveMyAdventureLogsController,
   submitEventJournalController,
   updateEventController,
+  getEventFeasibilityController,
 } from '@/app/modules/event/event.controllers';
 import {
   findEventByIdMiddleware,
@@ -34,6 +35,8 @@ import {
   checkWaitListUserExistMiddleware,
   checkIsOnWaitListMiddleware,
   checkEventCapacityMiddleware,
+  checkUserPenaltyMiddleware,
+  checkEventCreationLocationMiddleware,
 } from '@/app/modules/event/event.middlewares';
 import {
   EventCreateSchema,
@@ -97,8 +100,18 @@ router
   .post(
     checkAccessToken,
     checkAccountStatus,
+    checkUserPenaltyMiddleware,
     findEventByIdMiddleware,
     joinEventController
+  );
+
+router
+  .route('/activity/:id/feasibility')
+  .get(
+    checkAccessToken,
+    checkAccountStatus,
+    findEventByIdMiddleware,
+    getEventFeasibilityController
   );
 
 router
@@ -106,6 +119,7 @@ router
   .post(
     checkAccessToken,
     checkAccountStatus,
+    checkUserPenaltyMiddleware,
     findEventByIdMiddleware,
     joinWaitListController
   );
@@ -170,7 +184,9 @@ router
   .post(
     checkAccessToken,
     checkAccountStatus,
+    checkUserPenaltyMiddleware,
     validateReqBody(EventCreateSchema),
+    checkEventCreationLocationMiddleware,
     checkEventTypeMiddleware,
     createEventController
   );
@@ -201,7 +217,7 @@ router
     checkAccessToken,
     checkAccountStatus,
     findEventByIdMiddleware,
-    checkEventHostMiddleware,
+    // checkEventHostMiddleware,
     getEventParticipantsController
   );
 

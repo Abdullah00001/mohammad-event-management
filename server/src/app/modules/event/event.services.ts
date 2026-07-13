@@ -6,6 +6,7 @@ import {
   Prisma,
   FriendshipStatus,
   ConversationType,
+  StrikeReason,
 } from '@prisma/client';
 
 import prisma from '@/app/configs/db.configs';
@@ -17,7 +18,12 @@ import {
 import { getCountryFromCoords } from '@/app/utils/system.utils';
 import { DEFAULT_LIMIT, DEFAULT_PAGE, DEFAULT_RADIUS_KM } from '@/const';
 import { getRedisClient } from '@/app/configs/redis.config';
-import { EventItem, EventListingResult } from '@/app/modules/event/event.types';
+import {
+  EventItem,
+  EventListingResult,
+  IFeasibilityResult,
+  IFeasibilityWarning,
+} from '@/app/modules/event/event.types';
 import {
   buildDistanceMap,
   buildEmptyResult,
@@ -94,6 +100,18 @@ export const createEventService = async ({
       });
 
       return { event, conversationId: conversation.id };
+    });
+
+    // ── 6. ADDED: Notify nearby users ─────────────────────────────
+    const systemQueue = require('@/app/queues/queues').getSystemQueue();
+    systemQueue.add('notify-nearby-users', {
+      eventId: event.event.id,
+      eventName: event.event.eventName,
+      lat,
+      lng,
+      hostId: user.id,
+    }).catch((err: any) => {
+      require('@/app/configs/logger.configs').default.error('Failed to enqueue notify-nearby-users job', err);
     });
 
     return { eventId: event.event.id, conversationId: event.conversationId };
@@ -1535,6 +1553,47 @@ export const leaveEventService = async ({
           },
         });
       }
+
+      // ── 3. Late cancellation strike logic ──────────────────────────
+      //
+      // If the user leaves within 6 hours of the event start,
+      // apply 1 strike for LATE_CANCELLATION.
+      //
+      const now = new Date();
+      const hoursUntilStart =
+        (event.startDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+      if (hoursUntilStart >= 0 && hoursUntilStart < 6) {
+        // Record the strike
+        await tx.strike.create({
+          data: {
+            userId: user.id,
+            points: 1,
+            reason: StrikeReason.LATE_CANCELLATION,
+          },
+        });
+
+        // Update user strike count and date
+        const updatedStrikeCount = user.strikeCount + 1;
+        let penaltyEndDate: Date | null = null;
+
+        if (updatedStrikeCount >= 5) {
+          // 1 month ban
+          penaltyEndDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+        } else if (updatedStrikeCount >= 3) {
+          // 1 week ban
+          penaltyEndDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+        }
+
+        await tx.user.update({
+          where: { id: user.id },
+          data: {
+            strikeCount: updatedStrikeCount,
+            lastStrikeDate: now,
+            ...(penaltyEndDate && { penaltyEndDate }),
+          },
+        });
+      }
     });
 
     return;
@@ -2271,3 +2330,103 @@ export const removeFromWaitListService = async ({
     throw new Error('Unknown error occurred in remove from waitlist service');
   }
 };
+
+// ── Feasibility check service ────────────────────────────────────────────────
+export const getEventFeasibilityService = async ({
+  event,
+  user,
+}: {
+  event: Event;
+  user: User;
+}): Promise<IFeasibilityResult> => {
+  try {
+    const warnings: IFeasibilityWarning[] = [];
+
+    // ── 1. Distance warning ──────────────────────────────────────────
+    const redisClient = getRedisClient();
+    const cachedLocation = await redisClient.get(`user:location:${user.id}`);
+
+    if (cachedLocation) {
+      const parsed = JSON.parse(cachedLocation) as { lat: number; lng: number };
+      const distanceMap = await buildDistanceMap(
+        [event.id],
+        parsed.lat,
+        parsed.lng
+      );
+      const distanceKm = distanceMap[event.id] ?? 0;
+
+      if (distanceKm > 50) {
+        warnings.push({
+          type: 'DISTANCE',
+          message: `This event is ${distanceKm.toFixed(1)} km away from your current location. Consider the travel effort before committing.`,
+          metadata: { distanceKm },
+        });
+      }
+
+      // ── 2. Travel time warning ───────────────────────────────────────
+      // Estimate based on ~60 km/h average travel speed
+      if (distanceKm > 30) {
+        const estimatedTravelHours = distanceKm / 60;
+        warnings.push({
+          type: 'TRAVEL_TIME',
+          message: `Estimated travel time is approximately ${estimatedTravelHours.toFixed(1)} hours at average driving speed.`,
+          metadata: {
+            estimatedTravelHours: parseFloat(estimatedTravelHours.toFixed(1)),
+            distanceKm,
+          },
+        });
+      }
+    }
+
+    // ── 3. Overlap warning ──────────────────────────────────────────
+    const overlappingEvents = await prisma.eventParticipants.findMany({
+      where: {
+        participantId: user.id,
+        leftAt: null,
+        event: {
+          eventStatus: EventStatus.UPCOMING,
+          OR: [
+            {
+              // Target event starts during an existing event
+              startDate: { lte: event.endDate },
+              endDate: { gte: event.startDate },
+            },
+          ],
+        },
+      },
+      select: {
+        event: {
+          select: {
+            id: true,
+            eventName: true,
+            startDate: true,
+            endDate: true,
+          },
+        },
+      },
+    });
+
+    if (overlappingEvents.length > 0) {
+      const eventNames = overlappingEvents
+        .map((e) => e.event.eventName)
+        .join(', ');
+      warnings.push({
+        type: 'OVERLAP',
+        message: `This event overlaps with your existing commitment(s): ${eventNames}. You may not be able to attend all of them.`,
+        metadata: {
+          overlappingCount: overlappingEvents.length,
+          overlappingEventNames: eventNames,
+        },
+      });
+    }
+
+    return {
+      canJoin: true, // Always true — freedom philosophy, just warn
+      warnings,
+    };
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error('Unknown error occurred in feasibility check service');
+  }
+};
+

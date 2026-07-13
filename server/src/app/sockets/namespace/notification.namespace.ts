@@ -7,8 +7,10 @@ import { notificationEventRegistry } from '@/app/sockets/events/notification.eve
 import { globalSocketErrorMiddleware } from '@/app/middlewares/socket.middlewares';
 import prisma from '@/app/configs/db.configs';
 import { SOCKET_EVENTS } from '@/const';
+import { initializeRedisPubSub } from '@/app/sockets/helpers/redisPubSub.helper';
 
 const notificationNamespace = (notification: Namespace): void => {
+  initializeRedisPubSub(notification);
   notification.on('connection', async (socket) => {
     const user = socket as AuthenticatedSocket;
     logger.info(

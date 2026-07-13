@@ -50,6 +50,8 @@ const initializeSocket = (server: HttpServer) => {
   chatNamespace(chatNameSpace);
   notificationNamespace(notificationNameSpace);
 
+
+
   return io;
 };
 
