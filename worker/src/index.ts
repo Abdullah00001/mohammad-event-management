@@ -7,6 +7,7 @@ import { connectRedis, disconnectRedis } from '@/app/configs/redis.configs';
 import { connectDatabase, disconnectDatabase } from '@/app/configs/db.configs';
 import { createEmailWorker } from '@/app/workers/email.workers';
 import { createSystemWorker } from '@/app/workers/system.worker';
+import { createPushNotificationWorker } from '@/app/workers/push-notification.worker';
 import { initializeFirebase } from '@/app/configs/firebase.configs';
 
 // ─────────────────────────────────────────────────────────────
@@ -77,7 +78,11 @@ const start = async (): Promise<void> => {
   await connectRedis();
   await connectDatabase();
   initializeFirebase();
-  allWorkers = [createEmailWorker(), createSystemWorker()];
+  allWorkers = [
+    createEmailWorker(),
+    createSystemWorker(),
+    createPushNotificationWorker(),
+  ];
   logger.info(
     `${TAG} Ready — ${allWorkers.length} worker(s) active — listening for jobs`
   );

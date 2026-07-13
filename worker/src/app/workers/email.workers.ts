@@ -1,6 +1,5 @@
 import { Job, Worker } from 'bullmq';
 import { compile } from 'handlebars';
-import { PrismaClient } from '@prisma/client';
 
 import logger from '@/app/configs/logger.configs';
 import mailTransporter from '@/app/configs/nodemailer.config';
