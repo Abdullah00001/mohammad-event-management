@@ -207,40 +207,58 @@ export const createSystemWorker = (): Worker => {
               }
 
               // 1. Save In-App Notifications to DB
-              const notificationsData = targetUserIds.map((userId) => ({
-                userId,
-                notificationTitle: 'New Event Nearby!',
-                notificationDescription: `An event "${eventName}" was just created near you.`,
-                type: 'EVENT_NEARBY' as const,
-                metadata: { eventId },
-              }));
-
-              await prisma.notification.createMany({
-                data: notificationsData,
+              const targetUsers = await prisma.user.findMany({
+                where: { id: { in: targetUserIds } },
+                include: { userPreference: true, devices: { select: { fcmToken: true } }, profile: { select: { name: true } } }
               });
 
-              // 2. Socket Notification (Trigger client to refetch notifications)
-              await redis.publish(
-                'socket:notification',
-                JSON.stringify({
-                  type: 'NEW_NOTIFICATION',
-                  userIds: targetUserIds,
-                })
-              );
+              const inAppTargets: string[] = [];
+              const pushTokens: string[] = [];
+              const emailTargets: { email: string, name: string }[] = [];
+
+              targetUsers.forEach(u => {
+                const pref = u.userPreference;
+                if (pref?.inAppNotifications ?? true) inAppTargets.push(u.id);
+                if (pref?.pushNotifications ?? true) {
+                  u.devices.forEach(d => {
+                    if (d.fcmToken) pushTokens.push(d.fcmToken);
+                  });
+                }
+                if ((pref?.emailNotification ?? true) && u.email) {
+                  emailTargets.push({ email: u.email, name: u.profile?.name || 'User' });
+                }
+              });
+
+              // 1. In-App Notification (Database)
+              if (inAppTargets.length > 0) {
+                const notificationsData = inAppTargets.map((userId) => ({
+                  userId,
+                  notificationTitle: 'New Event Nearby!',
+                  notificationDescription: `An event "${eventName}" was just created near you.`,
+                  type: 'EVENT_NEARBY' as const,
+                  metadata: { eventId },
+                }));
+
+                await prisma.notification.createMany({
+                  data: notificationsData,
+                });
+
+                // Socket Notification
+                await redis.publish(
+                  'socket:notification',
+                  JSON.stringify({
+                    type: 'NEW_NOTIFICATION',
+                    userIds: inAppTargets,
+                  })
+                );
+              }
 
               // 2. Push Notification
-              const devices = await prisma.device.findMany({
-                where: { userId: { in: targetUserIds } },
-                select: { fcmToken: true },
-              });
-
-              const tokens = devices.map((d) => d.fcmToken).filter(Boolean);
-
-              if (tokens.length > 0) {
+              if (pushTokens.length > 0) {
                 const pushQueue = getPushNotificationQueue();
                 await pushQueue.add('send-multicast', {
                   jobName: 'send-multicast',
-                  tokens,
+                  tokens: pushTokens,
                   payload: {
                     title: 'New Event Nearby!',
                     body: `An event "${eventName}" was just created near you.`,
@@ -251,7 +269,21 @@ export const createSystemWorker = (): Worker => {
                   },
                   traceId: `nearby-event-${eventId}-${Date.now()}`,
                 });
-                logger.info(`Enqueued push notification for ${tokens.length} devices near event ${eventId}`);
+                logger.info(`Enqueued push notification for ${pushTokens.length} devices near event ${eventId}`);
+              }
+
+              // 3. Email Notification
+              if (emailTargets.length > 0) {
+                const emailQueue = require('@/app/queues/queues').getEmailQueue();
+                const emailJobs = emailTargets.map(u => 
+                  emailQueue.add('send-nearby-event-email', {
+                    email: u.email,
+                    eventName,
+                    traceId: `nearby-email-${eventId}-${Date.now()}`
+                  })
+                );
+                await Promise.all(emailJobs);
+                logger.info(`Enqueued email notification for ${emailTargets.length} users near event ${eventId}`);
               }
 
               return;

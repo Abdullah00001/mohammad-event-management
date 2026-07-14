@@ -1,4 +1,4 @@
-import { ConversationType, EventStatus, User } from '@prisma/client';
+import { ConversationType, EventStatus, User, FriendshipStatus } from '@prisma/client';
 import prisma from '@/app/configs/db.configs';
 import { DEFAULT_LIMIT, DEFAULT_PAGE } from '@/const';
 import { TGetConversationQuery } from '@/app/modules/conversations/conversations.schemas';
@@ -23,7 +23,7 @@ export const getConversationsService = async ({
     // Exclude conversations where the other participant has blocked
     // the calling user OR the calling user has blocked them.
     //
-    const [blockedByMe, blockedMe] = await Promise.all([
+    const [blockedByMe, blockedMe, friendships] = await Promise.all([
       prisma.blockList.findMany({
         where: { blockerId: user.id },
         select: { blockedUserId: true },
@@ -32,12 +32,36 @@ export const getConversationsService = async ({
         where: { blockedUserId: user.id },
         select: { blockerId: true },
       }),
+      prisma.friends.findMany({
+        where: {
+          OR: [{ senderId: user.id }, { receiverId: user.id }],
+        },
+      }),
     ]);
 
+    const blockedByMeSet = new Set(blockedByMe.map((r) => r.blockedUserId));
+    const blockedMeSet = new Set(blockedMe.map((r) => r.blockerId));
+
     const blockedIds = new Set([
-      ...blockedByMe.map((r) => r.blockedUserId),
-      ...blockedMe.map((r) => r.blockerId),
+      ...blockedByMeSet,
+      ...blockedMeSet,
     ]);
+
+    const friendSet = new Set<string>();
+    const pendingSentSet = new Set<string>();
+    const pendingReceivedSet = new Set<string>();
+    for (const f of friendships) {
+      const otherId = f.senderId === user.id ? f.receiverId : f.senderId;
+      if (f.status === FriendshipStatus.ACCEPTED) {
+        friendSet.add(otherId);
+      } else if (f.status === FriendshipStatus.PENDING) {
+        if (f.senderId === user.id) {
+          pendingSentSet.add(otherId);
+        } else {
+          pendingReceivedSet.add(otherId);
+        }
+      }
+    }
 
     // ── 2. Fetch paginated conversations + total count ────────────
     const [rawConversations, totalCount] = await prisma.$transaction([
@@ -188,24 +212,40 @@ export const getConversationsService = async ({
     ]);
 
     // ── 3. Shape response ─────────────────────────────────────────
-    const conversations = rawConversations.map((conv) => ({
-      id: conv.id,
-      type: conv.type,
-      updatedAt: conv.updatedAt,
+    const conversations = rawConversations.map((conv) => {
+      let otherParticipant = null;
 
-      // For PRIVATE: the other user's profile
-      // For GROUP: null (use event info instead)
-      otherParticipant:
-        conv.type === ConversationType.PRIVATE
-          ? (conv.participants[0]?.user ?? null)
-          : null,
+      if (conv.type === ConversationType.PRIVATE) {
+        const participantUser = conv.participants[0]?.user ?? null;
+        if (participantUser) {
+          let connectionStatus: 'ADD_ORCA' | 'PENDING' | 'ACCEPT' | 'FRIEND' | 'BLOCKED_BY_ME' | 'BLOCKED_ME' = 'ADD_ORCA';
+          if (blockedByMeSet.has(participantUser.id)) {
+            connectionStatus = 'BLOCKED_BY_ME';
+          } else if (blockedMeSet.has(participantUser.id)) {
+            connectionStatus = 'BLOCKED_ME';
+          } else if (friendSet.has(participantUser.id)) {
+            connectionStatus = 'FRIEND';
+          } else if (pendingSentSet.has(participantUser.id)) {
+            connectionStatus = 'PENDING';
+          } else if (pendingReceivedSet.has(participantUser.id)) {
+            connectionStatus = 'ACCEPT';
+          }
+          otherParticipant = {
+            ...participantUser,
+            connectionStatus,
+          };
+        }
+      }
 
-      // For GROUP: event info
-      event: conv.type === ConversationType.GROUP ? (conv.event ?? null) : null,
-
-      // Last message preview
-      lastMessage: conv.messages[0] ?? null,
-    }));
+      return {
+        id: conv.id,
+        type: conv.type,
+        updatedAt: conv.updatedAt,
+        otherParticipant,
+        event: conv.type === ConversationType.GROUP ? (conv.event ?? null) : null,
+        lastMessage: conv.messages[0] ?? null,
+      };
+    });
 
     // ── 4. Paginate & respond ─────────────────────────────────────
     const totalPages = Math.ceil(totalCount / limit);
@@ -303,28 +343,76 @@ export const getSingleConversationService = async ({
       }),
     };
 
-    const messages = await prisma.message.findMany({
-      where: messagesWhere,
-      select: {
-        id: true,
-        content: true,
-        attachments: true,
-        isEdited: true,
-        createdAt: true,
-        sender: {
-          select: {
-            id: true,
-            profile: { select: { name: true, avatar: true } },
+    const [messages, blockedByMe, blockedMe, friendships] = await Promise.all([
+      prisma.message.findMany({
+        where: messagesWhere,
+        select: {
+          id: true,
+          content: true,
+          attachments: true,
+          isEdited: true,
+          createdAt: true,
+          sender: {
+            select: {
+              id: true,
+              profile: { select: { name: true, avatar: true } },
+            },
           },
         },
-      },
-      orderBy: { createdAt: 'asc' },
-    });
+        orderBy: { createdAt: 'asc' },
+      }),
+      prisma.blockList.findMany({
+        where: { blockerId: user.id },
+        select: { blockedUserId: true },
+      }),
+      prisma.blockList.findMany({
+        where: { blockedUserId: user.id },
+        select: { blockerId: true },
+      }),
+      prisma.friends.findMany({
+        where: {
+          OR: [{ senderId: user.id }, { receiverId: user.id }],
+        },
+      }),
+    ]);
 
     // ── 4. Shape response ─────────────────────────────────────────
+    const blockedByMeSet = new Set(blockedByMe.map((r) => r.blockedUserId));
+    const blockedMeSet = new Set(blockedMe.map((r) => r.blockerId));
+
+    const friendSet = new Set<string>();
+    const pendingSentSet = new Set<string>();
+    const pendingReceivedSet = new Set<string>();
+    for (const f of friendships) {
+      const otherId = f.senderId === user.id ? f.receiverId : f.senderId;
+      if (f.status === FriendshipStatus.ACCEPTED) {
+        friendSet.add(otherId);
+      } else if (f.status === FriendshipStatus.PENDING) {
+        if (f.senderId === user.id) pendingSentSet.add(otherId);
+        else pendingReceivedSet.add(otherId);
+      }
+    }
+
     const otherParticipants = conversation.participants
       .filter((p) => p.user.id !== user.id)
-      .map((p) => p.user);
+      .map((p) => {
+        let connectionStatus: 'ADD_ORCA' | 'PENDING' | 'ACCEPT' | 'FRIEND' | 'BLOCKED_BY_ME' | 'BLOCKED_ME' = 'ADD_ORCA';
+        if (blockedByMeSet.has(p.user.id)) {
+          connectionStatus = 'BLOCKED_BY_ME';
+        } else if (blockedMeSet.has(p.user.id)) {
+          connectionStatus = 'BLOCKED_ME';
+        } else if (friendSet.has(p.user.id)) {
+          connectionStatus = 'FRIEND';
+        } else if (pendingSentSet.has(p.user.id)) {
+          connectionStatus = 'PENDING';
+        } else if (pendingReceivedSet.has(p.user.id)) {
+          connectionStatus = 'ACCEPT';
+        }
+        return {
+          ...p.user,
+          connectionStatus,
+        };
+      });
 
     return {
       id: conversation.id,

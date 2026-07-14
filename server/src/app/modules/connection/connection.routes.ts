@@ -18,6 +18,8 @@ import {
   checkIsUserBlockMiddleware,
   checkReceiverExistMiddleware,
   manageMyConnectionRequestsMiddleware,
+  checkDuplicateFriendRequestMiddleware,
+  checkReceiverBlockStatusMiddleware,
 } from '@/app/modules/connection/connection.middlewares';
 import { validateReqBody } from '@/app/utils/system.utils';
 import {
@@ -33,16 +35,6 @@ router
   .get(checkAccessToken, checkAccountStatus, getMyConnectionController);
 
 router
-  .route('/connections/:id')
-  .get(
-    checkAccessToken,
-    checkAccountStatus,
-    checkIsConnectionExistMiddleware,
-    checkIsUserBlockMiddleware,
-    getMySingleConnectionController
-  );
-
-router
   .route('/connections/requests')
   .get(checkAccessToken, checkAccountStatus, getMyConnectionRequestsController)
   .post(
@@ -50,6 +42,8 @@ router
     checkAccountStatus,
     validateReqBody(sendFriendRequestSchema),
     checkReceiverExistMiddleware,
+    checkReceiverBlockStatusMiddleware,
+    checkDuplicateFriendRequestMiddleware,
     sendFriendRequestController
   )
   .patch(
@@ -69,6 +63,16 @@ router
     checkIsConnectionExistMiddleware,
     blockOneConnectionMiddleware,
     blockOneConnectionController
+  );
+
+router
+  .route('/connections/:id')
+  .get(
+    checkAccessToken,
+    checkAccountStatus,
+    checkIsConnectionExistMiddleware,
+    checkIsUserBlockMiddleware,
+    getMySingleConnectionController
   );
 
 export default router;

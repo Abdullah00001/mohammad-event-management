@@ -20,6 +20,7 @@ export function registerEventReminderJob(): void {
       const windowEnd = new Date(now.getTime() + 60 * 60 * 1000);
 
       const pushQueue = getPushNotificationQueue();
+      const emailQueue = require('@/app/queues/queues').getEmailQueue(); // Assuming it's exported
 
       const upcomingEvents = await prisma.event.findMany({
         where: {
@@ -35,6 +36,8 @@ export function registerEventReminderJob(): void {
             include: {
               user: {
                 include: {
+                  userPreference: true,
+                  profile: { select: { name: true } },
                   devices: {
                     select: { fcmToken: true },
                   },
@@ -55,13 +58,27 @@ export function registerEventReminderJob(): void {
 
       for (const event of upcomingEvents) {
         const tokens: string[] = [];
+        const emailsToNotify: { email: string; name: string }[] = [];
         
         event.eventParticipants.forEach((ep: any) => {
-          ep.user.devices.forEach((device: any) => {
-            if (device.fcmToken) {
-              tokens.push(device.fcmToken);
-            }
-          });
+          const pref = ep.user.userPreference;
+          const wantsReminders = pref?.eventReminders ?? true;
+          if (!wantsReminders) return;
+
+          const wantsPush = pref?.pushNotifications ?? true;
+          const wantsEmail = pref?.emailNotification ?? true;
+
+          if (wantsPush) {
+            ep.user.devices.forEach((device: any) => {
+              if (device.fcmToken) {
+                tokens.push(device.fcmToken);
+              }
+            });
+          }
+
+          if (wantsEmail && ep.user.email) {
+            emailsToNotify.push({ email: ep.user.email, name: ep.user.profile?.name || 'User' });
+          }
         });
 
         if (tokens.length > 0) {
@@ -80,6 +97,19 @@ export function registerEventReminderJob(): void {
               traceId: `reminder-${event.id}-${Date.now()}`,
             })
           );
+        }
+
+        if (emailsToNotify.length > 0) {
+          emailsToNotify.forEach(user => {
+            notificationJobs.push(
+              emailQueue.add('send-event-reminder-email', {
+                email: user.email,
+                eventName: event.eventName,
+                startTime: event.startDate,
+                traceId: `reminder-email-${event.id}-${Date.now()}`,
+              })
+            );
+          });
         }
       }
 

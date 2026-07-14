@@ -3,6 +3,7 @@ import { Request, Response, NextFunction } from 'express';
 import { JwtPayload } from 'jsonwebtoken';
 
 import prisma from '@/app/configs/db.configs';
+import logger from '@/app/configs/logger.configs';
 import { getRedisClient } from '@/app/configs/redis.config';
 import { getTraceId } from '@/app/configs/requestContext.configs';
 import { AuthErrorType } from '@/app/modules/user/user.types';
@@ -237,6 +238,21 @@ export const checkAccessToken = asyncHandler(
       return;
     }
     req.user = decoded;
+    
+    // Background activity tracking
+    const userId = decoded.sub as string | undefined;
+    if (userId) {
+      const activeKey = `activity:${userId}`;
+      redisClient.set(activeKey, '1', 'EX', 300, 'NX').then((setResult: any) => {
+        if (setResult === 'OK') {
+          prisma.user.update({
+            where: { id: userId },
+            data: { lastActiveAt: new Date() }
+          }).catch((err: any) => logger.error('Failed to update activity', err));
+        }
+      });
+    }
+
     next();
   }
 );

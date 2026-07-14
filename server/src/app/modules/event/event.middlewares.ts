@@ -211,18 +211,17 @@ export const checkOrcaBlockStatus = asyncHandler(
   }
 );
 
-
 // ── 1. Check user exists ──────────────────────────────────────────────────────
 export const checkWaitListUserExistMiddleware = asyncHandler(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const traceId = getTraceId();
     const { participantId } = req.params as { participantId: string };
- 
+
     const user = await prisma.user.findUnique({
       where: { id: participantId },
       select: { id: true },
     });
- 
+
     if (!user) {
       res.status(404).json({
         success: false,
@@ -232,19 +231,19 @@ export const checkWaitListUserExistMiddleware = asyncHandler(
       });
       return;
     }
- 
+
     next();
     return;
   }
 );
- 
+
 // ── 2. Check user is on the waitlist ─────────────────────────────────────────
 export const checkIsOnWaitListMiddleware = asyncHandler(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const traceId = getTraceId();
     const event = req.event;
     const { participantId } = req.params as { participantId: string };
- 
+
     const waitListEntry = await prisma.waitList.findUnique({
       where: {
         eventId_userId: {
@@ -254,7 +253,7 @@ export const checkIsOnWaitListMiddleware = asyncHandler(
       },
       select: { id: true },
     });
- 
+
     if (!waitListEntry) {
       res.status(404).json({
         success: false,
@@ -264,25 +263,25 @@ export const checkIsOnWaitListMiddleware = asyncHandler(
       });
       return;
     }
- 
+
     next();
     return;
   }
 );
- 
+
 // ── 3. Check event has enough capacity (POST only) ────────────────────────────
 export const checkEventCapacityMiddleware = asyncHandler(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const traceId = getTraceId();
     const event = req.event;
- 
+
     const participantCount = await prisma.eventParticipants.count({
       where: {
         eventId: event.id,
         leftAt: null,
       },
     });
- 
+
     if (participantCount >= event.maxParticipantsCount) {
       res.status(400).json({
         success: false,
@@ -292,7 +291,7 @@ export const checkEventCapacityMiddleware = asyncHandler(
       });
       return;
     }
- 
+
     next();
     return;
   }
@@ -333,12 +332,13 @@ export const checkEventCreationLocationMiddleware = asyncHandler(
     if (!user.isPremium) {
       const redisClient = getRedisClient();
       const cachedLocation = await redisClient.get(`user:location:${user.id}`);
-      
+
       if (!cachedLocation) {
         res.status(403).json({
           success: false,
           status: 403,
-          message: 'Unable to verify your location. Please enable location services.',
+          message:
+            'Unable to verify your location. Please enable location services.',
           traceId,
         });
         return;
@@ -354,11 +354,69 @@ export const checkEventCreationLocationMiddleware = asyncHandler(
         res.status(403).json({
           success: false,
           status: 403,
-          message: 'Free users can only create events in their current country. Upgrade to Premium for international event creation.',
+          message:
+            'Free users can only create events in their current country. Upgrade to Premium for international event creation.',
           traceId,
         });
         return;
       }
+    }
+
+    next();
+    return;
+  }
+);
+
+export const checkAlreadyJoinedEventMiddleware = asyncHandler(
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const user = req.user as User;
+    const event = req.event;
+    const traceId = getTraceId();
+
+    const existingParticipant = await prisma.eventParticipants.findFirst({
+      where: {
+        eventId: event.id,
+        participantId: user.id,
+        leftAt: null,
+      },
+    });
+
+    if (existingParticipant) {
+      res.status(409).json({
+        success: false,
+        status: 409,
+        message: 'You have already joined this event.',
+        traceId,
+      });
+      return;
+    }
+
+    next();
+    return;
+  }
+);
+
+export const checkAlreadyOnWaitlistMiddleware = asyncHandler(
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const user = req.user as User;
+    const event = req.event;
+    const traceId = getTraceId();
+
+    const existingWaitlist = await prisma.waitList.findFirst({
+      where: {
+        eventId: event.id,
+        userId: user.id,
+      },
+    });
+
+    if (existingWaitlist) {
+      res.status(409).json({
+        success: false,
+        status: 409,
+        message: 'You are already on the waitlist for this event.',
+        traceId,
+      });
+      return;
     }
 
     next();

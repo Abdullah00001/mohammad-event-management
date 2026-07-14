@@ -12,6 +12,7 @@ import {
 } from '@/app/modules/connection/connection.services';
 import { User } from '@prisma/client';
 import { TSendFriendRequestPayload } from '@/app/modules/connection/connection.schemas';
+import { TGeMyConnectionRequests } from '@/app/modules/connection/connection.types';
 
 export const getMyConnectionController = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
@@ -32,7 +33,7 @@ export const getMyConnectionController = asyncHandler(
       success: true,
       status: 200,
       message: 'All connection retrieve successful',
-      data,
+      ...(data as Record<string, any>),
       traceId,
     });
     return;
@@ -64,7 +65,7 @@ export const getMyConnectionRequestsController = asyncHandler(
       page: string | undefined;
       limit: string | undefined;
     };
-    const data = await getMyConnectionRequestsService({
+    const data: TGeMyConnectionRequests = await getMyConnectionRequestsService({
       user,
       page: page ? Number(page) : undefined,
       limit: limit ? Number(limit) : undefined,
@@ -73,7 +74,7 @@ export const getMyConnectionRequestsController = asyncHandler(
       success: true,
       status: 200,
       message: 'All connection retrieve successful',
-      data,
+      ...data,
       traceId,
     });
     return;

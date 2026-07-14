@@ -214,3 +214,67 @@ export const checkReceiverExistMiddleware = asyncHandler(
     return;
   }
 );
+
+export const checkDuplicateFriendRequestMiddleware = asyncHandler(
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const traceId = getTraceId();
+    const user = req.user as User;
+    const { receiverId } = req.body as { receiverId: string };
+
+    const existingRequest = await prisma.friends.findFirst({
+      where: {
+        OR: [
+          { senderId: user.id, receiverId: receiverId },
+          { senderId: receiverId, receiverId: user.id },
+        ],
+      },
+    });
+
+    if (existingRequest && existingRequest.status !== FriendshipStatus.REJECTED) {
+      const message =
+        existingRequest.status === FriendshipStatus.ACCEPTED
+          ? 'You are already friends with this user'
+          : 'A friend request already exists between you and this user';
+      res.status(409).json({
+        success: false,
+        status: 409,
+        message,
+        traceId,
+      });
+      return;
+    }
+
+    next();
+    return;
+  }
+);
+
+export const checkReceiverBlockStatusMiddleware = asyncHandler(
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const traceId = getTraceId();
+    const user = req.user as User;
+    const { receiverId } = req.body as { receiverId: string };
+
+    const block = await prisma.blockList.findFirst({
+      where: {
+        OR: [
+          { blockerId: user.id, blockedUserId: receiverId },
+          { blockerId: receiverId, blockedUserId: user.id },
+        ],
+      },
+      select: { blockerId: true },
+    });
+
+    if (block) {
+      const message =
+        block.blockerId === user.id
+          ? 'You have blocked this user'
+          : 'You have been blocked by this user';
+
+      res.status(403).json({ success: false, status: 403, message, traceId });
+      return;
+    }
+    next();
+    return;
+  }
+);

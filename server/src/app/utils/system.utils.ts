@@ -176,6 +176,7 @@ export const validateReqBody =
   <T>(schema: ZodType<T>) =>
   async (req: Request, res: Response, next: NextFunction) => {
     const traceId = getTraceId();
+    console.log(req.body);
     if (!ALLOWED_WRITE_METHODS.includes(req.method as any)) {
       return next();
     }

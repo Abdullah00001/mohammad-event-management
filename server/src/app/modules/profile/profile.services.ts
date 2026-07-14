@@ -60,6 +60,7 @@ export const getProfileInformation = async ({
     const totalEventsAttended = await prisma.eventParticipants.count({
       where: {
         participantId: userId,
+        leftAt: null,
         event: {
           eventStatus: { not: EventStatus.DELETED },
         },

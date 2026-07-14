@@ -9,6 +9,10 @@ import { passwordResetSuccessEmailTemplate } from '@/app/templates/passwordReset
 import { recoverUserOtpEmailTemplate } from '@/app/templates/recoverUserOtpEmail.template';
 import { signupSuccessfulEmailTemplate } from '@/app/templates/signupSuccessfulEmail.template';
 import { signupUserVerifyOtpEmailTemplate } from '@/app/templates/signupUserVerifyOtpEmail.template';
+import { nearbyEventEmailTemplate } from '@/app/templates/nearbyEventEmail.template';
+import { eventReminderEmailTemplate } from '@/app/templates/eventReminderEmail.template';
+import { unreadMessagesEmailTemplate } from '@/app/templates/unreadMessagesEmail.template';
+import { inactivityEmailTemplate } from '@/app/templates/inactivityEmail.template';
 import { mailOption } from '@/app/utils/system.utils';
 import { otpExpireAt } from '@/const';
 
@@ -88,6 +92,42 @@ export const createEmailWorker = (): Worker => {
                   'Security Alert: Your password was changed',
                   personalizedTemplate
                 )
+              );
+              return;
+            }
+            case 'send-nearby-event-email': {
+              const { email, eventName } = data as { email: string; eventName: string };
+              const template = compile(nearbyEventEmailTemplate);
+              const personalizedTemplate = template({ eventName });
+              await mailTransporter.sendMail(
+                mailOption(email, 'New Event Nearby!', personalizedTemplate)
+              );
+              return;
+            }
+            case 'send-event-reminder-email': {
+              const { email, eventName } = data as { email: string; eventName: string };
+              const template = compile(eventReminderEmailTemplate);
+              const personalizedTemplate = template({ eventName });
+              await mailTransporter.sendMail(
+                mailOption(email, 'Event Starting Soon!', personalizedTemplate)
+              );
+              return;
+            }
+            case 'send-unread-messages-email': {
+              const { email, unreadCount } = data as { email: string; unreadCount: number };
+              const template = compile(unreadMessagesEmailTemplate);
+              const personalizedTemplate = template({ unreadCount });
+              await mailTransporter.sendMail(
+                mailOption(email, 'You have unread messages!', personalizedTemplate)
+              );
+              return;
+            }
+            case 'send-inactivity-email': {
+              const { email } = data as { email: string };
+              const template = compile(inactivityEmailTemplate);
+              const personalizedTemplate = template({});
+              await mailTransporter.sendMail(
+                mailOption(email, 'We Miss You!', personalizedTemplate)
               );
               return;
             }

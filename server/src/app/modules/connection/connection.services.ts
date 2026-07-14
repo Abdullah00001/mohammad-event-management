@@ -6,8 +6,9 @@ import {
   User,
 } from '@prisma/client';
 import prisma from '@/app/configs/db.configs';
-import { BLOCK_STATUS } from '@/app/modules/connection/connection.types';
+import { BLOCK_STATUS, TGeMyConnectionRequests } from '@/app/modules/connection/connection.types';
 import { TSendFriendRequestPayload } from '@/app/modules/connection/connection.schemas';
+
 
 export const getMyConnectionService = async ({
   user,
@@ -108,6 +109,13 @@ export const getMyConnectionService = async ({
     const friends = rawFriends.map((f) => {
       const friend = f.senderId === user.id ? f.receiver : f.sender;
 
+      let connectionStatus: "ADD_ORCA" | "FRIEND" | "BLOCKED_BY_ME" | "BLOCKED_ME" = "FRIEND";
+      if (friend.blockedBy.length > 0) {
+        connectionStatus = "BLOCKED_BY_ME";
+      } else if (friend.blockedUsers.length > 0) {
+        connectionStatus = "BLOCKED_ME";
+      }
+
       return {
         friendshipId: f.id,
         userId: friend.id,
@@ -116,9 +124,7 @@ export const getMyConnectionService = async ({
         avatar: friend.profile?.avatar ?? null,
         bio: friend.profile?.bio ?? null,
         connectedAt: f.createdAt,
-        // ADDED: derived from joined rows — no extra queries needed
-        isBlockedByMe: friend.blockedBy.length > 0,
-        isBlockedMe: friend.blockedUsers.length > 0,
+        connectionStatus,
       };
     });
 
@@ -180,6 +186,7 @@ export const getMySingleConnectionService = async ({
     const eventsJoinedCount = await prisma.eventParticipants.count({
       where: {
         participantId: id,
+        leftAt: null,
         event: {
           eventStatus: { not: EventStatus.DELETED },
         },
@@ -259,8 +266,8 @@ export const getMySingleConnectionService = async ({
       eventsJoinedCount,
       connectionsCount,
 
-      // Always MESSAGE — confirmed friend
-      connectionStatus: 'MESSAGE' as const,
+      // Always FRIEND — confirmed friend
+      connectionStatus: 'FRIEND' as const,
 
       // ADDED: conversationId for the DM chat
       conversationId: privateConversation?.id ?? null,
@@ -280,7 +287,7 @@ export const getMyConnectionRequestsService = async ({
   user: User;
   page: number | undefined;
   limit: number | undefined;
-}): Promise<unknown> => {
+}): Promise<TGeMyConnectionRequests> => {
   try {
     const offset = (page - 1) * limit;
 
@@ -332,13 +339,14 @@ export const getMyConnectionRequestsService = async ({
       avatar: f.sender.profile?.avatar ?? null,
       bio: f.sender.profile?.bio ?? null,
       requestedAt: f.createdAt,
+      connectionStatus: 'ACCEPT' as const,
     }));
 
     // ── 3. Paginate & respond ─────────────────────────────────────
     const totalPages = Math.ceil(totalCount / limit);
 
     return {
-      data: requests,
+      data: [...requests],
       meta: {
         totalRequests: totalCount,
         totalPages,
@@ -477,19 +485,33 @@ export const sendFriendRequestService = async ({
   try {
     const { receiverId, requestStatus } = payload;
 
-    const friendRequest = await prisma.friends.create({
-      data: {
-        senderId: user.id,
-        receiverId,
-        status: requestStatus,
-      },
-      select: {
-        id: true,
-        senderId: true,
-        receiverId: true,
-        status: true,
-        createdAt: true,
-      },
+    const friendRequest = await prisma.$transaction(async (tx) => {
+      // ── 1. Clean up any existing (e.g. REJECTED) requests ──────────
+      // This prevents Unique Constraint Violations if they try to connect again.
+      await tx.friends.deleteMany({
+        where: {
+          OR: [
+            { senderId: user.id, receiverId: receiverId },
+            { senderId: receiverId, receiverId: user.id },
+          ],
+        },
+      });
+
+      // ── 2. Create the new request ──────────────────────────────────
+      return await tx.friends.create({
+        data: {
+          senderId: user.id,
+          receiverId,
+          status: requestStatus,
+        },
+        select: {
+          id: true,
+          senderId: true,
+          receiverId: true,
+          status: true,
+          createdAt: true,
+        },
+      });
     });
 
     return friendRequest;

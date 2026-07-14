@@ -28,6 +28,7 @@ export const UserPreferenceSchema = z.object({
   emailNotification: z.boolean().default(false).optional(),
   eventReminders: z.boolean().default(false).optional(),
   friendRequest: z.boolean().default(false).optional(),
+  inAppNotifications: z.boolean().default(false).optional(),
 });
 
 export type TUserPreference = z.infer<typeof UserPreferenceSchema>;

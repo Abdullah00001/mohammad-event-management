@@ -104,15 +104,20 @@ export const createEventService = async ({
 
     // ── 6. ADDED: Notify nearby users ─────────────────────────────
     const systemQueue = require('@/app/queues/queues').getSystemQueue();
-    systemQueue.add('notify-nearby-users', {
-      eventId: event.event.id,
-      eventName: event.event.eventName,
-      lat,
-      lng,
-      hostId: user.id,
-    }).catch((err: any) => {
-      require('@/app/configs/logger.configs').default.error('Failed to enqueue notify-nearby-users job', err);
-    });
+    systemQueue
+      .add('notify-nearby-users', {
+        eventId: event.event.id,
+        eventName: event.event.eventName,
+        lat,
+        lng,
+        hostId: user.id,
+      })
+      .catch((err: any) => {
+        require('@/app/configs/logger.configs').default.error(
+          'Failed to enqueue notify-nearby-users job',
+          err
+        );
+      });
 
     return { eventId: event.event.id, conversationId: event.conversationId };
   } catch (error) {
@@ -204,7 +209,7 @@ export const getEventListingService = async ({
         SELECT e.id::text
         FROM "Event" e
         WHERE ${haversinePredicate}
-          AND e."eventStatus"::text != 'DELETED'
+          AND e."eventStatus"::text IN ('UPCOMING', 'ONGOING')
       `
     );
 
@@ -258,7 +263,7 @@ export const getEventListingService = async ({
     //
     const sharedWhere = {
       id: { in: filteredIds },
-      eventStatus: { not: EventStatus.DELETED },
+      eventStatus: { in: [EventStatus.UPCOMING, EventStatus.ONGOING] },
       isPrivate: false,
 
       ...(startDateFilter && { startDate: startDateFilter }),
@@ -489,8 +494,12 @@ export const getSingleWildEventService = async ({
       enrichedEvent.eventParticipants.find((p) => p.role === EventRole.HOST) ??
       null;
 
-    // Rule 1: Only public events are visible in the wild
-    if (enrichedEvent.isPrivate) {
+    // Rule 1: Only public, upcoming or ongoing events are visible in the wild
+    if (
+      enrichedEvent.isPrivate ||
+      (enrichedEvent.eventStatus !== EventStatus.UPCOMING &&
+        enrichedEvent.eventStatus !== EventStatus.ONGOING)
+    ) {
       return null;
     }
 
@@ -598,7 +607,7 @@ export const getSingleAdventureDetailsService = async ({
 
         // Count only — for "3/6 orcas" badge
         _count: {
-          select: { eventParticipants: true },
+          select: { eventParticipants: { where: { leftAt: null } } },
         },
 
         // ADDED: conversation linked to this event
@@ -747,8 +756,13 @@ export const getEventParticipantsService = async ({
       .filter((p) => p.participantId !== user.id)
       .map((p) => p.participantId);
 
-    // ── 3. Fetch block relationships in bulk ────────────────────────
-    const [hostBlockedRows, participantBlockedRows] = await Promise.all([
+    // ── 3. Fetch block relationships in bulk ──────────────────────
+    //
+    // RENAMED: relative to the calling user (host or traveler)
+    //   isBlockedByMe  — calling user blocked this participant
+    //   isBlockedMe    — this participant blocked the calling user
+    //
+    const [blockedByMeRows, blockedMeRows] = await Promise.all([
       prisma.blockList.findMany({
         where: {
           blockerId: user.id,
@@ -765,38 +779,46 @@ export const getEventParticipantsService = async ({
       }),
     ]);
 
-    const hostBlockedSet = new Set(hostBlockedRows.map((r) => r.blockedUserId));
-    const participantBlockedSet = new Set(
-      participantBlockedRows.map((r) => r.blockerId)
-    );
+    const blockedByMeSet = new Set(blockedByMeRows.map((r) => r.blockedUserId));
+    const blockedMeSet = new Set(blockedMeRows.map((r) => r.blockerId));
 
-    // ── 4. Fetch friendship relationships in bulk ───────────────────
+    // ── 4. Fetch friendship relationships in bulk ─────────────────
+    //
+    // RENAMED: isFriendWithMe — friendship between calling user and participant
+    //
     const friendships = await prisma.friends.findMany({
       where: {
-        status: FriendshipStatus.ACCEPTED,
         OR: [
           { senderId: user.id, receiverId: { in: participantIds } },
           { senderId: { in: participantIds }, receiverId: user.id },
         ],
       },
-      select: { senderId: true, receiverId: true },
+      select: { senderId: true, receiverId: true, status: true },
     });
 
     const friendSet = new Set(
-      friendships.map((f) =>
-        f.senderId === user.id ? f.receiverId : f.senderId
-      )
+      friendships
+        .filter((f) => f.status === 'ACCEPTED')
+        .map((f) => (f.senderId === user.id ? f.receiverId : f.senderId))
     );
 
-    // ── 5. ADDED: Fetch existing PRIVATE conversations between ──────
-    //      the calling user and each participant on this page
-    //
-    // A private conversation exists when both users are participants
-    // in the same PRIVATE conversation.
-    //
+    const pendingSentSet = new Set(
+      friendships
+        .filter((f) => f.status === 'PENDING' && f.senderId === user.id)
+        .map((f) => f.receiverId)
+    );
+
+    const pendingReceivedSet = new Set(
+      friendships
+        .filter((f) => f.status === 'PENDING' && f.receiverId === user.id)
+        .map((f) => f.senderId)
+    );
+
+    // ── 5. Fetch existing PRIVATE conversations ───────────────────
     const privateConversations = await prisma.conversation.findMany({
       where: {
         type: ConversationType.PRIVATE,
+        deletedAt: null,
         participants: {
           some: { userId: user.id },
         },
@@ -816,7 +838,6 @@ export const getEventParticipantsService = async ({
       },
     });
 
-    // Build a map: otherUserId → conversationId
     const conversationMap = new Map<string, string>();
     for (const conv of privateConversations) {
       const otherUser = conv.participants.find((p) => p.userId !== user.id);
@@ -825,17 +846,32 @@ export const getEventParticipantsService = async ({
       }
     }
 
-    // ── 6. Shape participants with flags + conversationId ───────────
+    // ── 6. Shape participants with flags ──────────────────────────
     const participants = rawParticipants.map((p) => {
-      const isFriend = friendSet.has(p.participantId);
-
-      // ADDED: conversationId — only populated if already friends AND
-      // a private conversation already exists between the two users.
-      // null if not friends yet or conversation hasn't been created.
+      const isFriendWithMe = friendSet.has(p.participantId);
       const conversationId =
-        isFriend && conversationMap.has(p.participantId)
+        isFriendWithMe && conversationMap.has(p.participantId)
           ? conversationMap.get(p.participantId)!
           : null;
+
+      let connectionStatus:
+        | 'ADD_ORCA'
+        | 'PENDING'
+        | 'ACCEPT'
+        | 'FRIEND'
+        | 'BLOCKED_BY_ME'
+        | 'BLOCKED_ME' = 'ADD_ORCA';
+      if (blockedByMeSet.has(p.participantId)) {
+        connectionStatus = 'BLOCKED_BY_ME';
+      } else if (blockedMeSet.has(p.participantId)) {
+        connectionStatus = 'BLOCKED_ME';
+      } else if (isFriendWithMe) {
+        connectionStatus = 'FRIEND';
+      } else if (pendingSentSet.has(p.participantId)) {
+        connectionStatus = 'PENDING';
+      } else if (pendingReceivedSet.has(p.participantId)) {
+        connectionStatus = 'ACCEPT';
+      }
 
       return {
         role: p.role,
@@ -848,14 +884,12 @@ export const getEventParticipantsService = async ({
           gender: p.user.profile?.gender ?? null,
           age: p.user.profile?.age ?? null,
         },
-        isBlockedByHost: hostBlockedSet.has(p.participantId),
-        isHostBlockedByParticipant: participantBlockedSet.has(p.participantId),
-        isFriendWithHost: isFriend,
+        connectionStatus,
         conversationId,
       };
     });
 
-    // ── 7. Paginate & respond ───────────────────────────────────────
+    // ── 7. Paginate & respond ─────────────────────────────────────
     const totalPages = Math.ceil(totalCount / limit);
 
     return {
@@ -1126,7 +1160,7 @@ export const retrieveMyAdventureLogsService = async ({
 
               // ── JOIN 3: count for "9/4 orcas" badge ─────────────────────
               _count: {
-                select: { eventParticipants: true },
+                select: { eventParticipants: { where: { leftAt: null } } },
               },
             },
           },
@@ -1270,7 +1304,7 @@ export const getMyActivityService = async ({
 
           // Count only
           _count: {
-            select: { eventParticipants: true },
+            select: { eventParticipants: { where: { leftAt: null } } },
           },
         },
         orderBy: { startDate: 'asc' },
@@ -1373,7 +1407,7 @@ export const getMySingleEventService = async ({
 
         // Count instead of full participants array
         _count: {
-          select: { eventParticipants: true },
+          select: { eventParticipants: { where: { leftAt: null } } },
         },
 
         // Only fetch the host row
@@ -1650,6 +1684,7 @@ export const getEventJournalService = async ({
       prisma.eventParticipants.count({
         where: {
           eventId: event.id,
+          leftAt: null,
         },
       }),
     ]);
@@ -1853,16 +1888,27 @@ export const getEventSummaryService = async ({
       const friendship = friendshipMap.get(p.participantId) ?? null;
 
       // Derive button state:
-      // - ACCEPTED            → "Message"
-      // - PENDING (any dir.)  → "Pending"
-      // - no row              → "Add orca"
-      let connectionStatus: 'MESSAGE' | 'PENDING' | 'ADD_ORCA' = 'ADD_ORCA';
+      // - ACCEPTED            → "FRIEND"
+      // - PENDING (user sent) → "PENDING"
+      // - PENDING (user recv) → "ACCEPT"
+      // - no row              → "ADD_ORCA"
+      let connectionStatus:
+        | 'ADD_ORCA'
+        | 'PENDING'
+        | 'ACCEPT'
+        | 'FRIEND'
+        | 'BLOCKED_BY_ME'
+        | 'BLOCKED_ME' = 'ADD_ORCA';
 
       if (friendship) {
-        if (friendship.status === FriendshipStatus.ACCEPTED) {
-          connectionStatus = 'MESSAGE';
-        } else if (friendship.status === FriendshipStatus.PENDING) {
-          connectionStatus = 'PENDING';
+        if (friendship.status === 'ACCEPTED') {
+          connectionStatus = 'FRIEND';
+        } else if (friendship.status === 'PENDING') {
+          if (friendship.senderId === user.id) {
+            connectionStatus = 'PENDING';
+          } else {
+            connectionStatus = 'ACCEPT';
+          }
         }
       }
 
@@ -1996,6 +2042,7 @@ export const getSingleEventOrcaService = async ({
     const eventsJoinedCount = await prisma.eventParticipants.count({
       where: {
         participantId: orcaId,
+        leftAt: null,
         event: {
           eventStatus: { not: EventStatus.DELETED },
         },
@@ -2023,13 +2070,23 @@ export const getSingleEventOrcaService = async ({
       select: { status: true, senderId: true },
     });
 
-    let connectionStatus: 'ADD_ORCA' | 'PENDING' | 'MESSAGE' = 'ADD_ORCA';
+    let connectionStatus:
+      | 'ADD_ORCA'
+      | 'PENDING'
+      | 'ACCEPT'
+      | 'FRIEND'
+      | 'BLOCKED_BY_ME'
+      | 'BLOCKED_ME' = 'ADD_ORCA';
 
     if (friendship) {
-      if (friendship.status === FriendshipStatus.ACCEPTED) {
-        connectionStatus = 'MESSAGE';
-      } else if (friendship.status === FriendshipStatus.PENDING) {
-        connectionStatus = 'PENDING';
+      if (friendship.status === 'ACCEPTED') {
+        connectionStatus = 'FRIEND';
+      } else if (friendship.status === 'PENDING') {
+        if (friendship.senderId === user.id) {
+          connectionStatus = 'PENDING';
+        } else {
+          connectionStatus = 'ACCEPT';
+        }
       }
     }
 
@@ -2039,7 +2096,7 @@ export const getSingleEventOrcaService = async ({
     //
     let conversationId: string | null = null;
 
-    if (connectionStatus === 'MESSAGE') {
+    if (connectionStatus === 'FRIEND') {
       const privateConversation = await prisma.conversation.findFirst({
         where: {
           type: ConversationType.PRIVATE,
@@ -2429,4 +2486,3 @@ export const getEventFeasibilityService = async ({
     throw new Error('Unknown error occurred in feasibility check service');
   }
 };
-

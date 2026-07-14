@@ -37,6 +37,8 @@ import {
   checkEventCapacityMiddleware,
   checkUserPenaltyMiddleware,
   checkEventCreationLocationMiddleware,
+  checkAlreadyJoinedEventMiddleware,
+  checkAlreadyOnWaitlistMiddleware,
 } from '@/app/modules/event/event.middlewares';
 import {
   EventCreateSchema,
@@ -102,6 +104,7 @@ router
     checkAccountStatus,
     checkUserPenaltyMiddleware,
     findEventByIdMiddleware,
+    checkAlreadyJoinedEventMiddleware,
     joinEventController
   );
 
@@ -121,6 +124,7 @@ router
     checkAccountStatus,
     checkUserPenaltyMiddleware,
     findEventByIdMiddleware,
+    checkAlreadyOnWaitlistMiddleware,
     joinWaitListController
   );
 
