@@ -24,12 +24,30 @@ export const getMyConnectionService = async ({
   try {
     const offset = (page - 1) * limit;
 
+    // ── 0. Fetch blocked IDs ──────────────────────────────────────
+    const [blockedByMe, blockedMe] = await Promise.all([
+      prisma.blockList.findMany({
+        where: { blockerId: user.id },
+        select: { blockedUserId: true },
+      }),
+      prisma.blockList.findMany({
+        where: { blockedUserId: user.id },
+        select: { blockerId: true },
+      }),
+    ]);
+
+    const blockedIds = [
+      ...blockedByMe.map((b) => b.blockedUserId),
+      ...blockedMe.map((b) => b.blockerId),
+    ];
+
     // ── 1. Shared where clause ────────────────────────────────────
     const sharedWhere = {
       status: FriendshipStatus.ACCEPTED,
       OR: [
         {
           senderId: user.id,
+          receiverId: { notIn: blockedIds },
           receiver: search
             ? {
                 profile: {
@@ -40,6 +58,7 @@ export const getMyConnectionService = async ({
         },
         {
           receiverId: user.id,
+          senderId: { notIn: blockedIds },
           sender: search
             ? {
                 profile: {
