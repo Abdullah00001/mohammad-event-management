@@ -62,7 +62,7 @@ export const getEventsListingController = asyncHandler(
     const user = req.user as User;
     const query = req.validatedQuery as EventQueryParams;
     const response = await getEventListingService({ query, user });
-    res.status(201).json({
+    res.status(200).json({
       success: true,
       status: 200,
       message: 'Events retrieve successful',
