@@ -11,6 +11,7 @@ import NotificationRoutes from '@/app/modules/notification/notification.routes';
 import ConnectionRoute from '@/app/modules/connection/connection.routes';
 import AttachmentRoutes from '@/app/modules/attachment/attachment.routes';
 import Conversations from '@/app/modules/conversations/conversations.routes';
+import LegalContentRoutes from '@/app/modules/legalContent/legalContent.routes';
 
 const routes: Router[] = [
   UserRoutes,
@@ -24,6 +25,7 @@ const routes: Router[] = [
   ConnectionRoute,
   AttachmentRoutes,
   Conversations,
+  LegalContentRoutes,
 ];
 
 const v1Routes = Router();
