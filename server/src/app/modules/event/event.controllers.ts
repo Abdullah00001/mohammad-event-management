@@ -23,6 +23,8 @@ import {
   submitEventJournalService,
   getEventSummaryService,
   getSingleEventOrcaService,
+  getSingleEventForAdminService,
+  getEventParticipantsForAdminService,
   getEventsForAdminService,
   getEventParticipantsService,
   getEventWaitListService,
@@ -415,11 +417,30 @@ export const getEventsForAdminController = asyncHandler(
       page?: string;
       limit?: string;
     };
+    const path = req.path;
     const data = await getEventsForAdminService({
       page: page ? Number(page) : undefined,
       limit: limit ? Number(limit) : undefined,
       search,
+      path,
     });
+    res.status(200).json({
+      success: true,
+      message: 'Events retrieved successfully',
+      ...(data as object),
+      traceId,
+    });
+    return;
+  }
+);
+
+export const getSingleEventForAdminController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const traceId = getTraceId();
+    const { id } = req.params;
+    // For single event, we just use getSingleEventForAdminService (need to implement it or use existing one if we want)
+    // Actually the user didn't specify the structure for single event, but let's assume standard response.
+    const data = await getSingleEventForAdminService({ eventId: id as string });
     res.status(200).json({
       success: true,
       status: 200,
@@ -431,14 +452,25 @@ export const getEventsForAdminController = asyncHandler(
   }
 );
 
-export const getSingleEventForAdminController = asyncHandler(
-  async (_req: Request, res: Response): Promise<void> => {
+export const getEventParticipantsForAdminController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
     const traceId = getTraceId();
+    const { id } = req.params;
+    const { limit, page } = req.query as {
+      page?: string;
+      limit?: string;
+    };
+    const path = req.path;
+    const data = await getEventParticipantsForAdminService({
+      eventId: id as string,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+      path,
+    });
     res.status(200).json({
       success: true,
-      status: 200,
-      message: 'Event retrieved successfully',
-      data: {},
+      message: 'Users retrieved successful',
+      ...(data as object),
       traceId,
     });
     return;

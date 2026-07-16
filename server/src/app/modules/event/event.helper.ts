@@ -1,7 +1,7 @@
-import prisma from "@/app/configs/db.configs";
-import { EARTH_RADIUS_KM } from "@/const";
-import { EventListingResult } from "@/app/modules/event/event.types";
-import { Prisma } from "@prisma/client";
+import prisma from '@/app/configs/db.configs';
+import { EARTH_RADIUS_KM } from '@/const';
+import { EventListingResult } from '@/app/modules/event/event.types';
+import { Prisma } from '@prisma/client';
 
 /**
  * Returns a Prisma.sql fragment for the Haversine distance predicate.
@@ -16,15 +16,15 @@ import { Prisma } from "@prisma/client";
 export function buildHaversineFragment(
   lat: number,
   lng: number,
-  radiusKm: number,
+  radiusKm: number
 ): Prisma.Sql {
   // Prisma.raw embeds the value literally into the SQL string —
   // safe here because these are server-controlled numbers, not user input.
-  const R      = Prisma.raw(String(EARTH_RADIUS_KM));
-  const pLat   = Prisma.raw(String(lat));
-  const pLng   = Prisma.raw(String(lng));
+  const R = Prisma.raw(String(EARTH_RADIUS_KM));
+  const pLat = Prisma.raw(String(lat));
+  const pLng = Prisma.raw(String(lng));
   const pRadKm = Prisma.raw(String(radiusKm));
- 
+
   return Prisma.sql`
     (
       ${R} * 2.0 * asin(
@@ -38,7 +38,7 @@ export function buildHaversineFragment(
     ) <= ${pRadKm}
   `;
 }
- 
+
 /**
  * Returns the ids of users the given user has blocked or is blocked by.
  * Events hosted by these users should be excluded.
@@ -50,7 +50,7 @@ export async function getBlockedUserIds(userId: string): Promise<string[]> {
     },
     select: { blockerId: true, blockedUserId: true },
   });
- 
+
   const ids = new Set<string>();
   for (const b of blocks) {
     if (b.blockerId !== userId) ids.add(b.blockerId);
@@ -58,7 +58,7 @@ export async function getBlockedUserIds(userId: string): Promise<string[]> {
   }
   return [...ids];
 }
- 
+
 /**
  * Parses a "HH:MM" time string into total minutes since midnight.
  * Used for time-range filtering.
@@ -68,9 +68,10 @@ export function timeToMinutes(time: string): number {
   return h * 60 + m;
 }
 
-
-
-export function buildEmptyResult(page: number, limit: number): EventListingResult {
+export function buildEmptyResult(
+  page: number,
+  _limit: number
+): EventListingResult {
   return {
     data: [],
     meta: {
@@ -132,4 +133,3 @@ export async function buildDistanceMap(
 
   return Object.fromEntries(rows.map((r) => [r.id, Number(r.distance_km)]));
 }
- 

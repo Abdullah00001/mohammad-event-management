@@ -13,6 +13,8 @@ import AttachmentRoutes from '@/app/modules/attachment/attachment.routes';
 import Conversations from '@/app/modules/conversations/conversations.routes';
 import LegalContentRoutes from '@/app/modules/legalContent/legalContent.routes';
 
+import DashboardRoutes from '@/app/modules/dashboard/dashboard.routes';
+
 const routes: Router[] = [
   UserRoutes,
   ProfileRoutes,
@@ -26,6 +28,7 @@ const routes: Router[] = [
   AttachmentRoutes,
   Conversations,
   LegalContentRoutes,
+  DashboardRoutes,
 ];
 
 const v1Routes = Router();

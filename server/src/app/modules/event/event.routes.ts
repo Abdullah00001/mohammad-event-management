@@ -13,6 +13,7 @@ import {
   getMySingleActivityController,
   getSingleAdventureDetailsController,
   getSingleEventForAdminController,
+  getEventParticipantsForAdminController,
   getSingleEventOrcaController,
   getSingleWildEventController,
   joinEventController,
@@ -279,5 +280,9 @@ router
 router
   .route('/admin/events/:id')
   .get(checkAdminAccessToken, getSingleEventForAdminController);
+
+router
+  .route('/admin/events/:id/participants')
+  .get(checkAdminAccessToken, getEventParticipantsForAdminController);
 
 export default router;

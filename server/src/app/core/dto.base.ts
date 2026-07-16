@@ -12,7 +12,7 @@ export abstract class BaseDTO<T> {
    * Initialize DTO from the given entity.
    * @param entity - The source entity object.
    */
-  constructor(entity: T) {}
+  constructor(_entity: T) {}
 
   /**
    * Factory method to create a DTO instance from an entity.

@@ -16,8 +16,10 @@ import {
   TUpdateEventInformationPayload,
 } from '@/app/modules/event/event.schemas';
 import { getCountryFromCoords } from '@/app/utils/system.utils';
-import { DEFAULT_LIMIT, DEFAULT_PAGE, DEFAULT_RADIUS_KM } from '@/const';
+import { baseUrl, DEFAULT_LIMIT, DEFAULT_PAGE, DEFAULT_RADIUS_KM } from '@/const';
 import { getRedisClient } from '@/app/configs/redis.config';
+import logger from '@/app/configs/logger.configs';
+import { getSystemQueue } from '@/app/queues/queues';
 import {
   EventItem,
   EventListingResult,
@@ -103,7 +105,7 @@ export const createEventService = async ({
     });
 
     // ── 6. ADDED: Notify nearby users ─────────────────────────────
-    const systemQueue = require('@/app/queues/queues').getSystemQueue();
+    const systemQueue = getSystemQueue();
     systemQueue
       .add('notify-nearby-users', {
         eventId: event.event.id,
@@ -113,7 +115,7 @@ export const createEventService = async ({
         hostId: user.id,
       })
       .catch((err: any) => {
-        require('@/app/configs/logger.configs').default.error(
+        logger.error(
           'Failed to enqueue notify-nearby-users job',
           err
         );
@@ -1892,7 +1894,7 @@ export const getEventSummaryService = async ({
     const totalOrcas = otherParticipants.length;
     const paginatedOrcas = otherParticipants.slice(offset, offset + limit);
 
-    const orcas = paginatedOrcas.map((p) => {
+    paginatedOrcas.map((p) => {
       const friendship = friendshipMap.get(p.participantId) ?? null;
 
       // Derive button state:
@@ -1931,7 +1933,7 @@ export const getEventSummaryService = async ({
     });
 
     // ── 5. Paginate & respond ─────────────────────────────────────
-    const totalPages = Math.ceil(totalOrcas / limit);
+    Math.ceil(totalOrcas / limit);
 
     return {
       // Event summary block
@@ -2179,13 +2181,16 @@ export const getEventsForAdminService = async ({
   limit = DEFAULT_LIMIT,
   page = DEFAULT_PAGE,
   search,
+  path,
 }: {
   search?: string;
   page?: number;
   limit?: number;
+  path: string;
 }): Promise<unknown> => {
   try {
     const offset = (page - 1) * limit;
+    const url = `${baseUrl.v1}${path}`;
 
     // ── 1. Shared where clause ────────────────────────────────────
     //
@@ -2292,20 +2297,42 @@ export const getEventsForAdminService = async ({
     });
 
     // ── 4. Paginate & respond ─────────────────────────────────────
-    const totalPages = Math.ceil(totalCount / limit);
+    const totalPages = totalCount === 0 ? 1 : Math.ceil(totalCount / limit);
+    const from = totalCount === 0 ? 0 : offset + 1;
+    const to = Math.min(offset + limit, totalCount);
+    const showing = `Showing ${from} to ${to} of ${totalCount} results`;
+
+    const linksFn = (targetPage: number): string => {
+      const params = new URLSearchParams();
+      params.set('page', String(targetPage));
+      params.set('limit', String(limit));
+      if (search) params.set('search', search);
+      return `${url}?${params.toString()}`;
+    };
+
+    const currentLinkFn = (): string => {
+      const params = new URLSearchParams();
+      if (page) params.set('page', String(page));
+      if (limit) params.set('limit', String(limit));
+      if (search) params.set('search', search);
+      const query = params.toString();
+      return query ? `${url}?${query}` : url;
+    };
 
     return {
       data: events,
+      links: {
+        firstPage: linksFn(1),
+        lastPage: linksFn(totalPages),
+        currentPage: currentLinkFn(),
+        nextPage: page < totalPages ? linksFn(page + 1) : null,
+        previousPage: page > 1 ? linksFn(page - 1) : null,
+      },
       meta: {
-        totalEvents: totalCount,
+        totalCount,
         totalPages,
-        links: {
-          currentPage: page,
-          nextPage: page < totalPages ? page + 1 : null,
-          previousPage: page > 1 ? page - 1 : null,
-          firstPage: 1,
-          lastPage: totalPages || 1,
-        },
+        limit,
+        showing,
       },
     };
   } catch (error) {
@@ -2493,5 +2520,172 @@ export const getEventFeasibilityService = async ({
   } catch (error) {
     if (error instanceof Error) throw error;
     throw new Error('Unknown error occurred in feasibility check service');
+  }
+};
+
+export const getSingleEventForAdminService = async ({
+  eventId,
+}: {
+  eventId: string;
+}): Promise<unknown> => {
+  try {
+    const event = await prisma.event.findUnique({
+      where: { id: eventId },
+      include: {
+        eventTypes: {
+          select: {
+            eventType: {
+              select: {
+                title: true,
+              },
+            },
+          },
+        },
+        eventParticipants: {
+          where: { leftAt: null, role: EventRole.HOST },
+          select: {
+            user: {
+              select: {
+                id: true,
+                profile: {
+                  select: {
+                    name: true,
+                    avatar: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!event) return null;
+
+    const host = event.eventParticipants[0] ?? null;
+
+    return {
+      id: event.id,
+      eventName: event.eventName,
+      startDate: event.startDate,
+      endDate: event.endDate,
+      eventStatus: event.eventStatus,
+      lat: event.lat,
+      lng: event.lng,
+      isPrivate: event.isPrivate,
+      createdAt: event.createdAt,
+      maxParticipantsCount: event.maxParticipantsCount,
+      eventType: event.eventTypes[0]?.eventType ?? null,
+      host: host
+        ? {
+            id: host.user.id,
+            name: host.user.profile?.name ?? null,
+            avatar: host.user.profile?.avatar ?? null,
+          }
+        : null,
+    };
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error('Unknown error occurred in get single event for admin service');
+  }
+};
+
+export const getEventParticipantsForAdminService = async ({
+  eventId,
+  limit = DEFAULT_LIMIT,
+  page = DEFAULT_PAGE,
+  path,
+}: {
+  eventId: string;
+  page?: number;
+  limit?: number;
+  path: string;
+}): Promise<unknown> => {
+  try {
+    const offset = (page - 1) * limit;
+    const url = `${baseUrl.v1}${path}`;
+
+    const [rawParticipants, totalCount] = await prisma.$transaction([
+      prisma.eventParticipants.findMany({
+        where: {
+          eventId,
+          leftAt: null,
+        },
+        select: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              accountStatus: true,
+              createdAt: true,
+              profile: {
+                select: {
+                  name: true,
+                  avatar: true,
+                },
+              },
+            },
+          },
+        },
+        orderBy: { joinedAt: 'desc' },
+        skip: offset,
+        take: limit,
+      }),
+      prisma.eventParticipants.count({
+        where: {
+          eventId,
+          leftAt: null,
+        },
+      }),
+    ]);
+
+    const users = rawParticipants.map((p) => ({
+      id: p.user.id,
+      name: p.user.profile?.name ?? null,
+      email: p.user.email,
+      avatar: p.user.profile?.avatar ?? null,
+      createdAt: p.user.createdAt,
+      accountStatus: p.user.accountStatus,
+    }));
+
+    const totalPages = totalCount === 0 ? 1 : Math.ceil(totalCount / limit);
+    const from = totalCount === 0 ? 0 : offset + 1;
+    const to = Math.min(offset + limit, totalCount);
+    const showing = `Showing ${from} to ${to} of ${totalCount} results`;
+
+    const linksFn = (targetPage: number): string => {
+      const params = new URLSearchParams();
+      params.set('page', String(targetPage));
+      params.set('limit', String(limit));
+      return `${url}?${params.toString()}`;
+    };
+
+    const currentLinkFn = (): string => {
+      const params = new URLSearchParams();
+      if (page) params.set('page', String(page));
+      if (limit) params.set('limit', String(limit));
+      const query = params.toString();
+      return query ? `${url}?${query}` : url;
+    };
+
+    return {
+      data: users,
+      links: {
+        firstPage: linksFn(1),
+        lastPage: linksFn(totalPages),
+        currentPage: currentLinkFn(),
+        nextPage: page < totalPages ? linksFn(page + 1) : null,
+        previousPage: page > 1 ? linksFn(page - 1) : null,
+      },
+      meta: {
+        totalCount,
+        totalPages,
+        limit,
+        showing,
+      },
+    };
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error('Unknown error occurred in get event participants for admin service');
   }
 };

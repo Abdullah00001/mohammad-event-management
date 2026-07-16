@@ -11,7 +11,7 @@ import { ZodType } from 'zod';
 import {
   TFirebaseCredentials,
   TMailOption,
-  TSendNotificationPayload,
+
 } from '@/app/@types/system.types';
 import logger from '@/app/configs/logger.configs';
 import { getTraceId } from '@/app/configs/requestContext.configs';
@@ -280,24 +280,6 @@ export function getFirebaseCredentials(): TFirebaseCredentials {
     universe_domain: env.FIREBASE_UNIVERSE_DOMAIN,
     client_email: env.FIREBASE_CLIENT_EMAIL,
   };
-}
-
-export async function sendNotification({
-  data,
-  fcmToken,
-  userId,
-}: TSendNotificationPayload) {
-  try {
-    // const user=await
-  } catch (error) {
-    if (error instanceof Error)
-      logger.error(`Error sending notification to user ${userId}:`, error);
-    else
-      logger.error(
-        `Unknown error sending notification to user ${userId}:`,
-        error
-      );
-  }
 }
 
 export function timeToMinutes(time: string): number {
