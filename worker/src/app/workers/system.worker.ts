@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { Job, Worker } from 'bullmq';
 
 import logger from '@/app/configs/logger.configs';
@@ -231,12 +232,17 @@ export const createSystemWorker = (): Worker => {
 
               // 1. In-App Notification (Database)
               if (inAppTargets.length > 0) {
+                const now = new Date();
                 const notificationsData = inAppTargets.map((userId) => ({
+                  id: randomUUID(),
                   userId,
                   notificationTitle: 'New Event Nearby!',
                   notificationDescription: `An event "${eventName}" was just created near you.`,
                   type: 'EVENT_NEARBY' as const,
                   metadata: { eventId },
+                  isRead: false,
+                  createdAt: now,
+                  updatedAt: now,
                 }));
 
                 await prisma.notification.createMany({
@@ -248,7 +254,7 @@ export const createSystemWorker = (): Worker => {
                   'socket:notification',
                   JSON.stringify({
                     type: 'NEW_NOTIFICATION',
-                    userIds: inAppTargets,
+                    notifications: notificationsData,
                   })
                 );
               }

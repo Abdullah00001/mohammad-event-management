@@ -6,7 +6,7 @@ export const notificationQuerySchema = z.object({
     .string()
     .transform((val) => parseInt(val, 10))
     .pipe(z.number().int().min(1, 'Page must be at least 1'))
-    .default(10),
+    .default(1),
 
   limit: z
     .string()

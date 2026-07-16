@@ -4,6 +4,7 @@ import { Namespace } from 'socket.io';
 import { env } from '@/env';
 import logger from '@/app/configs/logger.configs';
 import { SOCKET_EVENTS } from '@/const';
+import prisma from '@/app/configs/db.configs';
 
 let redisSubscriber: Redis | null = null;
 
@@ -28,11 +29,19 @@ export const initializeRedisPubSub = (notificationNameSpace: Namespace) => {
         try {
           const parsed = JSON.parse(message);
           
-          if (parsed.type === 'NEW_NOTIFICATION' && parsed.userIds && Array.isArray(parsed.userIds)) {
-            parsed.userIds.forEach((userId: string) => {
+          if (parsed.type === 'NEW_NOTIFICATION' && parsed.notifications && Array.isArray(parsed.notifications)) {
+            parsed.notifications.forEach((notification: any) => {
+              const userId = notification.userId;
               // Emit event for new in-app notification
-              notificationNameSpace.to(`user_${userId}`).emit(SOCKET_EVENTS.NOTIFICATION_NEW, {
-                message: 'You have a new notification!',
+              notificationNameSpace.to(`user_${userId}`).emit(SOCKET_EVENTS.NOTIFICATION_NEW, notification);
+              
+              // Also emit the updated count
+              prisma.notification.count({
+                where: { userId, isRead: false },
+              }).then(count => {
+                notificationNameSpace.to(`user_${userId}`).emit(SOCKET_EVENTS.NOTIFICATION_COUNT_RESPONSE, { count });
+              }).catch(err => {
+                logger.error(`Error fetching unread count for user ${userId}`, err);
               });
             });
           }
