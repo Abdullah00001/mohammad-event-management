@@ -14,11 +14,15 @@ export const getNotificationsController = asyncHandler(
     const traceId = getTraceId();
     const user = req.user;
     const query = req.validatedQuery as TNotificationQueryParams;
-    const data = await getNotificationsService({ query, userId: user.id });
+    const result = (await getNotificationsService({
+      query,
+      userId: user.id,
+    })) as { data: unknown; meta: unknown };
     res.status(200).json({
       success: true,
       message: 'Get notifications successful',
-      data,
+      data: result.data,
+      meta: result.meta,
       traceId,
     });
     return;
