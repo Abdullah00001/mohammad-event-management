@@ -793,7 +793,13 @@ export const getEventParticipantsService = async ({
           { senderId: { in: participantIds }, receiverId: user.id },
         ],
       },
-      select: { senderId: true, receiverId: true, status: true },
+      select: { id: true, senderId: true, receiverId: true, status: true },
+    });
+
+    const friendshipMap = new Map<string, string>();
+    friendships.forEach((f) => {
+      const otherId = f.senderId === user.id ? f.receiverId : f.senderId;
+      friendshipMap.set(otherId, f.id);
     });
 
     const friendSet = new Set(
@@ -853,6 +859,7 @@ export const getEventParticipantsService = async ({
         isFriendWithMe && conversationMap.has(p.participantId)
           ? conversationMap.get(p.participantId)!
           : null;
+      const friendshipId = friendshipMap.get(p.participantId) || null;
 
       let connectionStatus:
         | 'ADD_ORCA'
@@ -886,6 +893,7 @@ export const getEventParticipantsService = async ({
         },
         connectionStatus,
         conversationId,
+        friendshipId,
       };
     });
 
@@ -2067,7 +2075,7 @@ export const getSingleEventOrcaService = async ({
           { senderId: orcaId, receiverId: user.id },
         ],
       },
-      select: { status: true, senderId: true },
+      select: { id: true, status: true, senderId: true },
     });
 
     let connectionStatus:
@@ -2158,6 +2166,7 @@ export const getSingleEventOrcaService = async ({
       // ADDED: private conversationId — populated if already friends
       // and a PRIVATE conversation exists, null otherwise
       conversationId,
+      friendshipId: friendship?.id ?? null,
     };
   } catch (error) {
     if (error instanceof Error) throw error;

@@ -6,9 +6,11 @@ import {
   User,
 } from '@prisma/client';
 import prisma from '@/app/configs/db.configs';
-import { BLOCK_STATUS, TGeMyConnectionRequests } from '@/app/modules/connection/connection.types';
+import {
+  BLOCK_STATUS,
+  TGeMyConnectionRequests,
+} from '@/app/modules/connection/connection.types';
 import { TSendFriendRequestPayload } from '@/app/modules/connection/connection.schemas';
-
 
 export const getMyConnectionService = async ({
   user,
@@ -128,11 +130,15 @@ export const getMyConnectionService = async ({
     const friends = rawFriends.map((f) => {
       const friend = f.senderId === user.id ? f.receiver : f.sender;
 
-      let connectionStatus: "ADD_ORCA" | "FRIEND" | "BLOCKED_BY_ME" | "BLOCKED_ME" = "FRIEND";
+      let connectionStatus:
+        | 'ADD_ORCA'
+        | 'FRIEND'
+        | 'BLOCKED_BY_ME'
+        | 'BLOCKED_ME' = 'FRIEND';
       if (friend.blockedBy.length > 0) {
-        connectionStatus = "BLOCKED_BY_ME";
+        connectionStatus = 'BLOCKED_BY_ME';
       } else if (friend.blockedUsers.length > 0) {
-        connectionStatus = "BLOCKED_ME";
+        connectionStatus = 'BLOCKED_ME';
       }
 
       return {
@@ -263,6 +269,17 @@ export const getMySingleConnectionService = async ({
       select: { id: true },
     });
 
+    const friendship = await prisma.friends.findFirst({
+      where: {
+        OR: [
+          { senderId: user.id, receiverId: id },
+          { senderId: id, receiverId: user.id },
+        ],
+        status: FriendshipStatus.ACCEPTED,
+      },
+      select: { id: true },
+    });
+
     // ── 6. Return friend profile ──────────────────────────────────
     return {
       id: friend.id,
@@ -290,6 +307,7 @@ export const getMySingleConnectionService = async ({
 
       // ADDED: conversationId for the DM chat
       conversationId: privateConversation?.id ?? null,
+      friendshipId: friendship?.id ?? null,
     };
   } catch (error) {
     if (error instanceof Error) throw error;

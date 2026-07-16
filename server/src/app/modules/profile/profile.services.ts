@@ -158,11 +158,12 @@ export const updateProfile = async ({
       location,
       name,
       profileInterest,
+      isFaceVerfied,
     } = payload;
     const data = await prisma.$transaction(async (tx) => {
       await tx.user.update({
         where: { id: user.id },
-        data: { isProfileSetup },
+        data: { isProfileSetup, isFaceVerfied },
       });
       return await tx.profile.update({
         data: { age, bio, gender, location, name, profileInterest },
