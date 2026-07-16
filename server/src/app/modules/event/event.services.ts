@@ -20,6 +20,7 @@ import { baseUrl, DEFAULT_LIMIT, DEFAULT_PAGE, DEFAULT_RADIUS_KM } from '@/const
 import { getRedisClient } from '@/app/configs/redis.config';
 import logger from '@/app/configs/logger.configs';
 import { getSystemQueue } from '@/app/queues/queues';
+import { getTraceId } from '@/app/configs/requestContext.configs';
 import {
   EventItem,
   EventListingResult,
@@ -1529,6 +1530,27 @@ export const joinEventService = async ({
       }
     });
 
+    const otherParticipants = await prisma.eventParticipants.findMany({
+      where: { eventId: event.id, leftAt: null, participantId: { not: user.id } },
+      select: { participantId: true },
+    });
+    const targetUserIds = otherParticipants.map(p => p.participantId);
+
+    if (targetUserIds.length > 0) {
+      const joinerUser = await prisma.user.findUnique({
+        where: { id: user.id },
+        include: { profile: { select: { name: true } } },
+      });
+      const systemQueue = getSystemQueue();
+      await systemQueue.add('notify-event-join', {
+        targetUserIds,
+        memberName: joinerUser?.profile?.name || 'User',
+        eventName: event.eventName,
+        eventId: event.id,
+        traceId: getTraceId(),
+      });
+    }
+
     return;
   } catch (error) {
     if (error instanceof Error) throw error;
@@ -1669,6 +1691,7 @@ export const getEventJournalService = async ({
       prisma.eventParticipants.findMany({
         where: {
           eventId: event.id,
+          leftAt: null,
         },
         include: {
           user: {
@@ -2392,6 +2415,27 @@ export const acceptWaitListService = async ({
 
       return participant;
     });
+
+    const otherParticipants = await prisma.eventParticipants.findMany({
+      where: { eventId: event.id, leftAt: null, participantId: { not: participantId } },
+      select: { participantId: true },
+    });
+    const targetUserIds = otherParticipants.map(p => p.participantId);
+
+    if (targetUserIds.length > 0) {
+      const joinerUser = await prisma.user.findUnique({
+        where: { id: participantId },
+        include: { profile: { select: { name: true } } },
+      });
+      const systemQueue = getSystemQueue();
+      await systemQueue.add('notify-event-join', {
+        targetUserIds,
+        memberName: joinerUser?.profile?.name || 'User',
+        eventName: event.eventName,
+        eventId: event.id,
+        traceId: getTraceId(),
+      });
+    }
 
     return participant;
   } catch (error) {

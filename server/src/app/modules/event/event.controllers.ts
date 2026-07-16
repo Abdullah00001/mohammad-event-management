@@ -19,6 +19,7 @@ import {
   removeParticipantsFromEventService,
   retrieveMyAdventureLogsService,
   updateEventService,
+  deleteEventService,
   getEventJournalService,
   submitEventJournalService,
   getEventSummaryService,
@@ -179,6 +180,23 @@ export const updateEventController = asyncHandler(
       status: 200,
       message: 'Event update successful',
       data,
+      traceId,
+    });
+    return;
+  }
+);
+
+export const deleteEventController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const traceId = getTraceId();
+    const event = req.event;
+
+    await deleteEventService({ event });
+
+    res.status(200).json({
+      success: true,
+      status: 200,
+      message: 'Event deleted successfully',
       traceId,
     });
     return;

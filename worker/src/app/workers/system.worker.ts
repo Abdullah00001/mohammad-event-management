@@ -5,9 +5,83 @@ import logger from '@/app/configs/logger.configs';
 import { getRedisClient } from '@/app/configs/redis.configs';
 import { requestContext } from '@/app/configs/requestContext.configs';
 import prisma from '@/app/configs/db.configs';
-import { EventStatus } from '@prisma/client';
+import { EventStatus, NotificationType } from '@prisma/client';
 import { getPushNotificationQueue } from '@/app/queues/queues';
 import { getCountryFromGps } from '@/app/utils/geocoder.utils';
+
+async function processNotification(params: {
+  targetUserIds: string[];
+  title: string;
+  body: string;
+  type: NotificationType;
+  metadata?: any;
+  traceId: string;
+}) {
+  const { targetUserIds, title, body, type, metadata, traceId } = params;
+  if (targetUserIds.length === 0) return;
+
+  const targetUsers = await prisma.user.findMany({
+    where: { id: { in: targetUserIds } },
+    include: { userPreference: true, devices: { select: { fcmToken: true } } }
+  });
+
+  const inAppTargets: string[] = [];
+  const pushTokens: string[] = [];
+
+  targetUsers.forEach(u => {
+    const pref = u.userPreference;
+    if (pref?.inAppNotifications ?? true) inAppTargets.push(u.id);
+    if (pref?.pushNotifications ?? true) {
+      u.devices.forEach(d => {
+        if (d.fcmToken) pushTokens.push(d.fcmToken);
+      });
+    }
+  });
+
+  // 1. In-App Notification (Database)
+  if (inAppTargets.length > 0) {
+    const now = new Date();
+    const notificationsData = inAppTargets.map((userId) => ({
+      id: randomUUID(),
+      userId,
+      notificationTitle: title,
+      notificationDescription: body,
+      type,
+      ...(metadata && { metadata }),
+      isRead: false,
+      createdAt: now,
+      updatedAt: now,
+    }));
+
+    await prisma.notification.createMany({
+      data: notificationsData,
+    });
+
+    const redis = getRedisClient();
+    await redis.publish(
+      'socket:notification',
+      JSON.stringify({
+        type: 'NEW_NOTIFICATION',
+        notifications: notificationsData,
+      })
+    );
+  }
+
+  // 2. Push Notification
+  if (pushTokens.length > 0) {
+    const pushQueue = getPushNotificationQueue();
+    await pushQueue.add('send-multicast', {
+      jobName: 'send-multicast',
+      tokens: pushTokens,
+      payload: {
+        title,
+        body,
+        data: { type, ...(metadata && { metadata: JSON.stringify(metadata) }) },
+      },
+      traceId,
+    });
+  }
+}
 
 export const createSystemWorker = (): Worker => {
   const SystemWorker = new Worker(
@@ -92,21 +166,41 @@ export const createSystemWorker = (): Worker => {
                 `Updated event status to ${targetStatus} for eventId: ${eventId}`
               );
 
+              const participants = await prisma.eventParticipants.findMany({
+                where: {
+                  eventId,
+                  role: { not: 'HOST' },
+                  leftAt: null,
+                },
+                select: { id: true, participantId: true, user: { select: { strikeCount: true } } },
+              });
+
+              if (targetStatus === 'ONGOING' && participants.length > 0) {
+                const targetUserIds = participants.map((p) => p.participantId);
+                await processNotification({
+                  targetUserIds,
+                  title: 'Event Started!',
+                  body: `The event "${event.eventName}" has just started.`,
+                  type: 'EVENT_STARTED',
+                  metadata: { eventId },
+                  traceId,
+                });
+              }
+
               // ── Automated No-Show Evaluation ───────────────────────
               if (targetStatus === 'COMPLETED') {
                 logger.info(`Evaluating no-shows for completed event ${eventId}`);
                 
-                // Fetch active participants (not host, hasn't left)
-                const participants = await prisma.eventParticipants.findMany({
-                  where: {
-                    eventId,
-                    role: { not: 'HOST' },
-                    leftAt: null,
-                  },
-                  select: { id: true, participantId: true, user: { select: { strikeCount: true } } },
-                });
-
                 if (participants.length > 0) {
+                  const targetUserIds = participants.map((p) => p.participantId);
+                  await processNotification({
+                    targetUserIds,
+                    title: 'Event Completed!',
+                    body: `The event "${event.eventName}" has ended. Hope you had a great time!`,
+                    type: 'EVENT_COMPLETED',
+                    metadata: { eventId },
+                    traceId,
+                  });
                   const redis = getRedisClient();
                   // Check 2km radius to be forgiving
                   const nearbyUserIds = await redis.georadius(
@@ -178,6 +272,70 @@ export const createSystemWorker = (): Worker => {
                   }
                 }
               }
+              return;
+            }
+            case 'notify-chat-message': {
+              const { targetUserIds, senderName, conversationId, messageContent } = data as {
+                targetUserIds: string[];
+                senderName: string;
+                conversationId: string;
+                messageContent: string;
+              };
+              await processNotification({
+                targetUserIds,
+                title: `New Message from ${senderName}`,
+                body: messageContent,
+                type: 'CHAT_MESSAGE',
+                metadata: { conversationId },
+                traceId,
+              });
+              return;
+            }
+            case 'notify-friend-request': {
+              const { targetUserId, requesterName } = data as {
+                targetUserId: string;
+                requesterName: string;
+              };
+              await processNotification({
+                targetUserIds: [targetUserId],
+                title: 'New Friend Request',
+                body: `${requesterName} sent you a friend request.`,
+                type: 'FRIEND_REQUEST',
+                metadata: {},
+                traceId,
+              });
+              return;
+            }
+            case 'notify-friend-accept': {
+              const { targetUserId, accepterName } = data as {
+                targetUserId: string;
+                accepterName: string;
+              };
+              await processNotification({
+                targetUserIds: [targetUserId],
+                title: 'Friend Request Accepted',
+                body: `${accepterName} accepted your friend request.`,
+                type: 'FRIEND_ACCEPTED',
+                metadata: {},
+                traceId,
+              });
+              return;
+            }
+            case 'notify-event-join': {
+              const { targetUserIds, memberName, eventName, eventId } = data as {
+                targetUserIds: string[];
+                memberName: string;
+                eventName: string;
+                eventId: string;
+              };
+              await processNotification({
+                targetUserIds,
+                title: 'New Event Member',
+                body: `${memberName} has joined "${eventName}".`,
+                type: 'EVENT_JOIN',
+                metadata: { eventId },
+                traceId,
+              });
               return;
             }
             case 'notify-nearby-users': {

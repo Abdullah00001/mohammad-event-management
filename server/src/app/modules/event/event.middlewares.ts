@@ -4,7 +4,7 @@ import { getTraceId } from '@/app/configs/requestContext.configs';
 import { asyncHandler, getCountryFromCoords } from '@/app/utils/system.utils';
 import prisma from '@/app/configs/db.configs';
 import { getRedisClient } from '@/app/configs/redis.config';
-import { EventRole, User } from '@prisma/client';
+import { EventRole, User, EventStatus } from '@prisma/client';
 
 export const findEventByIdMiddleware = asyncHandler(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -417,6 +417,50 @@ export const checkAlreadyOnWaitlistMiddleware = asyncHandler(
         traceId,
       });
       return;
+    }
+
+    next();
+    return;
+  }
+);
+
+export const checkEventDeletionPolicyMiddleware = asyncHandler(
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const traceId = getTraceId();
+    const event = req.event;
+
+    if (event.eventStatus !== EventStatus.UPCOMING) {
+      res.status(400).json({
+        success: false,
+        status: 400,
+        message: 'Only upcoming events can be deleted',
+        traceId,
+      });
+      return;
+    }
+
+    const participantCount = await prisma.eventParticipants.count({
+      where: {
+        eventId: event.id,
+        role: { not: EventRole.HOST },
+        leftAt: null,
+      },
+    });
+
+    if (participantCount > 0) {
+      const now = new Date();
+      const hoursUntilStart =
+        (event.startDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+      if (hoursUntilStart >= 0 && hoursUntilStart < 6) {
+        res.status(403).json({
+          success: false,
+          status: 403,
+          message: 'You cannot delete this event within 6 hours of the start time because it has participants. Please inform them via the group chat.',
+          traceId,
+        });
+        return;
+      }
     }
 
     next();

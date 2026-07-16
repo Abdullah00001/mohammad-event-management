@@ -17,10 +17,8 @@ import {
   getOtherParticipants,
   isBlocked,
 } from '@/app/sockets/helpers/chat.helpers';
-import { getPushNotificationQueue } from '@/app/queues/queues';
-import { EPushNotificationJobName } from '@/app/@types/queue.types';
+import { getSystemQueue } from '@/app/queues/queues';
 import logger from '@/app/configs/logger.configs';
-import { notificationNameSpace } from '@/app/configs/socket.config';
 
 // ─── Send Message (Unified for Private & Event) ──────────────────
 export const handleSendMessage = async (
@@ -121,53 +119,24 @@ export const handleSendMessage = async (
     data: { updatedAt: new Date() },
   });
 
-  // 8. Notify other participants (in‑app + push)
+  // 8. Notify other participants (in-app + push via system queue)
   const otherParticipants = await getOtherParticipants(conversationId, userId);
   const senderUser = await prisma.user.findUnique({
     where: { id: userId },
     include: { profile: true },
   });
   const senderName = senderUser?.profile?.name || 'User';
+  const targetUserIds = otherParticipants.map(p => p.userId);
 
-  for (const participant of otherParticipants) {
-    // ── In‑App Notification ──
-    const notification = await prisma.notification.create({
-      data: {
-        userId: participant.userId,
-        notificationTitle: 'New message',
-        notificationDescription: `${senderName}: ${content.slice(0, 50)}${content.length > 50 ? '…' : ''}`,
-        type: 'CHAT_MESSAGE',
-        metadata: {
-          conversationId,
-          senderId: userId,
-          messageId: message.id,
-        },
-      },
+  if (targetUserIds.length > 0) {
+    const systemQueue = getSystemQueue();
+    await systemQueue.add('notify-chat-message', {
+      targetUserIds,
+      senderName,
+      conversationId,
+      messageContent: content.slice(0, 50) + (content.length > 50 ? '…' : ''),
+      traceId: socket.traceId || 'NO_TRACE_ID',
     });
-
-    // Emit real‑time socket event
-    notificationNameSpace
-      .to(`user_${participant.userId}`)
-      .emit(SOCKET_EVENTS.NOTIFICATION_NEW, notification);
-
-    // ── Push Notification (FCM) ──
-    if (participant.fcmTokens && participant.fcmTokens.length > 0) {
-      const pushQueue = getPushNotificationQueue();
-      await pushQueue.add(EPushNotificationJobName.SEND_MULTICAST, {
-        jobName: EPushNotificationJobName.SEND_MULTICAST,
-        tokens: participant.fcmTokens,
-        payload: {
-          title: 'New message',
-          body: `${senderName}: ${content.slice(0, 50)}${content.length > 50 ? '…' : ''}`,
-          data: {
-            type: 'CHAT_MESSAGE',
-            conversationId,
-            messageId: message.id,
-          },
-        },
-        traceId: `chat-${conversationId}-${Date.now()}`,
-      });
-    }
   }
 
   logger.debug(`Message ${message.id} sent in conversation ${conversationId}`);

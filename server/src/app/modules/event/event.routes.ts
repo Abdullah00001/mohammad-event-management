@@ -24,6 +24,7 @@ import {
   retrieveMyAdventureLogsController,
   submitEventJournalController,
   updateEventController,
+  deleteEventController,
   getEventFeasibilityController,
 } from '@/app/modules/event/event.controllers';
 import {
@@ -40,6 +41,7 @@ import {
   checkEventCreationLocationMiddleware,
   checkAlreadyJoinedEventMiddleware,
   checkAlreadyOnWaitlistMiddleware,
+  checkEventDeletionPolicyMiddleware,
 } from '@/app/modules/event/event.middlewares';
 import {
   EventCreateSchema,
@@ -214,6 +216,14 @@ router
     findEventByIdMiddleware,
     checkEventHostMiddleware,
     updateEventController
+  )
+  .delete(
+    checkAccessToken,
+    checkAccountStatus,
+    findEventByIdMiddleware,
+    checkEventHostMiddleware,
+    checkEventDeletionPolicyMiddleware,
+    deleteEventController
   );
 
 router

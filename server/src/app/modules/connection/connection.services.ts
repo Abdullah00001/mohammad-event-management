@@ -11,6 +11,8 @@ import {
   TGeMyConnectionRequests,
 } from '@/app/modules/connection/connection.types';
 import { TSendFriendRequestPayload } from '@/app/modules/connection/connection.schemas';
+import { getSystemQueue } from '@/app/queues/queues';
+import { getTraceId } from '@/app/configs/requestContext.configs';
 
 export const getMyConnectionService = async ({
   user,
@@ -464,6 +466,20 @@ export const manageMyConnectionRequestService = async ({
           ],
         });
       }
+
+      if (requestStatus === FriendshipStatus.ACCEPTED) {
+        const accepter = await prisma.user.findUnique({
+          where: { id: user.id },
+          include: { profile: { select: { name: true } } },
+        });
+
+        const systemQueue = getSystemQueue();
+        await systemQueue.add('notify-friend-accept', {
+          targetUserId: updatedRequest.senderId,
+          accepterName: accepter?.profile?.name || 'User',
+          traceId: getTraceId(),
+        });
+      }
     });
 
     return;
@@ -550,6 +566,20 @@ export const sendFriendRequestService = async ({
         },
       });
     });
+
+    if (requestStatus === FriendshipStatus.PENDING) {
+      const requester = await prisma.user.findUnique({
+        where: { id: user.id },
+        include: { profile: { select: { name: true } } },
+      });
+
+      const systemQueue = getSystemQueue();
+      await systemQueue.add('notify-friend-request', {
+        targetUserId: receiverId,
+        requesterName: requester?.profile?.name || 'User',
+        traceId: getTraceId(),
+      });
+    }
 
     return friendRequest;
   } catch (error) {
