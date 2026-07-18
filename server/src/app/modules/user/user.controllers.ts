@@ -110,7 +110,12 @@ export const loginController = asyncHandler(
       );
       res
         .status(200)
-        .json({ success: true, message: 'Login successful', traceId });
+        .json({ 
+          success: true, 
+          message: 'Login successful', 
+          data: { accessToken, refreshToken },
+          traceId 
+        });
       return;
     }
     res.status(200).json({
@@ -150,7 +155,12 @@ export const adminRefreshTokenController = asyncHandler(
     res.cookie('accesstoken', jwt, cookieOption(adminAccessTokenExpiresIn));
     res
       .status(200)
-      .json({ success: true, message: 'Token refresh successful', traceId });
+      .json({ 
+        success: true, 
+        message: 'Token refresh successful', 
+        data: { accessToken: jwt },
+        traceId 
+      });
     return;
   }
 );

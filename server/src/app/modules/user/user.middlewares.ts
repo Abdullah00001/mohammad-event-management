@@ -260,7 +260,7 @@ export const checkAccessToken = asyncHandler(
 export const checkAdminAccessToken = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
     const traceId = getTraceId();
-    const token = req?.cookies?.accesstoken;
+    const token = req?.cookies?.accesstoken || extractToken(req);
     if (!token) {
       res.status(401).json({
         success: false,
@@ -299,7 +299,7 @@ export const checkAdminAccessToken = asyncHandler(
 export const checkAdminRefreshToken = asyncHandler(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const traceId = getTraceId();
-    const token = req?.cookies?.refreshtoken;
+    const token = req?.cookies?.refreshtoken || extractToken(req);
     if (!token) {
       res.status(401).json({
         success: false,
