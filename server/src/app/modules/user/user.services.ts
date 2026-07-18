@@ -473,6 +473,7 @@ export const retrieveSingleUser = async (
       select: {
         id: true,
         email: true,
+        strikeCount: true,
         profile: {
           select: {
             name: true,
@@ -485,12 +486,20 @@ export const retrieveSingleUser = async (
 
     if (!data) return null;
 
+    const ratingAvg = await prisma.eventRating.aggregate({
+      _avg: { rating: true },
+      where: { ratedUserId: id },
+    });
+
     return {
       id: data.id,
       email: data.email,
       name: data.profile?.name ?? null,
       avatar: data.profile?.avatar ?? null,
       location: data.profile?.location ?? null,
+      strike: data.strikeCount,
+      review: ratingAvg._avg.rating ? Number(ratingAvg._avg.rating.toFixed(1)) : 0,
+      contact: null,
     };
   } catch (error) {
     if (error instanceof Error) throw error;
