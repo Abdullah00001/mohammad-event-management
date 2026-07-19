@@ -82,10 +82,19 @@ export const findUserWithEmail = asyncHandler(
         return;
       }
     }
-    if (isLogin && !user) {
+    if (!user) {
+      if (isLogin) {
+        res.status(404).json({
+          success: false,
+          message: 'Invalid Credential,Please Check Your Email And Password!',
+          errorType: AuthErrorType.INVALID_CREDENTIALS,
+          traceId,
+        });
+        return;
+      }
       res.status(404).json({
         success: false,
-        message: 'Invalid Credential,Please Check Your Email And Password!',
+        message: 'User with this email not found',
         errorType: AuthErrorType.INVALID_CREDENTIALS,
         traceId,
       });
@@ -101,7 +110,7 @@ export const isAdmin = asyncHandler(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const traceId = getTraceId();
     const user = req.user;
-    if (user.role !== Role.ADMIN) {
+    if (!user || user.role !== Role.ADMIN) {
       res.status(403).json({
         success: false,
         message: 'Access denied, admin privileges required',
