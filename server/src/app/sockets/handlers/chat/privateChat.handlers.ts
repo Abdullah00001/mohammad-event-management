@@ -137,6 +137,14 @@ export const handleSendMessage = async (
       messageContent: content.slice(0, 50) + (content.length > 50 ? '…' : ''),
       traceId: socket.traceId || 'NO_TRACE_ID',
     });
+
+    // Broadcast CONVERSATION_LIST_UPDATE to target users so their inbox refetches realtime
+    targetUserIds.forEach(targetId => {
+      socket.nsp.to(`user_${targetId}`).emit(SOCKET_EVENTS.CONVERSATION_LIST_UPDATE, {
+        conversationId,
+        updatedAt: new Date()
+      });
+    });
   }
 
   logger.debug(`Message ${message.id} sent in conversation ${conversationId}`);
@@ -161,12 +169,13 @@ export const handleMessageRead = async (
 
   const { conversationId, messageId } = validated.data as ReadMessagePayload;
 
-  await prisma.conversationSettings.update({
+  // Update lastReadAt on ConversationParticipant (for unread counts)
+  await prisma.conversationParticipant.update({
     where: {
       conversationId_userId: { conversationId, userId },
     },
     data: {
-      clearedAt: new Date(),
+      lastReadAt: new Date(),
     },
   });
 

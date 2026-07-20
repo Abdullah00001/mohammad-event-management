@@ -46,6 +46,7 @@ export const SOCKET_EVENTS = {
   CONVERSATION_LEFT: 'conversation:left',
   CONVERSATION_CLEARED: 'conversation:cleared',
   CONVERSATION_DELETED: 'conversation:deleted',
+  CONVERSATION_LIST_UPDATE: 'conversationList:update',
 
   // ===== Messaging (Unified) =====
   // Client → Server

@@ -90,7 +90,7 @@ export const getConversationsService = async ({
             {
               type: ConversationType.GROUP,
               event: {
-                eventStatus: { not: EventStatus.DELETED },
+                eventStatus: { in: [EventStatus.UPCOMING, EventStatus.ONGOING] },
               },
             },
           ],
@@ -130,6 +130,11 @@ export const getConversationsService = async ({
               id: true,
               eventName: true,
               eventStatus: true,
+              eventTypes: {
+                select: {
+                  eventType: true,
+                },
+              },
             },
           },
 
@@ -184,7 +189,7 @@ export const getConversationsService = async ({
             { type: ConversationType.PRIVATE },
             {
               type: ConversationType.GROUP,
-              event: { eventStatus: { not: EventStatus.DELETED } },
+              event: { eventStatus: { in: [EventStatus.UPCOMING, EventStatus.ONGOING] } },
             },
           ],
           AND:
@@ -210,6 +215,28 @@ export const getConversationsService = async ({
         },
       }),
     ]);
+
+    // Fetch caller's lastReadAt and calculate unread counts
+    const participantRecords = await prisma.conversationParticipant.findMany({
+      where: { 
+        userId: user.id, 
+        conversationId: { in: rawConversations.map(c => c.id) } 
+      },
+      select: { conversationId: true, lastReadAt: true }
+    });
+
+    const unreadCountsMap = new Map<string, number>();
+    await Promise.all(
+      participantRecords.map(async (p) => {
+        const count = await prisma.message.count({
+          where: {
+            conversationId: p.conversationId,
+            createdAt: { gt: p.lastReadAt }
+          }
+        });
+        unreadCountsMap.set(p.conversationId, count);
+      })
+    );
 
     // ── 3. Shape response ─────────────────────────────────────────
     const conversations = rawConversations.map((conv) => {
@@ -237,12 +264,26 @@ export const getConversationsService = async ({
         }
       }
 
+      // Format eventType correctly for GROUP events
+      let formattedEvent = null;
+      if (conv.type === ConversationType.GROUP && conv.event) {
+        // @ts-ignore - eventTypes is implicitly fetched
+        const eventTypeObj = conv.event.eventTypes?.[0]?.eventType ?? null;
+        formattedEvent = {
+          id: conv.event.id,
+          eventName: conv.event.eventName,
+          eventStatus: conv.event.eventStatus,
+          eventType: eventTypeObj,
+        };
+      }
+
       return {
         id: conv.id,
         type: conv.type,
         updatedAt: conv.updatedAt,
+        unreadCount: unreadCountsMap.get(conv.id) || 0,
         otherParticipant,
-        event: conv.type === ConversationType.GROUP ? (conv.event ?? null) : null,
+        event: formattedEvent,
         lastMessage: conv.messages[0] ?? null,
       };
     });
