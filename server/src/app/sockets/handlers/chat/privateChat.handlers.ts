@@ -19,6 +19,7 @@ import {
 } from '@/app/sockets/helpers/chat.helpers';
 import { getSystemQueue } from '@/app/queues/queues';
 import logger from '@/app/configs/logger.configs';
+import { getConversationsService } from '@/app/modules/conversations/conversations.services';
 
 // ─── Send Message (Unified for Private & Event) ──────────────────
 export const handleSendMessage = async (
@@ -88,6 +89,24 @@ export const handleSendMessage = async (
         content,
         attachments,
       },
+      select: {
+        id: true,
+        content: true,
+        attachments: true,
+        isEdited: true,
+        createdAt: true,
+        sender: {
+          select: {
+            id: true,
+            profile: {
+              select: {
+                name: true,
+                avatar: true,
+              }
+            }
+          }
+        }
+      }
     });
   } catch (error) {
     logger.error('Failed to save message:', error);
@@ -98,19 +117,14 @@ export const handleSendMessage = async (
   // 5. Broadcast to all other participants in the room
   const roomName = `conversation:${conversationId}`;
   socket.nsp.to(roomName).emit(SOCKET_EVENTS.MESSAGE_RECEIVED, {
-    id: message.id,
-    senderId: userId,
-    content: message.content,
-    attachments: message.attachments,
-    createdAt: message.createdAt,
+    ...message,
     tempId,
   });
 
   // 6. Confirm to sender
   socket.emit(SOCKET_EVENTS.MESSAGE_CONFIRMED, {
+    ...message,
     tempId,
-    id: message.id,
-    createdAt: message.createdAt,
   });
 
   // 7. Update conversation's updatedAt
@@ -138,13 +152,29 @@ export const handleSendMessage = async (
       traceId: socket.traceId || 'NO_TRACE_ID',
     });
 
-    // Broadcast CONVERSATION_LIST_UPDATE to target users so their inbox refetches realtime
-    targetUserIds.forEach(targetId => {
-      socket.nsp.to(`user_${targetId}`).emit(SOCKET_EVENTS.CONVERSATION_LIST_UPDATE, {
-        conversationId,
-        updatedAt: new Date()
-      });
-    });
+  }
+
+  // Broadcast CONVERSATION_LIST_UPDATE to ALL participants (sender + receivers) 
+  // with the fully populated conversation list object.
+  const allParticipantIds = [userId, ...targetUserIds];
+  for (const pId of allParticipantIds) {
+    try {
+      const pUser = await prisma.user.findUnique({ where: { id: pId }});
+      if (pUser) {
+        // Fetch the conversation exactly formatted as the list API
+        const listRes = await getConversationsService({ 
+          user: pUser, 
+          query: { limit: 1, page: 1 }, 
+          conversationId 
+        });
+        
+        if (listRes.data && listRes.data.length > 0) {
+          socket.nsp.to(`user_${pId}`).emit(SOCKET_EVENTS.CONVERSATION_LIST_UPDATE, listRes.data);
+        }
+      }
+    } catch (err) {
+      logger.error(`Failed to broadcast conversation update for user ${pId}:`, err);
+    }
   }
 
   logger.debug(`Message ${message.id} sent in conversation ${conversationId}`);

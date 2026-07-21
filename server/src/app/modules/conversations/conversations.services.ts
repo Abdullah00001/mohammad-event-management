@@ -10,9 +10,11 @@ import { TGetConversationQuery } from '@/app/modules/conversations/conversations
 export const getConversationsService = async ({
   user,
   query,
+  conversationId,
 }: {
   user: User;
   query: TGetConversationQuery;
+  conversationId?: string;
 }) => {
   try {
     const { page = DEFAULT_PAGE, limit = DEFAULT_LIMIT } = query;
@@ -68,6 +70,7 @@ export const getConversationsService = async ({
       prisma.conversation.findMany({
         where: {
           deletedAt: null,
+          ...(conversationId && { id: conversationId }),
 
           // User must be a participant
           participants: {
@@ -178,6 +181,7 @@ export const getConversationsService = async ({
       prisma.conversation.count({
         where: {
           deletedAt: null,
+          ...(conversationId && { id: conversationId }),
           participants: { some: { userId: user.id } },
           settings: {
             none: {
@@ -318,11 +322,15 @@ export const getConversationsService = async ({
 export const getSingleConversationService = async ({
   user,
   id,
+  query,
 }: {
   user: User;
   id: string;
+  query: TGetConversationQuery;
 }) => {
   try {
+    const { page = DEFAULT_PAGE, limit = DEFAULT_LIMIT } = query;
+    const offset = (page - 1) * limit;
     // ── 1. Fetch conversation + caller's settings ─────────────────
     const conversation = await prisma.conversation.findUniqueOrThrow({
       where: { id },
@@ -356,6 +364,11 @@ export const getSingleConversationService = async ({
             id: true,
             eventName: true,
             eventStatus: true,
+            eventTypes: {
+              select: {
+                eventType: true,
+              },
+            },
           },
         },
       },
@@ -384,7 +397,7 @@ export const getSingleConversationService = async ({
       }),
     };
 
-    const [messages, blockedByMe, blockedMe, friendships] = await Promise.all([
+    const [messages, totalMessages, blockedByMe, blockedMe, friendships] = await Promise.all([
       prisma.message.findMany({
         where: messagesWhere,
         select: {
@@ -400,8 +413,11 @@ export const getSingleConversationService = async ({
             },
           },
         },
-        orderBy: { createdAt: 'asc' },
+        orderBy: { createdAt: 'desc' },
+        skip: offset,
+        take: limit,
       }),
+      prisma.message.count({ where: messagesWhere }),
       prisma.blockList.findMany({
         where: { blockerId: user.id },
         select: { blockedUserId: true },
@@ -455,17 +471,45 @@ export const getSingleConversationService = async ({
         };
       });
 
+    // Determine otherParticipant logic
+    const resolvedOtherParticipant = conversation.type === ConversationType.GROUP ? null : (otherParticipants[0] ?? null);
+
+    // Format eventType correctly for GROUP events
+    let formattedEvent = null;
+    if (conversation.type === ConversationType.GROUP && conversation.event) {
+      // @ts-ignore
+      const eventTypeObj = conversation.event.eventTypes?.[0]?.eventType ?? null;
+      formattedEvent = {
+        id: conversation.event.id,
+        eventName: conversation.event.eventName,
+        eventStatus: conversation.event.eventStatus,
+        eventType: eventTypeObj,
+      };
+    }
+
+    const totalPages = Math.ceil(totalMessages / limit);
+
     return {
-      id: conversation.id,
-      type: conversation.type,
-      createdAt: conversation.createdAt,
-      updatedAt: conversation.updatedAt,
-      event:
-        conversation.type === ConversationType.GROUP
-          ? (conversation.event ?? null)
-          : null,
-      otherParticipants,
-      messages,
+      data: {
+        id: conversation.id,
+        type: conversation.type,
+        createdAt: conversation.createdAt,
+        updatedAt: conversation.updatedAt,
+        event: formattedEvent,
+        otherParticipant: resolvedOtherParticipant,
+        messages,
+      },
+      meta: {
+        totalMessages,
+        totalPages,
+        links: {
+          currentPage: page,
+          nextPage: page < totalPages ? page + 1 : null,
+          previousPage: page > 1 ? page - 1 : null,
+          firstPage: 1,
+          lastPage: totalPages || 1,
+        },
+      },
     };
   } catch (error) {
     if (error instanceof Error) throw error;

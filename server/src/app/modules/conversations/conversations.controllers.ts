@@ -33,12 +33,14 @@ export const getSingleConversationController = asyncHandler(
     const traceId = getTraceId();
     const user = req.user as User;
     const { id } = req.params as { id: string };
-    const data = await getSingleConversationService({ user, id });
+    const query = req.query as unknown as TGetConversationQuery;
+    const data = await getSingleConversationService({ user, id, query });
     res.status(200).json({
       success: true,
       status: 200,
       message: 'Retrieve single conversation successful',
-      data,
+      data: data.data,
+      meta: data.meta,
       traceId,
     });
     return;
