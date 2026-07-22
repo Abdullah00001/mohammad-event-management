@@ -509,6 +509,7 @@ model Message {
 //  PREMIUM FEATURES
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Pod Travel Mode -  Allow user to create event or join event on other country before they travel there. This is a premium feature that allows users to set their travel mode and location for event creation and joining.They can join or create event current country and one secondary country.They cant create or join event in third country unless they travel there and set their travel mode to that country. This is a premium feature that allows users to set their travel mode and location for event creation and joining. They can join or create event current country and one secondary country. They cant create or join event in third country unless they travel there and set their travel mode to that country.Suppose a user on bangladesh and create or join event on nepal, but if they try to create or join event on japan without traveling to nepal and setting their travel mode to japan, they will be restricted from doing so. This feature is designed to ensure that users can only participate in events in locations they are physically present in or have traveled to, enhancing the authenticity and safety of event participation.
 model UserTravelMode {
   id             String    @id @default(uuid())
   userId         String    @unique
@@ -522,7 +523,7 @@ model UserTravelMode {
   updatedAt      DateTime  @updatedAt
 }
 
-// Pod Insurance – one free late cancellation per month
+// Pod Insurance – one free late cancellation per billing cycle (month). This is a grace token that can be used to avoid a strike for a late cancellation. It expires at the end of the month and resets every month.
 model OrcaGraceToken {
   id        String    @id @default(uuid())
   userId    String    @unique
