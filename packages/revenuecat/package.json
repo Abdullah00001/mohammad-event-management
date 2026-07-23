@@ -9,7 +9,6 @@
     "dev": "tsc -w"
   },
   "dependencies": {
-    "@types/axios": "^0.9.36",
     "axios": "^1.18.1"
   },
   "devDependencies": {

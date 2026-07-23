@@ -6,6 +6,8 @@ RUN apk add --no-cache dumb-init
 COPY prisma.config.ts ./
 COPY prisma ./prisma/
 
+COPY packages /packages
+RUN cd /packages/revenuecat && npm install && npm run build
 COPY corn/package*.json ./
 COPY corn/tsconfig.json ./
 ARG DATABASE_URL="postgresql://postgres:myStrongPostgresPassword@postgres:5432/event_management"
