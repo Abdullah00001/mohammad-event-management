@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from 'async_hooks';
 
 type RequestStore = {
   traceId: string;
+  subscriptionCache?: Map<string, any>;
 };
 
 export const requestContext = new AsyncLocalStorage<RequestStore>();

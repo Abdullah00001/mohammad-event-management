@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto';
 import { Job, Worker } from 'bullmq';
 
 import logger from '@/app/configs/logger.configs';
-import { getRedisClient } from '@/app/configs/redis.configs';
+import { getRedisClient } from '@/app/configs/redis.config';
 import { requestContext } from '@/app/configs/requestContext.configs';
 import prisma from '@/app/configs/db.configs';
 import { EventStatus, NotificationType } from '@prisma/client';

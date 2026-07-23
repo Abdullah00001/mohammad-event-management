@@ -76,7 +76,16 @@ enum EventStatus {
 enum SubscriptionStatus {
   ACTIVE
   EXPIRED
+  GRACE_PERIOD
+  CANCELLED
+  PAUSED
   PAYMENT_FAILED
+}
+
+enum PurchasePlatform {
+  APPLE
+  GOOGLE
+  WEB
 }
 
 enum NotificationType {
@@ -166,6 +175,7 @@ model User {
   podInvites      PodInvite[]
   ratingsGiven    EventRating[]   @relation("RaterRatings")
   ratingsReceived EventRating[]   @relation("RatedRatings")
+  userSubscription UserSubscription?
 
   // ===== NEW unified messaging relations =====
   conversationParticipants ConversationParticipant[] // reverse of ConversationParticipant.user
@@ -574,4 +584,87 @@ model ContactAndSupport {
   content   String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  SUBSCRIPTION & PREMIUM FEATURES
+// ─────────────────────────────────────────────────────────────────────────────
+
+model SubscriptionPlan {
+  id                   String             @id @default(uuid())
+  name                 String
+  description          String
+  marketingDescription String?
+  badge                String?
+  displayOrder         Int                @default(0)
+  isPopular            Boolean            @default(false)
+  isVisible            Boolean            @default(true)
+  isActive             Boolean            @default(true)
+  revenueCatProductId  String             @unique
+  entitlementId        String
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  features          PlanFeature[]
+  userSubscriptions UserSubscription[]
+
+  @@index([isActive, isVisible, displayOrder])
+  @@index([entitlementId])
+}
+
+model Feature {
+  id          String        @id @default(uuid())
+  code        String        @unique // unique, permanent business identifier
+  name        String
+  description String?
+  icon        String?
+  isActive    Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  plans PlanFeature[]
+
+  @@index([isActive])
+}
+
+model PlanFeature {
+  planId    String
+  featureId String
+  plan      SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  feature   Feature          @relation(fields: [featureId], references: [id], onDelete: Cascade)
+
+  @@id([planId, featureId])
+}
+
+model UserSubscription {
+  userId               String             @id
+  user                 User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planId               String?
+  plan                 SubscriptionPlan?  @relation(fields: [planId], references: [id], onDelete: SetNull)
+  revenueCatCustomerId String             @unique
+  revenueCatProductId  String
+  entitlementId        String
+  purchasePlatform     PurchasePlatform
+  status               SubscriptionStatus
+  purchaseDate         DateTime
+  expireDate           DateTime?
+  lastEventTimestamp   BigInt?            @default(0)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  @@index([status])
+  @@index([expireDate])
+  @@index([entitlementId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  WEBHOOK EVENTS (IDEMPOTENCY)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model RevenueCatEvent {
+  id                String   @id @default(uuid())
+  revenueCatEventId String   @unique
+  eventType         String
+  appUserId         String
+  processedAt       DateTime @default(now())
 }

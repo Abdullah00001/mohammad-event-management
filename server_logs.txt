@@ -1,0 +1,200 @@
+event_management_server_container  | 2026-07-23 02:35:39 [traceId: NO_TRACE_ID] [32minfo[39m Firebase Admin SDK initialized successfully
+event_management_server_container  | 🧰 Worker status: ready
+event_management_server_container  | 🌾 Corn status: ready
+event_management_server_container  | 🚀 Server ready!
+event_management_server_container  | 🏠 Local:   http://localhost:5000
+event_management_server_container  | 🌐 Network: http://10.10.10.28:5000
+event_management_server_container  | 2026-07-23 02:35:39 [traceId: NO_TRACE_ID] [32minfo[39m Subscribed to socket:notification channel
+event_management_server_container  | [32m[nodemon] restarting due to changes...[39m
+event_management_server_container  | [32m[nodemon] starting `ts-node --transpile-only --require tsconfig-paths/register src/server.ts`[39m
+event_management_server_container  | [dotenv@17.3.1] injecting env (0) from .env -- tip: ⚙️  override existing env vars with { override: true }
+event_management_server_container  | [dotenv@17.3.1] injecting env (0) from .env -- tip: 🔐 prevent committing .env to code: https://dotenvx.com/precommit
+event_management_server_container  | [Redis] Ready
+event_management_server_container  | [Redis] connected
+event_management_server_container  | [Database] Connected
+event_management_server_container  | 2026-07-23 02:35:43 [traceId: NO_TRACE_ID] [32minfo[39m Firebase Admin SDK initialized successfully
+event_management_server_container  | 🧰 Worker status: ready
+event_management_server_container  | 🌾 Corn status: ready
+event_management_server_container  | 🚀 Server ready!
+event_management_server_container  | 🏠 Local:   http://localhost:5000
+event_management_server_container  | 🌐 Network: http://10.10.10.28:5000
+event_management_server_container  | 2026-07-23 02:35:43 [traceId: NO_TRACE_ID] [32minfo[39m Subscribed to socket:notification channel
+event_management_server_container  | [32m[nodemon] restarting due to changes...[39m
+event_management_server_container  | [32m[nodemon] starting `ts-node --transpile-only --require tsconfig-paths/register src/server.ts`[39m
+event_management_server_container  | [dotenv@17.3.1] injecting env (0) from .env -- tip: ⚙️  suppress all logs with { quiet: true }
+event_management_server_container  | [dotenv@17.3.1] injecting env (0) from .env -- tip: ⚙️  load multiple .env files with { path: ['.env.local', '.env'] }
+event_management_server_container  | [Redis] Ready
+event_management_server_container  | [Redis] connected
+event_management_server_container  | [Database] Connected
+event_management_server_container  | 2026-07-23 02:36:02 [traceId: NO_TRACE_ID] [32minfo[39m Firebase Admin SDK initialized successfully
+event_management_server_container  | 🧰 Worker status: ready
+event_management_server_container  | 🌾 Corn status: ready
+event_management_server_container  | 🚀 Server ready!
+event_management_server_container  | 🏠 Local:   http://localhost:5000
+event_management_server_container  | 🌐 Network: http://10.10.10.28:5000
+event_management_server_container  | 2026-07-23 02:36:02 [traceId: NO_TRACE_ID] [32minfo[39m Subscribed to socket:notification channel
+event_management_server_container  | [32m[nodemon] restarting due to changes...[39m
+event_management_server_container  | [32m[nodemon] starting `ts-node --transpile-only --require tsconfig-paths/register src/server.ts`[39m
+event_management_server_container  | [dotenv@17.3.1] injecting env (0) from .env -- tip: 🔐 prevent building .env in docker: https://dotenvx.com/prebuild
+event_management_server_container  | /usr/src/app/src/app/modules/user/user.routes.ts:97
+event_management_server_container  |   .get(checkAdminAccessToken, isAdmin, checkAdminAccessTokee);
+event_management_server_container  |                                        ^
+event_management_server_container  | ReferenceError: checkAdminAccessTokee is not defined
+event_management_server_container  |     at Object.<anonymous> (/usr/src/app/src/app/modules/user/user.routes.ts:97:40)
+event_management_server_container  |     at Module._compile (node:internal/modules/cjs/loader:1554:14)
+event_management_server_container  |     at Module.m._compile (/usr/src/app/node_modules/ts-node/src/index.ts:1618:23)
+event_management_server_container  |     at node:internal/modules/cjs/loader:1706:10
+event_management_server_container  |     at Object.require.extensions.<computed> [as .ts] (/usr/src/app/node_modules/ts-node/src/index.ts:1621:12)
+event_management_server_container  |     at Module.load (node:internal/modules/cjs/loader:1289:32)
+event_management_server_container  |     at Function._load (node:internal/modules/cjs/loader:1108:12)
+event_management_server_container  |     at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+event_management_server_container  |     at wrapModuleLoad (node:internal/modules/cjs/loader:220:24)
+event_management_server_container  |     at Module.require (node:internal/modules/cjs/loader:1311:12)
+event_management_server_container  | [31m[nodemon] app crashed - waiting for file changes before starting...[39m
+event_management_server_container  | [32m[nodemon] restarting due to changes...[39m
+event_management_server_container  | [32m[nodemon] starting `ts-node --transpile-only --require tsconfig-paths/register src/server.ts`[39m
+event_management_server_container  | [dotenv@17.3.1] injecting env (0) from .env -- tip: 🛠️  run anywhere with `dotenvx run -- yourcommand`
+event_management_server_container  | [dotenv@17.3.1] injecting env (0) from .env -- tip: ⚙️  write to custom object with { processEnv: myObject }
+event_management_server_container  | [Redis] Ready
+event_management_server_container  | [Redis] connected
+event_management_server_container  | [Database] Connected
+event_management_server_container  | 2026-07-23 02:36:06 [traceId: NO_TRACE_ID] [32minfo[39m Firebase Admin SDK initialized successfully
+event_management_server_container  | 🧰 Worker status: ready
+event_management_server_container  | 🌾 Corn status: ready
+event_management_server_container  | 🚀 Server ready!
+event_management_server_container  | 🏠 Local:   http://localhost:5000
+event_management_server_container  | 🌐 Network: http://10.10.10.28:5000
+event_management_server_container  | 2026-07-23 02:36:06 [traceId: NO_TRACE_ID] [32minfo[39m Subscribed to socket:notification channel
+event_management_server_container  | [32m[nodemon] restarting due to changes...[39m
+event_management_server_container  | [32m[nodemon] starting `ts-node --transpile-only --require tsconfig-paths/register src/server.ts`[39m
+event_management_server_container  | [dotenv@17.3.1] injecting env (0) from .env -- tip: 🤖 agentic secret storage: https://dotenvx.com/as2
+event_management_server_container  | /usr/src/app/src/app/modules/user/user.routes.ts:97
+event_management_server_container  |   .get(checkAdminAccessToken, isAdmin, checkAdminAccessTokenControler);
+event_management_server_container  |                                        ^
+event_management_server_container  | ReferenceError: checkAdminAccessTokenControler is not defined
+event_management_server_container  |     at Object.<anonymous> (/usr/src/app/src/app/modules/user/user.routes.ts:97:40)
+event_management_server_container  |     at Module._compile (node:internal/modules/cjs/loader:1554:14)
+event_management_server_container  |     at Module.m._compile (/usr/src/app/node_modules/ts-node/src/index.ts:1618:23)
+event_management_server_container  |     at node:internal/modules/cjs/loader:1706:10
+event_management_server_container  |     at Object.require.extensions.<computed> [as .ts] (/usr/src/app/node_modules/ts-node/src/index.ts:1621:12)
+event_management_server_container  |     at Module.load (node:internal/modules/cjs/loader:1289:32)
+event_management_server_container  |     at Function._load (node:internal/modules/cjs/loader:1108:12)
+event_management_server_container  |     at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+event_management_server_container  |     at wrapModuleLoad (node:internal/modules/cjs/loader:220:24)
+event_management_server_container  |     at Module.require (node:internal/modules/cjs/loader:1311:12)
+event_management_server_container  | [31m[nodemon] app crashed - waiting for file changes before starting...[39m
+event_management_server_container  | [32m[nodemon] restarting due to changes...[39m
+event_management_server_container  | [32m[nodemon] starting `ts-node --transpile-only --require tsconfig-paths/register src/server.ts`[39m
+event_management_server_container  | [dotenv@17.3.1] injecting env (0) from .env -- tip: ⚙️  specify custom .env file path with { path: '/custom/path/.env' }
+event_management_server_container  | /usr/src/app/src/app/modules/user/user.routes.ts:97
+event_management_server_container  |   .get(checkAdminAccessToken, isAdmin, checkAdminAccessTokenControler);
+event_management_server_container  |                                        ^
+event_management_server_container  | ReferenceError: checkAdminAccessTokenControler is not defined
+event_management_server_container  |     at Object.<anonymous> (/usr/src/app/src/app/modules/user/user.routes.ts:97:40)
+event_management_server_container  |     at Module._compile (node:internal/modules/cjs/loader:1554:14)
+event_management_server_container  |     at Module.m._compile (/usr/src/app/node_modules/ts-node/src/index.ts:1618:23)
+event_management_server_container  |     at node:internal/modules/cjs/loader:1706:10
+event_management_server_container  |     at Object.require.extensions.<computed> [as .ts] (/usr/src/app/node_modules/ts-node/src/index.ts:1621:12)
+event_management_server_container  |     at Module.load (node:internal/modules/cjs/loader:1289:32)
+event_management_server_container  |     at Function._load (node:internal/modules/cjs/loader:1108:12)
+event_management_server_container  |     at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+event_management_server_container  |     at wrapModuleLoad (node:internal/modules/cjs/loader:220:24)
+event_management_server_container  |     at Module.require (node:internal/modules/cjs/loader:1311:12)
+event_management_server_container  | [31m[nodemon] app crashed - waiting for file changes before starting...[39m
+event_management_server_container  | [32m[nodemon] restarting due to changes...[39m
+event_management_server_container  | [32m[nodemon] starting `ts-node --transpile-only --require tsconfig-paths/register src/server.ts`[39m
+event_management_server_container  | [dotenv@17.3.1] injecting env (0) from .env -- tip: 🛠️  run anywhere with `dotenvx run -- yourcommand`
+event_management_server_container  | /usr/src/app/src/app/modules/user/user.routes.ts:97
+event_management_server_container  |   .get(checkAdminAccessToken, isAdmin, checkAdminAccessTokenControler);
+event_management_server_container  |                                        ^
+event_management_server_container  | ReferenceError: checkAdminAccessTokenControler is not defined
+event_management_server_container  |     at Object.<anonymous> (/usr/src/app/src/app/modules/user/user.routes.ts:97:40)
+event_management_server_container  |     at Module._compile (node:internal/modules/cjs/loader:1554:14)
+event_management_server_container  |     at Module.m._compile (/usr/src/app/node_modules/ts-node/src/index.ts:1618:23)
+event_management_server_container  |     at node:internal/modules/cjs/loader:1706:10
+event_management_server_container  |     at Object.require.extensions.<computed> [as .ts] (/usr/src/app/node_modules/ts-node/src/index.ts:1621:12)
+event_management_server_container  |     at Module.load (node:internal/modules/cjs/loader:1289:32)
+event_management_server_container  |     at Function._load (node:internal/modules/cjs/loader:1108:12)
+event_management_server_container  |     at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+event_management_server_container  |     at wrapModuleLoad (node:internal/modules/cjs/loader:220:24)
+event_management_server_container  |     at Module.require (node:internal/modules/cjs/loader:1311:12)
+event_management_server_container  | [31m[nodemon] app crashed - waiting for file changes before starting...[39m
+event_management_server_container  | [32m[nodemon] restarting due to changes...[39m
+event_management_server_container  | [32m[nodemon] starting `ts-node --transpile-only --require tsconfig-paths/register src/server.ts`[39m
+event_management_server_container  | [dotenv@17.3.1] injecting env (0) from .env -- tip: 🛠️  run anywhere with `dotenvx run -- yourcommand`
+event_management_server_container  | [dotenv@17.3.1] injecting env (0) from .env -- tip: ⚡️ secrets for agents: https://dotenvx.com/as2
+event_management_server_container  | [Redis] Ready
+event_management_server_container  | [Redis] connected
+event_management_server_container  | [Database] Connected
+event_management_server_container  | 2026-07-23 02:36:26 [traceId: NO_TRACE_ID] [32minfo[39m Firebase Admin SDK initialized successfully
+event_management_server_container  | 🧰 Worker status: ready
+event_management_server_container  | 🌾 Corn status: ready
+event_management_server_container  | 🚀 Server ready!
+event_management_server_container  | 🏠 Local:   http://localhost:5000
+event_management_server_container  | 🌐 Network: http://10.10.10.28:5000
+event_management_server_container  | 2026-07-23 02:36:26 [traceId: NO_TRACE_ID] [32minfo[39m Subscribed to socket:notification channel
+event_management_server_container  | 2026-07-23 02:36:30 [traceId: f233f731-ed05-49ff-abf0-d5c115bbf2ec] [32minfo[39m Method: GET, URL: /api/v1/admin/auth/check, Status: 200, Res: 100, Response Time: 21.210 ms
+event_management_server_container  | 2026-07-23 02:36:30 [traceId: 1ca9c03e-5162-43d9-bc85-7c2d8969b876] [32minfo[39m Method: GET, URL: /api/v1/admin/auth/check, Status: 200, Res: 100, Response Time: 3.250 ms
+event_management_server_container  | [32m[nodemon] restarting due to changes...[39m
+event_management_server_container  | [32m[nodemon] starting `ts-node --transpile-only --require tsconfig-paths/register src/server.ts`[39m
+event_management_server_container  | [dotenv@17.3.1] injecting env (0) from .env -- tip: ⚙️  specify custom .env file path with { path: '/custom/path/.env' }
+event_management_server_container  | /usr/src/app/src/app/modules/subscription/subscription.routes.ts:35
+event_management_server_container  |   checkAccessToken,
+event_management_server_container  |   ^
+event_management_server_container  | ReferenceError: checkAccessToken is not defined
+event_management_server_container  |     at Object.<anonymous> (/usr/src/app/src/app/modules/subscription/subscription.routes.ts:35:3)
+event_management_server_container  |     at Module._compile (node:internal/modules/cjs/loader:1554:14)
+event_management_server_container  |     at Module.m._compile (/usr/src/app/node_modules/ts-node/src/index.ts:1618:23)
+event_management_server_container  |     at node:internal/modules/cjs/loader:1706:10
+event_management_server_container  |     at Object.require.extensions.<computed> [as .ts] (/usr/src/app/node_modules/ts-node/src/index.ts:1621:12)
+event_management_server_container  |     at Module.load (node:internal/modules/cjs/loader:1289:32)
+event_management_server_container  |     at Function._load (node:internal/modules/cjs/loader:1108:12)
+event_management_server_container  |     at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+event_management_server_container  |     at wrapModuleLoad (node:internal/modules/cjs/loader:220:24)
+event_management_server_container  |     at Module.require (node:internal/modules/cjs/loader:1311:12)
+event_management_server_container  | [31m[nodemon] app crashed - waiting for file changes before starting...[39m
+event_management_server_container  | [32m[nodemon] restarting due to changes...[39m
+event_management_server_container  | [32m[nodemon] starting `ts-node --transpile-only --require tsconfig-paths/register src/server.ts`[39m
+event_management_server_container  | [dotenv@17.3.1] injecting env (0) from .env -- tip: 🤖 agentic secret storage: https://dotenvx.com/as2
+event_management_server_container  | /usr/src/app/node_modules/ts-node/src/index.ts:859
+event_management_server_container  |     return new TSError(diagnosticText, diagnosticCodes, diagnostics);
+event_management_server_container  |            ^
+event_management_server_container  | TSError: ⨯ Unable to compile TypeScript:
+event_management_server_container  | src/app/modules/subscription/subscription.routes.ts(27,1): error TS1109: Expression expected.
+event_management_server_container  | src/app/modules/subscription/subscription.routes.ts(27,3): error TS1434: Unexpected keyword or identifier.
+event_management_server_container  | 
+event_management_server_container  |     at createTSError (/usr/src/app/node_modules/ts-node/src/index.ts:859:12)
+event_management_server_container  |     at reportTSError (/usr/src/app/node_modules/ts-node/src/index.ts:863:19)
+event_management_server_container  |     at /usr/src/app/node_modules/ts-node/src/index.ts:1379:34
+event_management_server_container  |     at Object.compile (/usr/src/app/node_modules/ts-node/src/index.ts:1458:13)
+event_management_server_container  |     at Module.m._compile (/usr/src/app/node_modules/ts-node/src/index.ts:1617:30)
+event_management_server_container  |     at node:internal/modules/cjs/loader:1706:10
+event_management_server_container  |     at Object.require.extensions.<computed> [as .ts] (/usr/src/app/node_modules/ts-node/src/index.ts:1621:12)
+event_management_server_container  |     at Module.load (node:internal/modules/cjs/loader:1289:32)
+event_management_server_container  |     at Function._load (node:internal/modules/cjs/loader:1108:12)
+event_management_server_container  |     at TracingChannel.traceSync (node:diagnostics_channel:322:14) {
+event_management_server_container  |   diagnosticCodes: [ 1109, 1434 ]
+event_management_server_container  | }
+event_management_server_container  | [31m[nodemon] app crashed - waiting for file changes before starting...[39m
+event_management_server_container  | [32m[nodemon] restarting due to changes...[39m
+event_management_server_container  | [32m[nodemon] starting `ts-node --transpile-only --require tsconfig-paths/register src/server.ts`[39m
+event_management_server_container  | [dotenv@17.3.1] injecting env (0) from .env -- tip: ⚙️  override existing env vars with { override: true }
+event_management_server_container  | [dotenv@17.3.1] injecting env (0) from .env -- tip: ⚙️  specify custom .env file path with { path: '/custom/path/.env' }
+event_management_server_container  | [Redis] Ready
+event_management_server_container  | [Redis] connected
+event_management_server_container  | [Database] Connected
+event_management_server_container  | 2026-07-23 02:41:51 [traceId: NO_TRACE_ID] [32minfo[39m Firebase Admin SDK initialized successfully
+event_management_server_container  | 🧰 Worker status: ready
+event_management_server_container  | 🌾 Corn status: ready
+event_management_server_container  | 🚀 Server ready!
+event_management_server_container  | 🏠 Local:   http://localhost:5000
+event_management_server_container  | 🌐 Network: http://10.10.10.28:5000
+event_management_server_container  | 2026-07-23 02:41:51 [traceId: NO_TRACE_ID] [32minfo[39m Subscribed to socket:notification channel
+event_management_server_container  | 2026-07-23 02:47:05 [traceId: 1cf1e683-efda-48ac-92e9-1d33cdc68d03] [32minfo[39m Method: GET, URL: /api/v1/admin/auth/check, Status: 401, Res: 152, Response Time: 3.146 ms
+event_management_server_container  | 2026-07-23 02:47:05 [traceId: d6c5f32f-bb32-49e5-8e10-94e3b42a608c] [32minfo[39m Method: GET, URL: /api/v1/admin/auth/check, Status: 401, Res: 152, Response Time: 1.328 ms
+event_management_server_container  | 2026-07-23 02:47:05 [traceId: fc6ed968-e10b-467d-ab16-42d1cd8e6cd5] [32minfo[39m Method: POST, URL: /api/v1/admin/auth/refresh, Status: 200, Res: 393, Response Time: 8.381 ms
+event_management_server_container  | 2026-07-23 02:47:05 [traceId: 97c12a2b-447b-4099-aa4b-0ea2b93e0af7] [32minfo[39m Method: POST, URL: /api/v1/admin/auth/refresh, Status: 200, Res: 393, Response Time: 6.290 ms
+event_management_server_container  | 2026-07-23 02:47:05 [traceId: eb69559c-c6e9-4aa7-89a7-940a1f64887a] [32minfo[39m Method: GET, URL: /api/v1/admin/auth/check, Status: 200, Res: 100, Response Time: 2.849 ms
+event_management_server_container  | 2026-07-23 02:47:05 [traceId: 23258962-4c49-4b24-b4ac-d77f490d9a1e] [32minfo[39m Method: GET, URL: /api/v1/admin/auth/check, Status: 200, Res: 100, Response Time: 1.617 ms
+event_management_server_container  | 2026-07-23 02:47:27 [traceId: 8c9be945-0d36-4558-835f-74f6fea9b4d3] [32minfo[39m Method: GET, URL: /api/v1/admin/auth/check, Status: 200, Res: 100, Response Time: 2.344 ms
+event_management_server_container  | 2026-07-23 02:47:27 [traceId: 255ce45c-108a-475b-ae79-fb8fb4156128] [32minfo[39m Method: GET, URL: /api/v1/admin/auth/check, Status: 200, Res: 100, Response Time: 1.621 ms

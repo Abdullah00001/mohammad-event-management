@@ -5,6 +5,7 @@ import {
   FriendshipStatus,
   User,
 } from '@prisma/client';
+import { userHasFeatureService } from '@/app/modules/subscription/subscription.services';
 import prisma from '@/app/configs/db.configs';
 import {
   BLOCK_STATUS,
@@ -82,7 +83,6 @@ export const getMyConnectionService = async ({
           sender: {
             select: {
               id: true,
-              isPremium: true,
               profile: {
                 select: { name: true, avatar: true, bio: true },
               },
@@ -101,7 +101,6 @@ export const getMyConnectionService = async ({
           receiver: {
             select: {
               id: true,
-              isPremium: true,
               profile: {
                 select: { name: true, avatar: true, bio: true },
               },
@@ -129,7 +128,7 @@ export const getMyConnectionService = async ({
     ]);
 
     // ── 3. Shape — resolve the "other" user + block flags ─────────
-    const friends = rawFriends.map((f) => {
+    const friends = await Promise.all(rawFriends.map(async (f) => {
       const friend = f.senderId === user.id ? f.receiver : f.sender;
 
       let connectionStatus:
@@ -146,14 +145,14 @@ export const getMyConnectionService = async ({
       return {
         friendshipId: f.id,
         userId: friend.id,
-        isPremium: friend.isPremium,
+        hasPassportStamp: await userHasFeatureService(friend.id, 'PASSPORT_STAMP'),
         name: friend.profile?.name ?? null,
         avatar: friend.profile?.avatar ?? null,
         bio: friend.profile?.bio ?? null,
         connectedAt: f.createdAt,
         connectionStatus,
       };
-    });
+    }));
 
     // ── 4. Paginate & respond ─────────────────────────────────────
     const totalPages = Math.ceil(totalCount / limit);
@@ -191,7 +190,6 @@ export const getMySingleConnectionService = async ({
       where: { id },
       select: {
         id: true,
-        isPremium: true,
         isProfileSetup: true,
         profile: {
           select: {
@@ -283,9 +281,10 @@ export const getMySingleConnectionService = async ({
     });
 
     // ── 6. Return friend profile ──────────────────────────────────
+
     return {
       id: friend.id,
-      isPremium: friend.isPremium,
+      hasPassportStamp: await userHasFeatureService(friend.id, 'PASSPORT_STAMP'),
       isProfileSetup: friend.isProfileSetup,
 
       // Profile fields
@@ -345,7 +344,6 @@ export const getMyConnectionRequestsService = async ({
           sender: {
             select: {
               id: true,
-              isPremium: true,
               profile: {
                 select: {
                   name: true,
@@ -370,16 +368,16 @@ export const getMyConnectionRequestsService = async ({
     ]);
 
     // ── 2. Shape each request ─────────────────────────────────────
-    const requests = rawRequests.map((f) => ({
+    const requests = await Promise.all(rawRequests.map(async (f) => ({
       friendshipId: f.id,
       userId: f.sender.id,
-      isPremium: f.sender.isPremium,
+      hasPassportStamp: await userHasFeatureService(f.sender.id, 'PASSPORT_STAMP'),
       name: f.sender.profile?.name ?? null,
       avatar: f.sender.profile?.avatar ?? null,
       bio: f.sender.profile?.bio ?? null,
       requestedAt: f.createdAt,
       connectionStatus: 'ACCEPT' as const,
-    }));
+    })));
 
     // ── 3. Paginate & respond ─────────────────────────────────────
     const totalPages = Math.ceil(totalCount / limit);

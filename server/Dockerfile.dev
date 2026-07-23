@@ -6,6 +6,7 @@ WORKDIR /usr/src/app
 COPY prisma.config.ts ./
 COPY prisma ./prisma/
 
+COPY packages /usr/src/packages
 COPY server/package*.json ./
 ARG DATABASE_URL="postgresql://postgres:myStrongPostgresPassword@postgres:5432/event_management"
 ENV DATABASE_URL=${DATABASE_URL}

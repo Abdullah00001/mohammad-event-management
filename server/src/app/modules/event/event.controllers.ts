@@ -174,12 +174,19 @@ export const updateEventController = asyncHandler(
     const traceId = getTraceId();
     const event = req.event;
     const payload = req.body as Partial<TUpdateEventInformationPayload>;
-    const data = await updateEventService({ event, payload });
+    const user = req.user as User;
+
+    const updatedEvent = await updateEventService({
+      event,
+      payload,
+      user,
+    });
+
     res.status(200).json({
       success: true,
       status: 200,
-      message: 'Event update successful',
-      data,
+      message: 'Event updated successfully',
+      data: updatedEvent,
       traceId,
     });
     return;

@@ -32,6 +32,8 @@ export type TEnv = {
   FIREBASE_CLIENT_X509_CERT_URL: string;
   FIREBASE_UNIVERSE_DOMAIN: string;
   FIREBASE_CLIENT_EMAIL: string;
+  REVENUECAT_API_KEY: string;
+  REVENUECAT_WEBHOOK_SECRET: string;
 };
 
 export type TMailOption = {

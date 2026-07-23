@@ -39,6 +39,7 @@ import {
   checkEventCapacityMiddleware,
   checkUserPenaltyMiddleware,
   checkEventCreationLocationMiddleware,
+  checkEventJoinLocationMiddleware,
   checkAlreadyJoinedEventMiddleware,
   checkAlreadyOnWaitlistMiddleware,
   checkEventDeletionPolicyMiddleware,
@@ -107,6 +108,7 @@ router
     checkAccountStatus,
     checkUserPenaltyMiddleware,
     findEventByIdMiddleware,
+    checkEventJoinLocationMiddleware,
     checkAlreadyJoinedEventMiddleware,
     joinEventController
   );
@@ -127,6 +129,7 @@ router
     checkAccountStatus,
     checkUserPenaltyMiddleware,
     findEventByIdMiddleware,
+    checkEventJoinLocationMiddleware,
     checkAlreadyOnWaitlistMiddleware,
     joinWaitListController
   );

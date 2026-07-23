@@ -4,6 +4,7 @@ import {
   adminRefreshTokenController,
   changeUserAccountStatus,
   checkAccessTokenController,
+  checkAdminAccessTokenController,
   loginController,
   resendSignupUserOtpController,
   retrieveSingleUserController,
@@ -42,7 +43,7 @@ const router = Router();
 
 router
   .route('/auth/signup')
-  .post( findUserWithEmail, validateReqBody(signupSchema), signupController);
+  .post(findUserWithEmail, validateReqBody(signupSchema), signupController);
 
 router
   .route('/auth/verify')
@@ -94,7 +95,7 @@ router
 
 router
   .route('/admin/auth/check')
-  .get(checkAdminAccessToken, isAdmin, checkAccessTokenController);
+  .get(checkAdminAccessToken, isAdmin, checkAdminAccessTokenController);
 
 router
   .route('/admin/auth/refresh')

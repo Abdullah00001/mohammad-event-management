@@ -14,6 +14,7 @@ import Conversations from '@/app/modules/conversations/conversations.routes';
 import LegalContentRoutes from '@/app/modules/legalContent/legalContent.routes';
 
 import DashboardRoutes from '@/app/modules/dashboard/dashboard.routes';
+import SubscriptionRoutes from '@/app/modules/subscription/subscription.routes';
 
 const routes: Router[] = [
   UserRoutes,
@@ -29,6 +30,7 @@ const routes: Router[] = [
   Conversations,
   LegalContentRoutes,
   DashboardRoutes,
+  SubscriptionRoutes,
 ];
 
 const v1Routes = Router();

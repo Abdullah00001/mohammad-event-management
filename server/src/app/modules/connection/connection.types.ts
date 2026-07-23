@@ -7,7 +7,7 @@ export type TGeMyConnectionRequests = {
   data: {
     friendshipId: string;
     userId: string;
-    isPremium: boolean;
+    hasPassportStamp: boolean;
     name: string | null;
     avatar: string | null;
     bio: string | null;

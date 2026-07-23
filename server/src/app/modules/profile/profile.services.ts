@@ -1,6 +1,7 @@
 import { extname, join } from 'path';
 
 import { EventRole, EventStatus, FriendshipStatus, Profile, Role, User, UserPreference } from '@prisma/client';
+import { userHasFeatureService } from '@/app/modules/subscription/subscription.services';
 
 import prisma from '@/app/configs/db.configs';
 import {
@@ -122,6 +123,8 @@ export const getProfileInformation = async ({
       startDate: event.startDate,
     }));
 
+    const hasPassportStamp = await userHasFeatureService(userId, 'PASSPORT_STAMP');
+
     return {
       name: profile.name,
       email,
@@ -135,6 +138,7 @@ export const getProfileInformation = async ({
       totalEventsAttended,
       totalConnections,
       upcomingEvents,
+      hasPassportStamp,
     };
   } catch (error) {
     if (error instanceof Error) throw error;
@@ -298,6 +302,7 @@ export const getAdminProfileInformation = async ({
   email: string;
   role: Role;
   avatar: string | null;
+  hasPassportStamp: boolean;
 }> => {
   try {
     const user = await prisma.user.findUnique({
@@ -317,12 +322,15 @@ export const getAdminProfileInformation = async ({
 
     if (!user) throw new Error('User not found');
 
+    const hasPassportStamp = await userHasFeatureService(userId, 'PASSPORT_STAMP');
+
     return {
       id: user.id,
       email: user.email,
       role: user.role,
       name: user.profile?.name ?? null,
       avatar: user.profile?.avatar ?? null,
+      hasPassportStamp,
     };
   } catch (error) {
     if (error instanceof Error) throw error;

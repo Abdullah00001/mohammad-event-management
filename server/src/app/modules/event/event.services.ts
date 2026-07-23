@@ -8,6 +8,7 @@ import {
   ConversationType,
   StrikeReason,
 } from '@prisma/client';
+import { userHasFeatureService } from '@/app/modules/subscription/subscription.services';
 
 import prisma from '@/app/configs/db.configs';
 import {
@@ -53,6 +54,13 @@ export const createEventService = async ({
       endDate,
       isPrivate,
     } = payload;
+
+    if (isPrivate) {
+      const hasPrivatePod = await userHasFeatureService(user.id, 'PRIVATE_POD');
+      if (!hasPrivatePod) {
+        throw new Error('PRIVATE_POD feature is required to create private events');
+      }
+    }
 
     const event = await prisma.$transaction(async (tx) => {
       // ── 1. Create the event ───────────────────────────────────────
@@ -729,7 +737,6 @@ export const getEventParticipantsService = async ({
           user: {
             select: {
               id: true,
-              isPremium: true,
               profile: {
                 select: {
                   name: true,
@@ -856,7 +863,7 @@ export const getEventParticipantsService = async ({
     }
 
     // ── 6. Shape participants with flags ──────────────────────────
-    const participants = rawParticipants.map((p) => {
+    const participants = await Promise.all(rawParticipants.map(async (p) => {
       const isFriendWithMe = friendSet.has(p.participantId);
       const conversationId =
         isFriendWithMe && conversationMap.has(p.participantId)
@@ -888,7 +895,7 @@ export const getEventParticipantsService = async ({
         joinedAt: p.joinedAt,
         user: {
           id: p.user.id,
-          isPremium: p.user.isPremium,
+          hasPassportStamp: await userHasFeatureService(p.user.id, 'PASSPORT_STAMP'),
           name: p.user.profile?.name ?? null,
           avatar: p.user.profile?.avatar ?? null,
           gender: p.user.profile?.gender ?? null,
@@ -898,7 +905,7 @@ export const getEventParticipantsService = async ({
         conversationId,
         friendshipId,
       };
-    });
+    }));
 
     // ── 7. Paginate & respond ─────────────────────────────────────
     const totalPages = Math.ceil(totalCount / limit);
@@ -944,7 +951,6 @@ export const getEventWaitListService = async ({
           user: {
             select: {
               id: true,
-              isPremium: true,
               profile: {
                 select: {
                   name: true,
@@ -967,17 +973,17 @@ export const getEventWaitListService = async ({
     ]);
 
     // ── 2. Shape response ─────────────────────────────────────────
-    const waitList = rawWaitList.map((w) => ({
+    const waitList = await Promise.all(rawWaitList.map(async (w) => ({
       joinedAt: w.joinedAt,
       user: {
         id: w.user.id,
-        isPremium: w.user.isPremium,
+        hasPassportStamp: await userHasFeatureService(w.user.id, 'PASSPORT_STAMP'),
         name: w.user.profile?.name ?? null,
         avatar: w.user.profile?.avatar ?? null,
         gender: w.user.profile?.gender ?? null,
         age: w.user.profile?.age ?? null,
       },
-    }));
+    })));
 
     // ── 3. Paginate & respond ───────────────────────────────────────
     const totalPages = Math.ceil(totalCount / limit);
@@ -1005,11 +1011,20 @@ export const getEventWaitListService = async ({
 export const updateEventService = async ({
   event,
   payload,
+  user,
 }: {
   event: Event;
   payload: Partial<TUpdateEventInformationPayload>;
+  user: User;
 }): Promise<unknown> => {
   try {
+    if ((payload as any).isPrivate === true) {
+      const hasPrivatePod = await userHasFeatureService(user.id, 'PRIVATE_POD');
+      if (!hasPrivatePod) {
+        throw new Error('PRIVATE_POD feature is required to make an event private');
+      }
+    }
+
     const updatedEvent = await prisma.event.update({
       where: { id: event.id },
       data: payload,
@@ -1630,35 +1645,61 @@ export const leaveEventService = async ({
         (event.startDate.getTime() - now.getTime()) / (1000 * 60 * 60);
 
       if (hoursUntilStart >= 0 && hoursUntilStart < 6) {
-        // Record the strike
-        await tx.strike.create({
-          data: {
-            userId: user.id,
-            points: 1,
-            reason: StrikeReason.LATE_CANCELLATION,
-          },
-        });
+        const hasGraceToken = await userHasFeatureService(user.id, 'ORCA_GRACE_TOKEN');
+        let bypassStrike = false;
 
-        // Update user strike count and date
-        const updatedStrikeCount = user.strikeCount + 1;
-        let penaltyEndDate: Date | null = null;
+        if (hasGraceToken) {
+          const graceToken = await tx.orcaGraceToken.findFirst({
+            where: {
+              userId: user.id,
+              isUsed: false,
+              resetsAt: { gt: now },
+            },
+          });
 
-        if (updatedStrikeCount >= 5) {
-          // 1 month ban
-          penaltyEndDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-        } else if (updatedStrikeCount >= 3) {
-          // 1 week ban
-          penaltyEndDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+          if (graceToken) {
+            await tx.orcaGraceToken.update({
+              where: { id: graceToken.id },
+              data: {
+                isUsed: true,
+                usedAt: now,
+              },
+            });
+            bypassStrike = true;
+          }
         }
 
-        await tx.user.update({
-          where: { id: user.id },
-          data: {
-            strikeCount: updatedStrikeCount,
-            lastStrikeDate: now,
-            ...(penaltyEndDate && { penaltyEndDate }),
-          },
-        });
+        if (!bypassStrike) {
+          // Record the strike
+          await tx.strike.create({
+            data: {
+              userId: user.id,
+              points: 1,
+              reason: StrikeReason.LATE_CANCELLATION,
+            },
+          });
+
+          // Update user strike count and date
+          const updatedStrikeCount = user.strikeCount + 1;
+          let penaltyEndDate: Date | null = null;
+
+          if (updatedStrikeCount >= 5) {
+            // 1 month ban
+            penaltyEndDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+          } else if (updatedStrikeCount >= 3) {
+            // 1 week ban
+            penaltyEndDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+          }
+
+          await tx.user.update({
+            where: { id: user.id },
+            data: {
+              strikeCount: updatedStrikeCount,
+              lastStrikeDate: now,
+              ...(penaltyEndDate && { penaltyEndDate }),
+            },
+          });
+        }
       }
     });
 
@@ -1697,7 +1738,6 @@ export const getEventJournalService = async ({
           user: {
             select: {
               id: true,
-              isPremium: true,
               isProfileSetup: true,
               profile: {
                 select: {
@@ -1748,7 +1788,7 @@ export const getEventJournalService = async ({
     );
 
     // ── 3. Shape each participant with rating status ───────────────
-    const participants = rawParticipants.map((p) => {
+    const participants = await Promise.all(rawParticipants.map(async (p) => {
       const existingRating = ratingMap.get(p.participantId) ?? null;
 
       return {
@@ -1757,7 +1797,7 @@ export const getEventJournalService = async ({
         joinedAt: p.joinedAt,
         user: {
           id: p.user.id,
-          isPremium: p.user.isPremium,
+          hasPassportStamp: await userHasFeatureService(p.user.id, 'PASSPORT_STAMP'),
           isProfileSetup: p.user.isProfileSetup,
           name: p.user.profile?.name ?? null,
           avatar: p.user.profile?.avatar ?? null,
@@ -1768,7 +1808,7 @@ export const getEventJournalService = async ({
         rating: existingRating?.rating ?? null,
         review: existingRating?.review ?? null,
       };
-    });
+    }));
 
     // ── 4. Paginate & respond ─────────────────────────────────────
     const totalPages = Math.ceil(totalCount / limit);
@@ -2007,7 +2047,6 @@ export const getSingleEventOrcaService = async ({
       where: { id: orcaId },
       select: {
         id: true,
-        isPremium: true,
         isProfileSetup: true,
         profile: {
           select: {
@@ -2154,7 +2193,7 @@ export const getSingleEventOrcaService = async ({
     // ── 9. Return orca profile ─────────────────────────────────────
     return {
       id: orca.id,
-      isPremium: orca.isPremium,
+      hasPassportStamp: await userHasFeatureService(orca.id, 'PASSPORT_STAMP'),
       isProfileSetup: orca.isProfileSetup,
 
       // Profile fields

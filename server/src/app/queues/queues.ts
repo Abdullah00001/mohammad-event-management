@@ -4,6 +4,8 @@ import { createQueueOptions } from '@/app/configs/queue.configs';
 import {
   EPushNotificationJobName,
   TPushNotificationJobData,
+  ESubscriptionWebhookJobName,
+  TSubscriptionWebhookJobData,
 } from '@/app/@types/queue.types';
 
 let _emailQueue: Queue | null = null;
@@ -37,4 +39,21 @@ export const getPushNotificationQueue = () => {
     >('push-notification-queue', createQueueOptions());
   }
   return _pushNotificationQueue;
+};
+
+let _subscriptionWebhookQueue: Queue<
+  TSubscriptionWebhookJobData,
+  void,
+  ESubscriptionWebhookJobName
+> | null = null;
+
+export const getSubscriptionWebhookQueue = () => {
+  if (!_subscriptionWebhookQueue) {
+    _subscriptionWebhookQueue = new Queue<
+      TSubscriptionWebhookJobData,
+      void,
+      ESubscriptionWebhookJobName
+    >('subscription-webhook-queue', createQueueOptions());
+  }
+  return _subscriptionWebhookQueue;
 };

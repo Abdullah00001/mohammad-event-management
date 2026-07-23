@@ -2,7 +2,7 @@ import { Job, Worker } from 'bullmq';
 import { Message, MulticastMessage } from 'firebase-admin/messaging';
 
 import logger from '@/app/configs/logger.configs';
-import { getRedisClient } from '@/app/configs/redis.configs';
+import { getRedisClient } from '@/app/configs/redis.config';
 import { requestContext } from '@/app/configs/requestContext.configs';
 import { getFirebaseMessaging } from '@/app/configs/firebase.configs';
 import {

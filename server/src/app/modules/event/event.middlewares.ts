@@ -5,6 +5,7 @@ import { asyncHandler, getCountryFromCoords } from '@/app/utils/system.utils';
 import prisma from '@/app/configs/db.configs';
 import { getRedisClient } from '@/app/configs/redis.config';
 import { EventRole, User, EventStatus } from '@prisma/client';
+import { userHasFeatureService } from '@/app/modules/subscription/subscription.services';
 
 export const findEventByIdMiddleware = asyncHandler(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -329,7 +330,9 @@ export const checkEventCreationLocationMiddleware = asyncHandler(
     const user = req.user as User;
     const { lat, lng } = req.body as { lat: number; lng: number };
 
-    if (!user.isPremium) {
+    const hasTravelMode = await userHasFeatureService(user.id, 'TRAVEL_MODE');
+
+    if (!hasTravelMode) {
       const redisClient = getRedisClient();
       const cachedLocation = await redisClient.get(`user:location:${user.id}`);
 
@@ -356,6 +359,52 @@ export const checkEventCreationLocationMiddleware = asyncHandler(
           status: 403,
           message:
             'Free users can only create events in their current country. Upgrade to Premium for international event creation.',
+          traceId,
+        });
+        return;
+      }
+    }
+
+    next();
+    return;
+  }
+);
+
+export const checkEventJoinLocationMiddleware = asyncHandler(
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const traceId = getTraceId();
+    const user = req.user as User;
+    const event = req.event;
+
+    const hasTravelMode = await userHasFeatureService(user.id, 'TRAVEL_MODE');
+
+    if (!hasTravelMode) {
+      const redisClient = getRedisClient();
+      const cachedLocation = await redisClient.get(`user:location:${user.id}`);
+
+      if (!cachedLocation) {
+        res.status(403).json({
+          success: false,
+          status: 403,
+          message:
+            'Unable to verify your location. Please enable location services.',
+          traceId,
+        });
+        return;
+      }
+
+      const parsed = JSON.parse(cachedLocation) as { lat: number; lng: number };
+      const [userCountry, eventCountry] = await Promise.all([
+        getCountryFromCoords(parsed.lat, parsed.lng),
+        getCountryFromCoords(event.lat, event.lng),
+      ]);
+
+      if (userCountry && eventCountry && userCountry !== eventCountry) {
+        res.status(403).json({
+          success: false,
+          status: 403,
+          message:
+            'Free users can only join events in their current country. Upgrade to Premium for international event access.',
           traceId,
         });
         return;

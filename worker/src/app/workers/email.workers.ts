@@ -3,7 +3,7 @@ import { compile } from 'handlebars';
 
 import logger from '@/app/configs/logger.configs';
 import mailTransporter from '@/app/configs/nodemailer.config';
-import { getRedisClient } from '@/app/configs/redis.configs';
+import { getRedisClient } from '@/app/configs/redis.config';
 import { requestContext } from '@/app/configs/requestContext.configs';
 import { passwordResetSuccessEmailTemplate } from '@/app/templates/passwordResetSuccessEmail.template';
 import { recoverUserOtpEmailTemplate } from '@/app/templates/recoverUserOtpEmail.template';
