@@ -26,6 +26,6 @@ jobs:
             git reset --hard origin/development
             npm install
             docker compose down
-            docker compose up -d --build
+            docker compose up -d --build -V
             export CI=true
             npm run migrate:generate
