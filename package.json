@@ -14,6 +14,7 @@
     "generate:all": "npm run generate",
     "migrate:generate": "bash ./scripts/migration_generate.sh",
     "postinstall": "echo 'Skipping automatic prisma generate at root. Run `npm run generate` to generate clients locally.'",
-    "sync:prisma": "./scripts/sync_prisma.sh"
+    "sync:prisma": "./scripts/sync_prisma.sh",
+    "create:admin": "docker compose exec server npm run create:admin"
   }
 }
