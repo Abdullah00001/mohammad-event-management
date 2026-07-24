@@ -2826,9 +2826,118 @@ export const inviteFriendToPrivatePodService = async ({
 }: {
   user: User;
   event: Event;
-}) => {
+}): Promise<{ success: boolean; status: number; message: string }> => {
   try {
-    console.log(event, user);
+    let duplicateError = false;
+    let capacityError = false;
+
+    await prisma.$transaction(async (tx) => {
+      // 1. Lock the event
+      await tx.$queryRaw`SELECT id FROM "Event" WHERE id = ${event.id} FOR UPDATE`;
+
+      // 2. Check duplicate join inside transaction
+      const existingParticipant = await tx.eventParticipants.findUnique({
+        where: {
+          eventId_participantId: {
+            eventId: event.id,
+            participantId: user.id,
+          },
+        },
+      });
+
+      if (existingParticipant && !existingParticipant.leftAt) {
+        duplicateError = true;
+        return;
+      }
+
+      // 3. Capacity check
+      const participantCount = await tx.eventParticipants.count({
+        where: {
+          eventId: event.id,
+          leftAt: null,
+        },
+      });
+
+      if (participantCount >= event.maxParticipantsCount) {
+        capacityError = true;
+        return;
+      }
+
+      // 4. Insert or update
+      if (existingParticipant && existingParticipant.leftAt) {
+        await tx.eventParticipants.update({
+          where: { id: existingParticipant.id },
+          data: { leftAt: null, role: EventRole.TRAVELER },
+        });
+      } else {
+        await tx.eventParticipants.create({
+          data: {
+            eventId: event.id,
+            participantId: user.id,
+            role: EventRole.TRAVELER,
+          },
+        });
+      }
+
+      // 5. Join conversation
+      const conversation = await tx.conversation.findUnique({
+        where: { eventId: event.id },
+        select: { id: true },
+      });
+
+      if (conversation) {
+        const cp = await tx.conversationParticipant.findUnique({
+          where: {
+            conversationId_userId: {
+              conversationId: conversation.id,
+              userId: user.id,
+            },
+          },
+        });
+        if (!cp) {
+          await tx.conversationParticipant.create({
+            data: { conversationId: conversation.id, userId: user.id },
+          });
+        }
+      }
+    });
+
+    if (duplicateError) {
+      return { success: false, status: 409, message: 'You have already joined this event.' };
+    }
+
+    if (capacityError) {
+      return { success: false, status: 400, message: 'Event is at full capacity' };
+    }
+
+    // ── Notify other participants outside transaction ──────────────────────
+    const otherParticipants = await prisma.eventParticipants.findMany({
+      where: {
+        eventId: event.id,
+        leftAt: null,
+        participantId: { not: user.id },
+      },
+      select: { participantId: true },
+    });
+    
+    const targetUserIds = otherParticipants.map((p) => p.participantId);
+
+    if (targetUserIds.length > 0) {
+      const joinerUser = await prisma.user.findUnique({
+        where: { id: user.id },
+        include: { profile: { select: { name: true } } },
+      });
+      const systemQueue = getSystemQueue();
+      await systemQueue.add('notify-event-join', {
+        targetUserIds,
+        memberName: joinerUser?.profile?.name || 'User',
+        eventName: event.eventName,
+        eventId: event.id,
+        traceId: getTraceId(),
+      });
+    }
+
+    return { success: true, status: 200, message: `You have joined the pod ${event.eventName} successfully` };
   } catch (error) {
     if (error instanceof Error) throw error;
     throw new Error(

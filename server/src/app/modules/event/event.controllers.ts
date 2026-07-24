@@ -561,11 +561,13 @@ export const inviteFriendToPrivatePodController = asyncHandler(
     const traceId = getTraceId();
     const user = req.user as User;
     const event = req.event;
-    await inviteFriendToPrivatePodService({ user, event });
-    res.status(200).json({
-      success: true,
-      status: 200,
-      message: `You have join the pod ${event.eventName} successfully`,
+    
+    const result = await inviteFriendToPrivatePodService({ user, event });
+    
+    res.status(result.status).json({
+      success: result.success,
+      status: result.status,
+      message: result.message,
       traceId,
     });
     return;

@@ -4,7 +4,7 @@ import { getTraceId } from '@/app/configs/requestContext.configs';
 import { asyncHandler, getCountryFromCoords } from '@/app/utils/system.utils';
 import prisma from '@/app/configs/db.configs';
 import { getRedisClient } from '@/app/configs/redis.config';
-import { EventRole, User, EventStatus } from '@prisma/client';
+import { EventRole, User, EventStatus, Event, FriendshipStatus } from '@prisma/client';
 import { userHasFeatureService } from '@/app/modules/subscription/subscription.services';
 import { TEventCreatePayload } from '@/app/modules/event/event.schemas';
 
@@ -535,5 +535,110 @@ export const checkPrivatePodMiddleware = asyncHandler(
 
     next();
     return;
+  }
+);
+
+export const checkInviteTokenValidationMiddleware = asyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const { token } = req.query;
+    const event = req.event as Event;
+
+    if (!event.isPrivate) {
+      res.status(400).json({
+        success: false,
+        status: 400,
+        message: 'This event is not a private pod',
+        traceId: getTraceId(),
+      });
+      return;
+    }
+
+    if (!token || token !== event.inviteToken) {
+      res.status(401).json({
+        success: false,
+        status: 401,
+        message: 'Invalid invite token',
+        traceId: getTraceId(),
+      });
+      return;
+    }
+
+    if (new Date() > event.startDate) {
+      res.status(400).json({
+        success: false,
+        status: 400,
+        message: 'The invite token has expired since the event has already started',
+        traceId: getTraceId(),
+      });
+      return;
+    }
+
+    next();
+  }
+);
+
+export const checkPrivatePodFriendshipMiddleware = asyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const event = req.event as Event;
+    const user = req.user as User;
+
+    const hostParticipant = await prisma.eventParticipants.findFirst({
+      where: { eventId: event.id, role: EventRole.HOST, leftAt: null },
+    });
+
+    if (!hostParticipant) {
+      res.status(404).json({
+        success: false,
+        status: 404,
+        message: 'Event host not found',
+        traceId: getTraceId(),
+      });
+      return;
+    }
+
+    const block = await prisma.blockList.findFirst({
+      where: {
+        OR: [
+          { blockerId: user.id, blockedUserId: hostParticipant.participantId },
+          { blockerId: hostParticipant.participantId, blockedUserId: user.id },
+        ],
+      },
+      select: { blockerId: true },
+    });
+
+    if (block) {
+      res.status(403).json({
+        success: false,
+        status: 403,
+        message:
+          block.blockerId === user.id
+            ? 'You have blocked this host'
+            : 'You have been blocked by this host',
+        traceId: getTraceId(),
+      });
+      return;
+    }
+
+    const connection = await prisma.friends.findFirst({
+      where: {
+        OR: [
+          { senderId: user.id, receiverId: hostParticipant.participantId },
+          { senderId: hostParticipant.participantId, receiverId: user.id },
+        ],
+        status: FriendshipStatus.ACCEPTED,
+      },
+    });
+
+    if (!connection) {
+      res.status(403).json({
+        success: false,
+        status: 403,
+        message: 'You must be friends with the host to join this private pod',
+        traceId: getTraceId(),
+      });
+      return;
+    }
+
+    next();
   }
 );

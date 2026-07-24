@@ -45,6 +45,8 @@ import {
   checkAlreadyOnWaitlistMiddleware,
   checkEventDeletionPolicyMiddleware,
   checkPrivatePodMiddleware,
+  checkInviteTokenValidationMiddleware,
+  checkPrivatePodFriendshipMiddleware,
 } from '@/app/modules/event/event.middlewares';
 import {
   EventCreateSchema,
@@ -190,7 +192,10 @@ router
   .post(
     checkAccessToken,
     checkAccountStatus,
+    checkUserPenaltyMiddleware,
     findEventByIdMiddleware,
+    checkInviteTokenValidationMiddleware,
+    checkPrivatePodFriendshipMiddleware,
     inviteFriendToPrivatePodController
   );
 
