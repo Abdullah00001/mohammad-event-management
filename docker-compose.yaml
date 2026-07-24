@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: myStrongPostgresPassword
       POSTGRES_DB: event_management
     ports:
-      - 5439:5432
+      - 5432:5432
     networks:
       - nowor_backend_network
     volumes:
@@ -22,7 +22,7 @@ services:
     container_name: event_management_redis_container
     command: redis-server --requirepass myStrongRedisPassword
     ports:
-      - 6389:6379
+      - 6379:6379
     networks:
       - nowor_backend_network
     volumes:

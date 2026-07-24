@@ -17,7 +17,12 @@ import {
   TUpdateEventInformationPayload,
 } from '@/app/modules/event/event.schemas';
 import { getCountryFromCoords } from '@/app/utils/system.utils';
-import { baseUrl, DEFAULT_LIMIT, DEFAULT_PAGE, DEFAULT_RADIUS_KM } from '@/const';
+import {
+  baseUrl,
+  DEFAULT_LIMIT,
+  DEFAULT_PAGE,
+  DEFAULT_RADIUS_KM,
+} from '@/const';
 import { getRedisClient } from '@/app/configs/redis.config';
 import logger from '@/app/configs/logger.configs';
 import { getSystemQueue } from '@/app/queues/queues';
@@ -58,7 +63,9 @@ export const createEventService = async ({
     if (isPrivate) {
       const hasPrivatePod = await userHasFeatureService(user.id, 'PRIVATE_POD');
       if (!hasPrivatePod) {
-        throw new Error('PRIVATE_POD feature is required to create private events');
+        throw new Error(
+          'PRIVATE_POD feature is required to create private events'
+        );
       }
     }
 
@@ -124,10 +131,7 @@ export const createEventService = async ({
         hostId: user.id,
       })
       .catch((err: any) => {
-        logger.error(
-          'Failed to enqueue notify-nearby-users job',
-          err
-        );
+        logger.error('Failed to enqueue notify-nearby-users job', err);
       });
 
     return { eventId: event.event.id, conversationId: event.conversationId };
@@ -863,49 +867,54 @@ export const getEventParticipantsService = async ({
     }
 
     // ── 6. Shape participants with flags ──────────────────────────
-    const participants = await Promise.all(rawParticipants.map(async (p) => {
-      const isFriendWithMe = friendSet.has(p.participantId);
-      const conversationId =
-        isFriendWithMe && conversationMap.has(p.participantId)
-          ? conversationMap.get(p.participantId)!
-          : null;
-      const friendshipId = friendshipMap.get(p.participantId) || null;
+    const participants = await Promise.all(
+      rawParticipants.map(async (p) => {
+        const isFriendWithMe = friendSet.has(p.participantId);
+        const conversationId =
+          isFriendWithMe && conversationMap.has(p.participantId)
+            ? conversationMap.get(p.participantId)!
+            : null;
+        const friendshipId = friendshipMap.get(p.participantId) || null;
 
-      let connectionStatus:
-        | 'ADD_ORCA'
-        | 'PENDING'
-        | 'ACCEPT'
-        | 'FRIEND'
-        | 'BLOCKED_BY_ME'
-        | 'BLOCKED_ME' = 'ADD_ORCA';
-      if (blockedByMeSet.has(p.participantId)) {
-        connectionStatus = 'BLOCKED_BY_ME';
-      } else if (blockedMeSet.has(p.participantId)) {
-        connectionStatus = 'BLOCKED_ME';
-      } else if (isFriendWithMe) {
-        connectionStatus = 'FRIEND';
-      } else if (pendingSentSet.has(p.participantId)) {
-        connectionStatus = 'PENDING';
-      } else if (pendingReceivedSet.has(p.participantId)) {
-        connectionStatus = 'ACCEPT';
-      }
+        let connectionStatus:
+          | 'ADD_ORCA'
+          | 'PENDING'
+          | 'ACCEPT'
+          | 'FRIEND'
+          | 'BLOCKED_BY_ME'
+          | 'BLOCKED_ME' = 'ADD_ORCA';
+        if (blockedByMeSet.has(p.participantId)) {
+          connectionStatus = 'BLOCKED_BY_ME';
+        } else if (blockedMeSet.has(p.participantId)) {
+          connectionStatus = 'BLOCKED_ME';
+        } else if (isFriendWithMe) {
+          connectionStatus = 'FRIEND';
+        } else if (pendingSentSet.has(p.participantId)) {
+          connectionStatus = 'PENDING';
+        } else if (pendingReceivedSet.has(p.participantId)) {
+          connectionStatus = 'ACCEPT';
+        }
 
-      return {
-        role: p.role,
-        joinedAt: p.joinedAt,
-        user: {
-          id: p.user.id,
-          hasPassportStamp: await userHasFeatureService(p.user.id, 'PASSPORT_STAMP'),
-          name: p.user.profile?.name ?? null,
-          avatar: p.user.profile?.avatar ?? null,
-          gender: p.user.profile?.gender ?? null,
-          age: p.user.profile?.age ?? null,
-        },
-        connectionStatus,
-        conversationId,
-        friendshipId,
-      };
-    }));
+        return {
+          role: p.role,
+          joinedAt: p.joinedAt,
+          user: {
+            id: p.user.id,
+            hasPassportStamp: await userHasFeatureService(
+              p.user.id,
+              'PASSPORT_STAMP'
+            ),
+            name: p.user.profile?.name ?? null,
+            avatar: p.user.profile?.avatar ?? null,
+            gender: p.user.profile?.gender ?? null,
+            age: p.user.profile?.age ?? null,
+          },
+          connectionStatus,
+          conversationId,
+          friendshipId,
+        };
+      })
+    );
 
     // ── 7. Paginate & respond ─────────────────────────────────────
     const totalPages = Math.ceil(totalCount / limit);
@@ -973,17 +982,22 @@ export const getEventWaitListService = async ({
     ]);
 
     // ── 2. Shape response ─────────────────────────────────────────
-    const waitList = await Promise.all(rawWaitList.map(async (w) => ({
-      joinedAt: w.joinedAt,
-      user: {
-        id: w.user.id,
-        hasPassportStamp: await userHasFeatureService(w.user.id, 'PASSPORT_STAMP'),
-        name: w.user.profile?.name ?? null,
-        avatar: w.user.profile?.avatar ?? null,
-        gender: w.user.profile?.gender ?? null,
-        age: w.user.profile?.age ?? null,
-      },
-    })));
+    const waitList = await Promise.all(
+      rawWaitList.map(async (w) => ({
+        joinedAt: w.joinedAt,
+        user: {
+          id: w.user.id,
+          hasPassportStamp: await userHasFeatureService(
+            w.user.id,
+            'PASSPORT_STAMP'
+          ),
+          name: w.user.profile?.name ?? null,
+          avatar: w.user.profile?.avatar ?? null,
+          gender: w.user.profile?.gender ?? null,
+          age: w.user.profile?.age ?? null,
+        },
+      }))
+    );
 
     // ── 3. Paginate & respond ───────────────────────────────────────
     const totalPages = Math.ceil(totalCount / limit);
@@ -1021,7 +1035,9 @@ export const updateEventService = async ({
     if ((payload as any).isPrivate === true) {
       const hasPrivatePod = await userHasFeatureService(user.id, 'PRIVATE_POD');
       if (!hasPrivatePod) {
-        throw new Error('PRIVATE_POD feature is required to make an event private');
+        throw new Error(
+          'PRIVATE_POD feature is required to make an event private'
+        );
       }
     }
 
@@ -1546,10 +1562,14 @@ export const joinEventService = async ({
     });
 
     const otherParticipants = await prisma.eventParticipants.findMany({
-      where: { eventId: event.id, leftAt: null, participantId: { not: user.id } },
+      where: {
+        eventId: event.id,
+        leftAt: null,
+        participantId: { not: user.id },
+      },
       select: { participantId: true },
     });
-    const targetUserIds = otherParticipants.map(p => p.participantId);
+    const targetUserIds = otherParticipants.map((p) => p.participantId);
 
     if (targetUserIds.length > 0) {
       const joinerUser = await prisma.user.findUnique({
@@ -1645,7 +1665,10 @@ export const leaveEventService = async ({
         (event.startDate.getTime() - now.getTime()) / (1000 * 60 * 60);
 
       if (hoursUntilStart >= 0 && hoursUntilStart < 6) {
-        const hasGraceToken = await userHasFeatureService(user.id, 'ORCA_GRACE_TOKEN');
+        const hasGraceToken = await userHasFeatureService(
+          user.id,
+          'ORCA_GRACE_TOKEN'
+        );
         let bypassStrike = false;
 
         if (hasGraceToken) {
@@ -1788,27 +1811,32 @@ export const getEventJournalService = async ({
     );
 
     // ── 3. Shape each participant with rating status ───────────────
-    const participants = await Promise.all(rawParticipants.map(async (p) => {
-      const existingRating = ratingMap.get(p.participantId) ?? null;
+    const participants = await Promise.all(
+      rawParticipants.map(async (p) => {
+        const existingRating = ratingMap.get(p.participantId) ?? null;
 
-      return {
-        participantId: p.participantId,
-        role: p.role,
-        joinedAt: p.joinedAt,
-        user: {
-          id: p.user.id,
-          hasPassportStamp: await userHasFeatureService(p.user.id, 'PASSPORT_STAMP'),
-          isProfileSetup: p.user.isProfileSetup,
-          name: p.user.profile?.name ?? null,
-          avatar: p.user.profile?.avatar ?? null,
-          bio: p.user.profile?.bio ?? null,
-        },
-        // Rating context for the calling user
-        isRated: !!existingRating,
-        rating: existingRating?.rating ?? null,
-        review: existingRating?.review ?? null,
-      };
-    }));
+        return {
+          participantId: p.participantId,
+          role: p.role,
+          joinedAt: p.joinedAt,
+          user: {
+            id: p.user.id,
+            hasPassportStamp: await userHasFeatureService(
+              p.user.id,
+              'PASSPORT_STAMP'
+            ),
+            isProfileSetup: p.user.isProfileSetup,
+            name: p.user.profile?.name ?? null,
+            avatar: p.user.profile?.avatar ?? null,
+            bio: p.user.profile?.bio ?? null,
+          },
+          // Rating context for the calling user
+          isRated: !!existingRating,
+          rating: existingRating?.rating ?? null,
+          review: existingRating?.review ?? null,
+        };
+      })
+    );
 
     // ── 4. Paginate & respond ─────────────────────────────────────
     const totalPages = Math.ceil(totalCount / limit);
@@ -2456,10 +2484,14 @@ export const acceptWaitListService = async ({
     });
 
     const otherParticipants = await prisma.eventParticipants.findMany({
-      where: { eventId: event.id, leftAt: null, participantId: { not: participantId } },
+      where: {
+        eventId: event.id,
+        leftAt: null,
+        participantId: { not: participantId },
+      },
       select: { participantId: true },
     });
-    const targetUserIds = otherParticipants.map(p => p.participantId);
+    const targetUserIds = otherParticipants.map((p) => p.participantId);
 
     if (targetUserIds.length > 0) {
       const joinerUser = await prisma.user.findUnique({
@@ -2669,7 +2701,9 @@ export const getSingleEventForAdminService = async ({
     };
   } catch (error) {
     if (error instanceof Error) throw error;
-    throw new Error('Unknown error occurred in get single event for admin service');
+    throw new Error(
+      'Unknown error occurred in get single event for admin service'
+    );
   }
 };
 
@@ -2769,6 +2803,25 @@ export const getEventParticipantsForAdminService = async ({
     };
   } catch (error) {
     if (error instanceof Error) throw error;
-    throw new Error('Unknown error occurred in get event participants for admin service');
+    throw new Error(
+      'Unknown error occurred in get event participants for admin service'
+    );
+  }
+};
+
+export const inviteFriendToPrivatePodService = async ({
+  event,
+  user,
+}: {
+  user: User;
+  event: Event;
+}) => {
+  try {
+    console.log(event, user);
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error(
+      'Unknown error occurred in invite friend to private pod service'
+    );
   }
 };

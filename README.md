@@ -51,7 +51,7 @@ The server container now waits for the worker and corn scheduler to be running b
 
 - `npm run generate` — generate Prisma clients from the shared root schema
 - `npm run generate:all` — alias for `npm run generate`
-- `npm run sync:prisma` — install dependencies and regenerate Prisma clients
+- `npm run sync:prisma` — install dependencies across root, all services (server, worker, corn), and internal packages (like revenuecat), and regenerate Prisma clients
 
 ## Developer documentation
 

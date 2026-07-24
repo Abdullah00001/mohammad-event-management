@@ -6,6 +6,7 @@ import prisma from '@/app/configs/db.configs';
 import { getRedisClient } from '@/app/configs/redis.config';
 import { EventRole, User, EventStatus } from '@prisma/client';
 import { userHasFeatureService } from '@/app/modules/subscription/subscription.services';
+import { TEventCreatePayload } from '@/app/modules/event/event.schemas';
 
 export const findEventByIdMiddleware = asyncHandler(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -516,3 +517,9 @@ export const checkEventDeletionPolicyMiddleware = asyncHandler(
     return;
   }
 );
+
+export const checkPrivatePodMiddleware=asyncHandler(async(req:Request,res:Response,next:NextFunction)=>{
+  const {isPrivate}=req.body as TEventCreatePayload;
+  next();
+  return
+});

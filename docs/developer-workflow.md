@@ -13,6 +13,7 @@ Both `server/` and `worker/` run inside containers, using the same shared root P
 - `scripts/sync_prisma.sh` — helper for install and Prisma generation
 - `scripts/migration_generate.sh` — helper that runs Prisma migration and generation in the `server`, `worker`, and `corn` containers
 - `package.json` — root helper scripts
+- `.dockerignore` — excludes local build artifacts and node_modules to ensure fast, clean Docker builds
 
 ## Philosophy
 
@@ -52,6 +53,8 @@ This ensures:
 - root dependencies are installed
 - server dependencies are installed
 - worker dependencies are installed
+- corn scheduler dependencies are installed
+- internal packages (e.g., packages/revenuecat) dependencies are installed
 
 ### Step 3: Start Docker Compose before Prisma schema or migration work
 
@@ -173,8 +176,9 @@ docker compose up -d --build
 - [ ] Repository cloned
 - [ ] `npm install` run
 - [ ] `npm run sync:prisma` run
-- [ ] Prisma clients exist in root, `server`, and `worker`
-- [ ] `server/.env` and `worker/.env` exist
+- [ ] Prisma clients exist in root, `server`, `worker`, and `corn`
+- [ ] Internal packages (like `revenuecat`) are installed
+- [ ] `server/.env`, `worker/.env`, and `corn/.env` exist
 - [ ] `prisma/schema.prisma` and `prisma.config.ts` are current
 - [ ] Docker environment starts successfully
 

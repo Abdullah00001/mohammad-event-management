@@ -33,6 +33,7 @@ import {
   removeFromWaitListService,
   acceptWaitListService,
   getEventFeasibilityService,
+  inviteFriendToPrivatePodService,
 } from '@/app/modules/event/event.services';
 import { asyncHandler } from '@/app/utils/system.utils';
 
@@ -549,6 +550,22 @@ export const getEventFeasibilityController = asyncHandler(
       status: 200,
       message: 'Feasibility check completed',
       data,
+      traceId,
+    });
+    return;
+  }
+);
+
+export const inviteFriendToPrivatePodController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const traceId = getTraceId();
+    const user = req.user as User;
+    const event = req.event;
+    await inviteFriendToPrivatePodService({ user, event });
+    res.status(200).json({
+      success: true,
+      status: 200,
+      message: `You have join the pod ${event.eventName} successfully`,
       traceId,
     });
     return;

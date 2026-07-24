@@ -25,6 +25,7 @@ jobs:
             git switch development || git checkout development
             git reset --hard origin/development
             npm install
+            (cd packages/revenuecat && npm install && npm run build)
             docker compose down
             docker compose up -d --build -V
             export CI=true

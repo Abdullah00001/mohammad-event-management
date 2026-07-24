@@ -172,7 +172,6 @@ model User {
   travelMode      UserTravelMode?
   devices         Device[]
   waitLists       WaitList[]
-  podInvites      PodInvite[]
   ratingsGiven    EventRating[]   @relation("RaterRatings")
   ratingsReceived EventRating[]   @relation("RatedRatings")
   userSubscription UserSubscription?
@@ -292,11 +291,10 @@ model Event {
 
   // Private Pod (Reunion Pod) — Feature 4
   isPrivate  Boolean @default(false)
-  inviteLink String? @unique
+  inviteToken String? @unique
 
   eventParticipants EventParticipants[]
   eventTypes        EventEventType[]
-  invites           PodInvite[]
   waitLists         WaitList[]
   ratings           EventRating[]
 
@@ -364,20 +362,6 @@ model WaitList {
 
   @@unique([eventId, userId])
   @@index([eventId, joinedAt])
-}
-
-model PodInvite {
-  id        String       @id @default(uuid())
-  eventId   String
-  event     Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  inviteeId String
-  invitee   User         @relation(fields: [inviteeId], references: [id], onDelete: Cascade)
-  status    InviteStatus @default(PENDING)
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
-
-  @@unique([eventId, inviteeId])
-  @@index([inviteeId])
 }
 
 model EventType {

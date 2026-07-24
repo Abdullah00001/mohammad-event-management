@@ -26,6 +26,7 @@ import {
   updateEventController,
   deleteEventController,
   getEventFeasibilityController,
+  inviteFriendToPrivatePodController,
 } from '@/app/modules/event/event.controllers';
 import {
   findEventByIdMiddleware,
@@ -43,6 +44,7 @@ import {
   checkAlreadyJoinedEventMiddleware,
   checkAlreadyOnWaitlistMiddleware,
   checkEventDeletionPolicyMiddleware,
+  checkPrivatePodMiddleware,
 } from '@/app/modules/event/event.middlewares';
 import {
   EventCreateSchema,
@@ -183,6 +185,15 @@ router
     getSingleEventOrcaController
   );
 
+router
+  .route('/activity/:id/invite')
+  .post(
+    checkAccessToken,
+    checkAccountStatus,
+    findEventByIdMiddleware,
+    inviteFriendToPrivatePodController
+  );
+
 /**
  * =======================================================
  * ------ Adventure Logs & Event Management Routes -------
@@ -197,6 +208,7 @@ router
     checkUserPenaltyMiddleware,
     validateReqBody(EventCreateSchema),
     checkEventCreationLocationMiddleware,
+    checkPrivatePodMiddleware,
     checkEventTypeMiddleware,
     createEventController
   );
@@ -229,15 +241,13 @@ router
     deleteEventController
   );
 
-router
-  .route('/adventure/:id/participants')
-  .get(
-    checkAccessToken,
-    checkAccountStatus,
-    findEventByIdMiddleware,
-    // checkEventHostMiddleware,
-    getEventParticipantsController
-  );
+router.route('/adventure/:id/participants').get(
+  checkAccessToken,
+  checkAccountStatus,
+  findEventByIdMiddleware,
+  // checkEventHostMiddleware,
+  getEventParticipantsController
+);
 
 router
   .route('/adventure/:id/waitlist')
