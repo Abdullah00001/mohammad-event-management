@@ -4,6 +4,8 @@ import { createQueueOptions } from '@/app/configs/queue.configs';
 import {
   ESubscriptionWebhookJobName,
   TSubscriptionWebhookJobData,
+  EEventLifecycleJobName,
+  TEventLifecycleJobData,
 } from '@/app/@types/queue.types';
 
 let _pushNotificationQueue: Queue | null = null;
@@ -38,4 +40,21 @@ export const getEmailQueue = (): Queue => {
     _emailQueue = new Queue('email-queue', createQueueOptions());
   }
   return _emailQueue;
+};
+
+let _eventLifecycleQueue: Queue<
+  TEventLifecycleJobData,
+  void,
+  EEventLifecycleJobName
+> | null = null;
+
+export const getEventLifecycleQueue = () => {
+  if (!_eventLifecycleQueue) {
+    _eventLifecycleQueue = new Queue<
+      TEventLifecycleJobData,
+      void,
+      EEventLifecycleJobName
+    >('event-lifecycle-queue', createQueueOptions());
+  }
+  return _eventLifecycleQueue;
 };

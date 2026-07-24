@@ -328,6 +328,7 @@ model EventParticipants {
   user          User      @relation(fields: [participantId], references: [id], onDelete: Cascade)
   role          EventRole
   joinedAt      DateTime  @default(now())
+  isPresent     Boolean   @default(false)
   noShow        Boolean   @default(false)
   leftAt        DateTime?
 

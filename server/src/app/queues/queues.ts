@@ -6,6 +6,8 @@ import {
   TPushNotificationJobData,
   ESubscriptionWebhookJobName,
   TSubscriptionWebhookJobData,
+  EEventLifecycleJobName,
+  TEventLifecycleJobData,
 } from '@/app/@types/queue.types';
 
 let _emailQueue: Queue | null = null;
@@ -56,4 +58,21 @@ export const getSubscriptionWebhookQueue = () => {
     >('subscription-webhook-queue', createQueueOptions());
   }
   return _subscriptionWebhookQueue;
+};
+
+let _eventLifecycleQueue: Queue<
+  TEventLifecycleJobData,
+  void,
+  EEventLifecycleJobName
+> | null = null;
+
+export const getEventLifecycleQueue = () => {
+  if (!_eventLifecycleQueue) {
+    _eventLifecycleQueue = new Queue<
+      TEventLifecycleJobData,
+      void,
+      EEventLifecycleJobName
+    >('event-lifecycle-queue', createQueueOptions());
+  }
+  return _eventLifecycleQueue;
 };

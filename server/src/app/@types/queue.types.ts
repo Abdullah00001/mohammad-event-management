@@ -74,3 +74,20 @@ export interface IRevenueCatWebhookPayload {
 }
 
 export type TSubscriptionWebhookJobData = IRevenueCatWebhookPayload;
+
+export enum EEventLifecycleJobName {
+  EVENT_START = 'event-start',
+  EVENT_END = 'event-end',
+}
+
+export interface IEventLifecyclePayload {
+  eventId: string;
+}
+
+export interface IEventLifecycleJobData {
+  jobName: EEventLifecycleJobName;
+  payload: IEventLifecyclePayload;
+  traceId?: string;
+}
+
+export type TEventLifecycleJobData = IEventLifecycleJobData;

@@ -9,6 +9,7 @@ import { createEmailWorker } from '@/app/workers/email.workers';
 import { createSystemWorker } from '@/app/workers/system.worker';
 import { createPushNotificationWorker } from '@/app/workers/push-notification.worker';
 import { createRevenueCatWebhookWorker } from '@/app/workers/revenueCatWebhook.worker';
+import { createEventLifecycleWorker } from '@/app/workers/event-lifecycle.worker';
 import { initializeFirebase } from '@/app/configs/firebase.configs';
 
 // ─────────────────────────────────────────────────────────────
@@ -84,6 +85,7 @@ const start = async (): Promise<void> => {
     createSystemWorker(),
     createPushNotificationWorker(),
     createRevenueCatWebhookWorker(),
+    createEventLifecycleWorker(),
   ];
   logger.info(
     `${TAG} Ready — ${allWorkers.length} worker(s) active — listening for jobs`

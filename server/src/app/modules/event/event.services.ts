@@ -8,6 +8,7 @@ import {
   ConversationType,
   StrikeReason,
 } from '@prisma/client';
+import { EEventLifecycleJobName } from '@/app/@types/queue.types';
 import crypto from 'crypto';
 import { userHasFeatureService } from '@/app/modules/subscription/subscription.services';
 
@@ -26,7 +27,7 @@ import {
 } from '@/const';
 import { getRedisClient } from '@/app/configs/redis.config';
 import logger from '@/app/configs/logger.configs';
-import { getSystemQueue } from '@/app/queues/queues';
+import { getSystemQueue, getEventLifecycleQueue } from '@/app/queues/queues';
 import { getTraceId } from '@/app/configs/requestContext.configs';
 import {
   EventItem,
@@ -137,6 +138,33 @@ export const createEventService = async ({
       .catch((err: any) => {
         logger.error('Failed to enqueue notify-nearby-users job', err);
       });
+
+    // ── 7. ADDED: Enqueue Event Lifecycle Jobs ─────────────────────
+    const lifecycleQueue = getEventLifecycleQueue();
+    const eventStartDelay = new Date(payload.startDate).getTime() - Date.now();
+    const eventEndDelay = new Date(payload.endDate).getTime() - Date.now();
+
+    if (eventStartDelay > 0) {
+      lifecycleQueue.add(
+        EEventLifecycleJobName.EVENT_START,
+        {
+          jobName: EEventLifecycleJobName.EVENT_START,
+          payload: { eventId: event.event.id },
+        },
+        { delay: eventStartDelay, jobId: `start-${event.event.id}` }
+      ).catch((err: any) => logger.error('Failed to enqueue EVENT_START job', err));
+    }
+    
+    if (eventEndDelay > 0) {
+      lifecycleQueue.add(
+        EEventLifecycleJobName.EVENT_END,
+        {
+          jobName: EEventLifecycleJobName.EVENT_END,
+          payload: { eventId: event.event.id },
+        },
+        { delay: eventEndDelay, jobId: `end-${event.event.id}` }
+      ).catch((err: any) => logger.error('Failed to enqueue EVENT_END job', err));
+    }
 
     return { eventId: event.event.id, conversationId: event.conversationId };
   } catch (error) {
@@ -1055,6 +1083,8 @@ export const updateEventService = async ({
       where: { id: event.id },
       data: payload,
     });
+
+
     return updatedEvent;
   } catch (error) {
     if (error instanceof Error) throw error;
