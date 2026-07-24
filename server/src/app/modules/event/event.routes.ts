@@ -212,6 +212,7 @@ router
     checkEventTypeMiddleware,
     createEventController
   );
+
 router
   .route('/adventure')
   .get(checkAccessToken, checkAccountStatus, retrieveMyAdventureLogsController);

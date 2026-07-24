@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { User } from '@prisma/client';
+import crypto from 'crypto';
 
 import { getTraceId } from '@/app/configs/requestContext.configs';
 import { asyncHandler } from '@/app/utils/system.utils';
@@ -94,7 +95,7 @@ export const webhookRevenueCatController = asyncHandler(
     
     if (
       providedBuffer.length !== expectedBuffer.length ||
-      !require('crypto').timingSafeEqual(providedBuffer, expectedBuffer)
+      !crypto.timingSafeEqual(providedBuffer, expectedBuffer)
     ) {
       res.status(401).json({ success: false, message: 'Unauthorized' });
       return;

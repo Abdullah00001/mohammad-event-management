@@ -518,8 +518,22 @@ export const checkEventDeletionPolicyMiddleware = asyncHandler(
   }
 );
 
-export const checkPrivatePodMiddleware=asyncHandler(async(req:Request,res:Response,next:NextFunction)=>{
-  const {isPrivate}=req.body as TEventCreatePayload;
-  next();
-  return
-});
+export const checkPrivatePodMiddleware = asyncHandler(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const { isPrivate } = req.body as TEventCreatePayload;
+    const user = req.user as User;
+
+    if (isPrivate && !user.isPremium) {
+      res.status(403).json({
+        success: false,
+        status: 403,
+        message: 'Premium subscription required to create a private pod',
+        traceId: getTraceId(),
+      });
+      return;
+    }
+
+    next();
+    return;
+  }
+);

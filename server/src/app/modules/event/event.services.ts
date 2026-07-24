@@ -8,6 +8,7 @@ import {
   ConversationType,
   StrikeReason,
 } from '@prisma/client';
+import crypto from 'crypto';
 import { userHasFeatureService } from '@/app/modules/subscription/subscription.services';
 
 import prisma from '@/app/configs/db.configs';
@@ -69,6 +70,8 @@ export const createEventService = async ({
       }
     }
 
+    const inviteToken = isPrivate ? crypto.randomUUID() : null;
+
     const event = await prisma.$transaction(async (tx) => {
       // ── 1. Create the event ───────────────────────────────────────
       const event = await tx.event.create({
@@ -80,7 +83,8 @@ export const createEventService = async ({
           maxParticipantsCount,
           startDate,
           endDate,
-          isPrivate,
+          isPrivate: isPrivate ?? false,
+          inviteToken,
         },
       });
 
@@ -563,6 +567,8 @@ export const getSingleWildEventService = async ({
       lng: enrichedEvent.lng,
       createdAt: enrichedEvent.createdAt,
       updatedAt: enrichedEvent.updatedAt,
+      isPrivate: enrichedEvent.isPrivate,
+      inviteToken: enrichedEvent.inviteToken,
       eventType: enrichedEvent.eventTypes[0].eventType,
 
       // JOIN 1
@@ -606,6 +612,8 @@ export const getSingleAdventureDetailsService = async ({
         eventStatus: true,
         lat: true,
         lng: true,
+        isPrivate: true,
+        inviteToken: true,
 
         // EventType badge
         eventTypes: {
@@ -683,6 +691,8 @@ export const getSingleAdventureDetailsService = async ({
       eventStatus: enrichedEvent.eventStatus,
       lat: enrichedEvent.lat,
       lng: enrichedEvent.lng,
+      isPrivate: enrichedEvent.isPrivate,
+      inviteToken: enrichedEvent.inviteToken,
 
       eventType: enrichedEvent.eventTypes[0]?.eventType ?? null,
 
@@ -2688,6 +2698,7 @@ export const getSingleEventForAdminService = async ({
       lat: event.lat,
       lng: event.lng,
       isPrivate: event.isPrivate,
+      inviteToken: event.inviteToken,
       createdAt: event.createdAt,
       maxParticipantsCount: event.maxParticipantsCount,
       eventType: event.eventTypes[0]?.eventType ?? null,
