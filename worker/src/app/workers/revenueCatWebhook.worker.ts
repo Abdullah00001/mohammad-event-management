@@ -6,7 +6,7 @@ import prisma from '@/app/configs/db.configs';
 import {
   TSubscriptionWebhookJobData,
 } from '@/app/@types/queue.types';
-import { syncUserSubscriptionService } from '../../../../server/src/app/modules/subscription/subscription.services';
+import { syncUserSubscriptionService } from '@server/app/modules/subscription/subscription.services';
 
 const TAG = '[RevenueCatWebhookWorker]';
 

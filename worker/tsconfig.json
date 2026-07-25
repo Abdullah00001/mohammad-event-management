@@ -6,7 +6,7 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
-      "@server/*": ["server/src/*"]
+      "@server/*": ["../server/src/*", "server/src/*"]
     },
     "resolveJsonModule": true,
     // Environment Settings

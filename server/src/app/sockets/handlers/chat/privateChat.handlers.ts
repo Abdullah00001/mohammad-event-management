@@ -169,7 +169,7 @@ export const handleSendMessage = async (
         });
         
         if (listRes.data && listRes.data.length > 0) {
-          socket.nsp.to(`user_${pId}`).emit(SOCKET_EVENTS.CONVERSATION_LIST_UPDATE, listRes.data);
+          socket.nsp.to(`user_${pId}`).emit(SOCKET_EVENTS.CONVERSATION_LIST_UPDATE, listRes.data[0]);
         }
       }
     } catch (err) {

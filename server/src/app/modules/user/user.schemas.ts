@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { AccountStatus } from '@prisma/client';
+
 export const gpsPayloadSchema = z.object({
   lng: z
     .string()
@@ -127,3 +129,9 @@ export const adminLoginSchema = z
   .strict();
 
 export type TLoginPayload = z.infer<typeof loginSchema>;
+
+export const changeUserAccountStatusSchema = z.object({
+  accountStatus: z.enum([AccountStatus.ACTIVE, AccountStatus.BLOCKED]),
+});
+
+export type TChangeUserAccountStatusPayload = z.infer<typeof changeUserAccountStatusSchema>;

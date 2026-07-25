@@ -4,6 +4,7 @@ import { JwtPayload } from 'jsonwebtoken';
 
 import { getTraceId } from '@/app/configs/requestContext.configs';
 import {
+  TChangeUserAccountStatusPayload,
   TCheckAccessTokenPayload,
   TLoginPayload,
   TSignupPayload,
@@ -205,10 +206,11 @@ export const retrieveSingleUserController = asyncHandler(
   }
 );
 
-export const changeUserAccountStatus = asyncHandler(
+export const changeUserAccountStatusController = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
+    const traceId = getTraceId();
     const { id } = req.params;
-    const { accountStatus } = req.body;
+    const { accountStatus } = req.body as TChangeUserAccountStatusPayload;
 
     const data = await changeUserAccountStatusService({
       id: id as string,
@@ -227,6 +229,7 @@ export const changeUserAccountStatus = asyncHandler(
       success: true,
       message: 'User account status updated successfully',
       data,
+      traceId
     });
   }
 );

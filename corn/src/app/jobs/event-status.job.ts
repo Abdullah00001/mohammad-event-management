@@ -18,11 +18,12 @@ export function registerEventStatusJob(): void {
       const now = new Date();
       const systemQueue = getSystemQueue();
 
-      // 1. UPCOMING -> ONGOING
+      // 1. UPCOMING -> ONGOING (only if endDate > now)
       const upcomingEvents = await prisma.event.findMany({
         where: {
           eventStatus: 'UPCOMING' as any,
           startDate: { lte: now },
+          endDate: { gt: now },
         },
         select: { id: true },
       });
@@ -39,17 +40,17 @@ export function registerEventStatusJob(): void {
         logger.info(`${TAG} Enqueued ${upcomingEvents.length} events to start (ONGOING)`);
       }
 
-      // 2. ONGOING -> COMPLETED
-      const ongoingEvents = await prisma.event.findMany({
+      // 2. UPCOMING/ONGOING -> COMPLETED
+      const completedEvents = await prisma.event.findMany({
         where: {
-          eventStatus: 'ONGOING' as any,
+          eventStatus: { in: ['UPCOMING', 'ONGOING'] as any[] },
           endDate: { lte: now },
         },
         select: { id: true },
       });
 
-      if (ongoingEvents.length > 0) {
-        const completeJobs = ongoingEvents.map((event: any) =>
+      if (completedEvents.length > 0) {
+        const completeJobs = completedEvents.map((event: any) =>
           systemQueue.add('update-event-status', {
             eventId: event.id,
             targetStatus: 'COMPLETED',
@@ -57,7 +58,7 @@ export function registerEventStatusJob(): void {
           })
         );
         await Promise.all(completeJobs);
-        logger.info(`${TAG} Enqueued ${ongoingEvents.length} events to end (COMPLETED)`);
+        logger.info(`${TAG} Enqueued ${completedEvents.length} events to end (COMPLETED)`);
       }
 
     } catch (error) {

@@ -529,6 +529,16 @@ export const changeUserAccountStatusService = async ({
       },
     });
 
+    if (user.accountStatus !== accountStatus) {
+      const emailQueue = getEmailQueue();
+      const traceId = getTraceId();
+      await emailQueue.add('send-account-status-update-email', {
+        email: data.email,
+        accountStatus: data.accountStatus,
+        traceId,
+      });
+    }
+
     return data;
   } catch (error) {
     if (error instanceof Error) throw error;

@@ -2,7 +2,7 @@ import { Router } from 'express';
 
 import {
   adminRefreshTokenController,
-  changeUserAccountStatus,
+  changeUserAccountStatusController,
   checkAccessTokenController,
   checkAdminAccessTokenController,
   loginController,
@@ -30,6 +30,7 @@ import {
   verifyOtpSchema,
   checkAccessTokenSchema,
   adminLoginSchema,
+  changeUserAccountStatusSchema,
 } from '@/app/modules/user/user.schemas';
 import { validateReqBody } from '@/app/utils/system.utils';
 
@@ -108,6 +109,6 @@ router
 router
   .route('/admin/users/:id')
   .get(checkAdminAccessToken, isAdmin, retrieveSingleUserController)
-  .patch(checkAdminAccessToken, isAdmin, changeUserAccountStatus);
+  .patch(checkAdminAccessToken, isAdmin,validateReqBody(changeUserAccountStatusSchema) ,changeUserAccountStatusController);
 
 export default router;

@@ -1759,6 +1759,7 @@ export const leaveEventService = async ({
             data: {
               strikeCount: updatedStrikeCount,
               lastStrikeDate: now,
+              trustScore: Math.max(0, user.trustScore - 5),
               ...(penaltyEndDate && { penaltyEndDate }),
             },
           });
@@ -1913,29 +1914,63 @@ export const submitEventJournalService = async ({
   user: User;
 }): Promise<void> => {
   try {
-    // ── 1. Upsert the rating ──────────────────────────────────────
-    //
-    // If the calling user has already rated this participant in this
-    // event, update the existing row. Otherwise create a new one.
-    // Unique constraint: [eventId, raterId, ratedUserId]
-    //
-    await prisma.eventRating.upsert({
-      where: {
-        eventId_raterId_ratedUserId: {
+    await prisma.$transaction(async (tx) => {
+      const existingRating = await tx.eventRating.findUnique({
+        where: {
+          eventId_raterId_ratedUserId: {
+            eventId: event.id,
+            raterId: user.id,
+            ratedUserId: participantId,
+          },
+        },
+      });
+
+      const oldRating = existingRating?.rating;
+      
+      const getPointsForRating = (r: number) => {
+        if (r === 5) return 1;
+        if (r === 4) return 0;
+        if (r === 3) return -1;
+        if (r === 2) return -3;
+        if (r === 1) return -5;
+        return 0;
+      };
+
+      const oldPoints = oldRating ? getPointsForRating(oldRating) : 0;
+      const newPoints = getPointsForRating(rating);
+      const pointDifference = newPoints - oldPoints;
+
+      await tx.eventRating.upsert({
+        where: {
+          eventId_raterId_ratedUserId: {
+            eventId: event.id,
+            raterId: user.id,
+            ratedUserId: participantId,
+          },
+        },
+        update: { rating },
+        create: {
           eventId: event.id,
           raterId: user.id,
           ratedUserId: participantId,
+          rating,
         },
-      },
-      update: {
-        rating,
-      },
-      create: {
-        eventId: event.id,
-        raterId: user.id,
-        ratedUserId: participantId,
-        rating,
-      },
+      });
+
+      if (pointDifference !== 0) {
+        const ratedUser = await tx.user.findUnique({
+          where: { id: participantId },
+          select: { trustScore: true },
+        });
+
+        if (ratedUser) {
+          const updatedScore = Math.max(0, Math.min(100, ratedUser.trustScore + pointDifference));
+          await tx.user.update({
+            where: { id: participantId },
+            data: { trustScore: updatedScore },
+          });
+        }
+      }
     });
 
     return;

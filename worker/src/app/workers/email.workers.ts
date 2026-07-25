@@ -13,6 +13,7 @@ import { nearbyEventEmailTemplate } from '@/app/templates/nearbyEventEmail.templ
 import { eventReminderEmailTemplate } from '@/app/templates/eventReminderEmail.template';
 import { unreadMessagesEmailTemplate } from '@/app/templates/unreadMessagesEmail.template';
 import { inactivityEmailTemplate } from '@/app/templates/inactivityEmail.template';
+import { accountStatusUpdateEmailTemplate } from '@/app/templates/accountStatusUpdateEmail.template';
 import { mailOption } from '@/app/utils/system.utils';
 import { otpExpireAt } from '@/const';
 
@@ -119,6 +120,27 @@ export const createEmailWorker = (): Worker => {
               const personalizedTemplate = template({ unreadCount });
               await mailTransporter.sendMail(
                 mailOption(email, 'You have unread messages!', personalizedTemplate)
+              );
+              return;
+            }
+            case 'send-account-status-update-email': {
+              const { email, accountStatus } = data as {
+                email: string;
+                accountStatus: string;
+              };
+              const template = compile(accountStatusUpdateEmailTemplate);
+              const isBlocked = accountStatus === 'BLOCKED';
+              const personalizedTemplate = template({
+                email,
+                status: accountStatus,
+                isBlocked,
+              });
+              await mailTransporter.sendMail(
+                mailOption(
+                  email,
+                  isBlocked ? 'Important: Your Account Has Been Suspended' : 'Your Account Has Been Reactivated',
+                  personalizedTemplate
+                )
               );
               return;
             }

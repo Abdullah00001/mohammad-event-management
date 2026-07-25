@@ -157,6 +157,7 @@ export const createEventLifecycleWorker = (): Worker => {
                   data: {
                     strikeCount: updatedStrikeCount,
                     lastStrikeDate: now,
+                    trustScore: Math.max(0, user.trustScore - 10),
                     ...(penaltyEndDate && { penaltyEndDate }),
                   },
                 });
