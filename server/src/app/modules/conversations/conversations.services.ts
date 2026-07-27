@@ -285,11 +285,14 @@ export const getConversationsService = async ({
         };
       }
 
+      const myParticipantRecord = participantRecords.find((p) => p.conversationId === conv.id);
+
       return {
         id: conv.id,
         type: conv.type,
         updatedAt: conv.updatedAt,
         unreadCount: unreadCountsMap.get(conv.id) || 0,
+        lastReadAt: myParticipantRecord?.lastReadAt ?? null,
         otherParticipant,
         event: formattedEvent,
         lastMessage: conv.messages[0] ?? null,
@@ -347,6 +350,7 @@ export const getSingleConversationService = async ({
         // Verify user is a participant
         participants: {
           select: {
+            lastReadAt: true,
             user: {
               select: {
                 id: true,
@@ -496,12 +500,15 @@ export const getSingleConversationService = async ({
 
     const totalPages = Math.ceil(totalMessages / limit);
 
+    const myParticipant = conversation.participants.find(p => p.user.id === user.id);
+
     return {
       data: {
         id: conversation.id,
         type: conversation.type,
         createdAt: conversation.createdAt,
         updatedAt: conversation.updatedAt,
+        lastReadAt: myParticipant?.lastReadAt ?? null,
         event: formattedEvent,
         otherParticipant: resolvedOtherParticipant,
         messages,

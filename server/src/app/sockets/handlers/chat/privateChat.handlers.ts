@@ -127,10 +127,14 @@ export const handleSendMessage = async (
     tempId,
   });
 
-  // 7. Update conversation's updatedAt
+  // 7. Update conversation's updatedAt and sender's lastReadAt
   await prisma.conversation.update({
     where: { id: conversationId },
     data: { updatedAt: new Date() },
+  });
+  await prisma.conversationParticipant.update({
+    where: { conversationId_userId: { conversationId, userId } },
+    data: { lastReadAt: new Date() },
   });
 
   // 8. Notify other participants (in-app + push via system queue)
@@ -199,13 +203,13 @@ export const handleMessageRead = async (
 
   const { conversationId, messageId } = validated.data as ReadMessagePayload;
 
-  // Update lastReadAt on ConversationParticipant (for unread counts)
+  const now = new Date();
   await prisma.conversationParticipant.update({
     where: {
       conversationId_userId: { conversationId, userId },
     },
     data: {
-      lastReadAt: new Date(),
+      lastReadAt: now,
     },
   });
 
@@ -213,9 +217,8 @@ export const handleMessageRead = async (
     .to(`conversation:${conversationId}`)
     .emit(SOCKET_EVENTS.MESSAGE_READ_RESPONSE, {
       conversationId,
-      messageId: messageId || null,
-      readBy: userId,
-      readAt: new Date(),
+      userId,
+      lastReadAt: now,
     });
 };
 

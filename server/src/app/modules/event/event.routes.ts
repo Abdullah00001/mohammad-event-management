@@ -195,7 +195,6 @@ router
     checkUserPenaltyMiddleware,
     findEventByIdMiddleware,
     checkInviteTokenValidationMiddleware,
-    checkPrivatePodFriendshipMiddleware,
     inviteFriendToPrivatePodController
   );
 

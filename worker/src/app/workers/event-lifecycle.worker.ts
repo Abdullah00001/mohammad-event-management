@@ -67,7 +67,7 @@ export const createEventLifecycleWorker = (): Worker => {
                 const loc = JSON.parse(locationStr);
                 const distance = getDistanceInMeters(event.lat, event.lng, loc.lat, loc.lng);
                 
-                if (distance <= 15000) {
+                if (distance <= 500) {
                   await prisma.eventParticipants.update({
                     where: { id: p.id },
                     data: { isPresent: true },
@@ -89,7 +89,7 @@ export const createEventLifecycleWorker = (): Worker => {
                 const loc = JSON.parse(locationStr);
                 const distance = getDistanceInMeters(event.lat, event.lng, loc.lat, loc.lng);
                 
-                if (distance <= 15000) {
+                if (distance <= 500) {
                   await prisma.eventParticipants.update({
                     where: { id: p.id },
                     data: { isPresent: true },

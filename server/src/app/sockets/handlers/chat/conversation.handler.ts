@@ -48,8 +48,21 @@ export const handleConversationJoin = async (
     return;
   }
 
+  const now = new Date();
+  await prisma.conversationParticipant.update({
+    where: { conversationId_userId: { conversationId, userId } },
+    data: { lastReadAt: now },
+  });
+
   socket.join(`conversation:${conversationId}`);
   socket.emit(SOCKET_EVENTS.CONVERSATION_JOINED, { conversationId });
+  
+  socket.to(`conversation:${conversationId}`).emit(SOCKET_EVENTS.MESSAGE_READ_RESPONSE, {
+    conversationId,
+    userId,
+    lastReadAt: now,
+  });
+
   logger.debug(`User ${userId} joined conversation ${conversationId}`);
 };
 
@@ -73,8 +86,22 @@ export const handleConversationLeave = async (
   }
 
   const { conversationId } = validated.data as ConversationIdPayload;
+
+  const now = new Date();
+  await prisma.conversationParticipant.update({
+    where: { conversationId_userId: { conversationId, userId } },
+    data: { lastReadAt: now },
+  });
+
   socket.leave(`conversation:${conversationId}`);
   socket.emit(SOCKET_EVENTS.CONVERSATION_LEFT, { conversationId });
+
+  socket.to(`conversation:${conversationId}`).emit(SOCKET_EVENTS.MESSAGE_READ_RESPONSE, {
+    conversationId,
+    userId,
+    lastReadAt: now,
+  });
+
   logger.debug(`User ${userId} left conversation ${conversationId}`);
 };
 

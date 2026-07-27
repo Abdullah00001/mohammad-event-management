@@ -142,6 +142,17 @@ export const getMyConnectionService = async ({
         connectionStatus = 'BLOCKED_ME';
       }
 
+      const privateConversation = await prisma.conversation.findFirst({
+        where: {
+          type: ConversationType.PRIVATE,
+          AND: [
+            { participants: { some: { userId: user.id } } },
+            { participants: { some: { userId: friend.id } } },
+          ],
+        },
+        select: { id: true },
+      });
+
       return {
         friendshipId: f.id,
         userId: friend.id,
@@ -151,6 +162,7 @@ export const getMyConnectionService = async ({
         bio: friend.profile?.bio ?? null,
         connectedAt: f.createdAt,
         connectionStatus,
+        conversationId: privateConversation?.id ?? null,
       };
     }));
 
