@@ -133,6 +133,8 @@ export const getConversationsService = async ({
               id: true,
               eventName: true,
               eventStatus: true,
+              startDate: true,
+              endDate: true,
               eventTypes: {
                 select: {
                   eventType: true,
@@ -277,6 +279,8 @@ export const getConversationsService = async ({
           id: conv.event.id,
           eventName: conv.event.eventName,
           eventStatus: conv.event.eventStatus,
+          startDate: conv.event.startDate,
+          endDate: conv.event.endDate,
           eventType: eventTypeObj,
         };
       }
@@ -364,6 +368,8 @@ export const getSingleConversationService = async ({
             id: true,
             eventName: true,
             eventStatus: true,
+            startDate: true,
+            endDate: true,
             eventTypes: {
               select: {
                 eventType: true,
@@ -449,7 +455,6 @@ export const getSingleConversationService = async ({
         else pendingReceivedSet.add(otherId);
       }
     }
-
     const otherParticipants = conversation.participants
       .filter((p) => p.user.id !== user.id)
       .map((p) => {
@@ -483,6 +488,8 @@ export const getSingleConversationService = async ({
         id: conversation.event.id,
         eventName: conversation.event.eventName,
         eventStatus: conversation.event.eventStatus,
+        startDate: conversation.event.startDate,
+        endDate: conversation.event.endDate,
         eventType: eventTypeObj,
       };
     }

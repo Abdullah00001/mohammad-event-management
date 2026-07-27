@@ -231,11 +231,19 @@ export const handleTypingStart = async (
   if (!validated.data) return;
 
   const { conversationId } = validated.data as TypingPayload;
+
+  const profile = await prisma.profile.findUnique({
+    where: { userId },
+    select: { name: true, avatar: true },
+  });
+
   socket
     .to(`conversation:${conversationId}`)
     .emit(SOCKET_EVENTS.TYPING_START_RESPONSE, {
       userId,
       conversationId,
+      name: profile?.name || null,
+      avatar: profile?.avatar || null,
     });
 };
 
@@ -250,10 +258,18 @@ export const handleTypingStop = async (
   if (!validated.data) return;
 
   const { conversationId } = validated.data as TypingPayload;
+
+  const profile = await prisma.profile.findUnique({
+    where: { userId },
+    select: { name: true, avatar: true },
+  });
+
   socket
     .to(`conversation:${conversationId}`)
     .emit(SOCKET_EVENTS.TYPING_STOP_RESPONSE, {
       userId,
       conversationId,
+      name: profile?.name || null,
+      avatar: profile?.avatar || null,
     });
 };
