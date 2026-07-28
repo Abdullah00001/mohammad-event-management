@@ -587,6 +587,7 @@ export const getSingleWildEventService = async ({
     return {
       id: enrichedEvent.id,
       eventName: enrichedEvent.eventName,
+      description: enrichedEvent.description,
       startDate: enrichedEvent.startDate,
       endDate: enrichedEvent.endDate,
       maxParticipantsCount: enrichedEvent.maxParticipantsCount,

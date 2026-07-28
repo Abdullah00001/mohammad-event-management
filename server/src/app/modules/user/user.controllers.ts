@@ -20,6 +20,7 @@ import {
   changeUserAccountStatusService,
   checkAccessTokenService,
 } from '@/app/modules/user/user.services';
+import { getUserSubscriptionService } from '@/app/modules/subscription/subscription.services';
 import { cookieOption } from '@/app/utils/cookie.utils';
 import { extractToken } from '@/app/utils/jwt.utils';
 import { asyncHandler } from '@/app/utils/system.utils';
@@ -134,11 +135,13 @@ export const checkAccessTokenController = asyncHandler(
     const { fcmToken, location, platform } =
       req.body as TCheckAccessTokenPayload;
     await checkAccessTokenService({ user, fcmToken, location, platform });
+    const subscription = await getUserSubscriptionService(user.id);
     res.status(200).json({
       success: true,
       message: 'User Is Authenticated',
       data: {
         isProfileSetup: user.isProfileSetup,
+        subscription,
       },
       traceId,
     });
