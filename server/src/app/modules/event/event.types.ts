@@ -30,6 +30,7 @@ export interface EventItem {
   spotsLeft: number;
   isOnWaitList: boolean;
   isJoined: boolean;
+  conversationId?: string | null;
   eventType: { id: string; title: string; thumbnail: string };
   createdAt: Date;
 }

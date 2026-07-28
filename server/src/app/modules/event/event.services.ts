@@ -532,6 +532,9 @@ export const getSingleWildEventService = async ({
             eventType: true,
           },
         },
+        conversation: {
+          select: { id: true },
+        },
       },
     });
 
@@ -598,6 +601,7 @@ export const getSingleWildEventService = async ({
       updatedAt: enrichedEvent.updatedAt,
       isPrivate: enrichedEvent.isPrivate,
       inviteToken: enrichedEvent.inviteToken,
+      conversationId: enrichedEvent.conversation?.id ?? null,
       eventType: enrichedEvent.eventTypes[0].eventType,
 
       // JOIN 1
