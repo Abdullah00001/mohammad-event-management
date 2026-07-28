@@ -6,7 +6,7 @@ import prisma from '@/app/configs/db.configs';
 import { getRedisClient } from '@/app/configs/redis.config';
 import { getTraceId } from '@/app/configs/requestContext.configs';
 import { SignupResponseDTO } from '@/app/modules/user/user.dto';
-import { TGpsPayload, TSignupPayload } from '@/app/modules/user/user.schemas';
+import { TGpsPayload, TSignupPayload, TSocialLoginPayload } from '@/app/modules/user/user.schemas';
 import { getEmailQueue, getSystemQueue } from '@/app/queues/queues';
 import { parseExpiresIn } from '@/app/utils/cookie.utils';
 import {
@@ -545,5 +545,89 @@ export const changeUserAccountStatusService = async ({
     throw new Error(
       'Unknown error occurred in change user account status service'
     );
+  }
+};
+
+export const socialLoginService = async ({
+  email,
+  location,
+  fcmToken,
+  platform,
+  provider,
+}: TSocialLoginPayload): Promise<{ accessToken: string; isProfileSetup: boolean }> => {
+  try {
+    let user = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      // Create random password for social users
+      const randomPassword = await hashPassword(generate(16, { specialChars: true }));
+      
+      user = await prisma.$transaction(async (tx) => {
+        const newUser = await tx.user.create({
+          data: {
+            email,
+            password: randomPassword,
+            isVerified: true, // Social login is inherently verified
+            provider,
+          },
+        });
+        await tx.profile.create({
+          data: { userId: newUser.id },
+        });
+        await tx.userPreference.create({
+          data: { userId: newUser.id },
+        });
+        await tx.device.upsert({
+          where: { fcmToken },
+          update: { userId: newUser.id, platform },
+          create: { userId: newUser.id, fcmToken, platform },
+        });
+        await tx.userTraits.create({
+          data: {
+            userId: newUser.id,
+            curiosityScore: 0,
+            energyScore: 0,
+            rhythmScore: 0,
+          },
+        });
+        return newUser;
+      });
+    } else {
+      if (user.accountStatus !== AccountStatus.ACTIVE) {
+        throw new Error('Your account is blocked or suspended. Please contact support.');
+      }
+      
+      await prisma.device.upsert({
+        where: { fcmToken },
+        update: { userId: user.id, platform },
+        create: { userId: user.id, fcmToken, platform },
+      });
+    }
+
+    const accessToken = generateAccessTokenForUser({
+      isVerified: user.isVerified,
+      role: user.role,
+      sub: user.id,
+      rememberMe: true, // Default to true for app users
+      accountStatus: user.accountStatus,
+    });
+
+    const redisClient = getRedisClient();
+    const gpsLocationTtl = parseExpiresIn(userLocationCacheExpireIn);
+    if (location) {
+      await redisClient.set(
+        `user:location:${user.id}`,
+        JSON.stringify({ lat: location.lat, lng: location.lng }),
+        'EX',
+        gpsLocationTtl
+      );
+    }
+
+    return { accessToken, isProfileSetup: user.isProfileSetup };
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error('Unknown error occurred in social login service');
   }
 };

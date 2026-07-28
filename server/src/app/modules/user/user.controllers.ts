@@ -8,6 +8,7 @@ import {
   TCheckAccessTokenPayload,
   TLoginPayload,
   TSignupPayload,
+  TSocialLoginPayload,
 } from '@/app/modules/user/user.schemas';
 import {
   adminRefreshToken,
@@ -19,6 +20,7 @@ import {
   retrieveSingleUser,
   changeUserAccountStatusService,
   checkAccessTokenService,
+  socialLoginService,
 } from '@/app/modules/user/user.services';
 import { getUserSubscriptionService } from '@/app/modules/subscription/subscription.services';
 import { cookieOption } from '@/app/utils/cookie.utils';
@@ -122,6 +124,29 @@ export const loginController = asyncHandler(
       success: true,
       message: 'Login successful',
       data: { accessToken, isProfileSetup: user.isProfileSetup },
+      traceId,
+    });
+    return;
+  }
+);
+
+export const socialLoginController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const traceId = getTraceId();
+    const { email, location, fcmToken, platform, provider } = req.body as TSocialLoginPayload;
+
+    const { accessToken, isProfileSetup } = await socialLoginService({
+      email,
+      location,
+      fcmToken,
+      platform,
+      provider,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Social login successful',
+      data: { accessToken, isProfileSetup },
       traceId,
     });
     return;

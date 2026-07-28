@@ -106,6 +106,28 @@ export const loginSchema = z
   })
   .strict();
 
+export const socialLoginSchema = z
+  .object({
+    email: z
+      .string()
+      .min(1, 'Email is required')
+      .pipe(z.email('Please provide a valid email address')),
+    location: gpsPayloadSchema,
+    fcmToken: z
+      .string()
+      .min(1, 'FCM Token is required')
+      .regex(/^[a-zA-Z0-9\-_:]{100,250}$/, 'Invalid FCM token format'),
+    platform: z.enum(['ios', 'android'], {
+      message: 'Platform must be one of ios, android, or web',
+    }),
+    provider: z.enum(['GOOGLE', 'APPLE'], {
+      message: 'Provider must be one of GOOGLE or APPLE',
+    }),
+  })
+  .strict();
+
+export type TSocialLoginPayload = z.infer<typeof socialLoginSchema>;
+
 export const adminLoginSchema = z
   .object({
     email: z

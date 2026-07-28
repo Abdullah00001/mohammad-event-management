@@ -11,6 +11,7 @@ import {
   retrieveUserListController,
   signupController,
   verifySignupUserController,
+  socialLoginController,
 } from '@/app/modules/user/user.controllers';
 import {
   checkAccessToken,
@@ -31,6 +32,7 @@ import {
   checkAccessTokenSchema,
   adminLoginSchema,
   changeUserAccountStatusSchema,
+  socialLoginSchema,
 } from '@/app/modules/user/user.schemas';
 import { validateReqBody } from '@/app/utils/system.utils';
 
@@ -67,6 +69,13 @@ router
     checkDeviceFcmAccessToken,
     checkPassword,
     loginController
+  );
+
+router
+  .route('/auth/social')
+  .post(
+    validateReqBody(socialLoginSchema),
+    socialLoginController
   );
 
 router
