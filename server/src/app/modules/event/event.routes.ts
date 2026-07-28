@@ -46,7 +46,7 @@ import {
   checkEventDeletionPolicyMiddleware,
   checkPrivatePodMiddleware,
   checkInviteTokenValidationMiddleware,
-  checkPrivatePodFriendshipMiddleware,
+  // checkPrivatePodFriendshipMiddleware,
 } from '@/app/modules/event/event.middlewares';
 import {
   EventCreateSchema,

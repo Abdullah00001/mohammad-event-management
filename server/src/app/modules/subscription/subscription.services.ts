@@ -40,14 +40,19 @@ export const getUserSubscriptionService = async (userId: string) => {
     },
   });
 
+  const formattedUserSub = userSub ? {
+    ...userSub,
+    lastEventTimestamp: userSub.lastEventTimestamp ? userSub.lastEventTimestamp.toString() : null,
+  } : null;
+
   if (store) {
     if (!store.subscriptionCache) {
       store.subscriptionCache = new Map();
     }
-    store.subscriptionCache.set(userId, userSub);
+    store.subscriptionCache.set(userId, formattedUserSub);
   }
 
-  return userSub;
+  return formattedUserSub;
 };
 
 export const syncUserSubscriptionService = async (userId: string) => {
@@ -84,6 +89,13 @@ export const syncUserSubscriptionService = async (userId: string) => {
     const dto = await rcApi.getNormalizedSubscriber(userId);
 
     const existingSub = await prisma.userSubscription.findUnique({ where: { userId } });
+    
+    // Prevent RevenueCat from overriding test users
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (user && user.email.endsWith('@example.com')) {
+      logger.info(`[syncUserSubscriptionService] Bypassing sync for test user: ${userId}`);
+      return getUserSubscriptionService(userId);
+    }
     
     if (existingSub && existingSub.lastEventTimestamp && dto.lastEventTimestamp < Number(existingSub.lastEventTimestamp)) {
       logger.info(`[syncUserSubscriptionService] Ignoring older event for user: ${userId} (DB: ${existingSub.lastEventTimestamp}, RC: ${dto.lastEventTimestamp})`);
