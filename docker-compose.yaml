@@ -1,0 +1,215 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: event_management_postgres_container
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: myStrongPostgresPassword
+      POSTGRES_DB: event_management
+    ports:
+      - 5432:5432
+    networks:
+      - nowor_backend_network
+    volumes:
+      - nowor_postgres_volume:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  redis:
+    image: redis:latest
+    container_name: event_management_redis_container
+    command: redis-server --requirepass myStrongRedisPassword
+    ports:
+      - 6379:6379
+    networks:
+      - nowor_backend_network
+    volumes:
+      - nowor_redis_volume:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "myStrongRedisPassword", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    depends_on:
+      - postgres
+  redis-ui:
+    image: rediscommander/redis-commander:latest
+    container_name: event_management_redis_ui_container
+    environment:
+      # Format: connectionName:host:port:dbIndex:password
+      - REDIS_HOSTS=local:redis:6379:0:myStrongRedisPassword
+      # This helps the UI start even if it takes a second to find the redis container
+      - HTTP_USER=admin
+      - HTTP_PASSWORD=admin
+    ports:
+      - 8082:8081
+    networks:
+      - nowor_backend_network
+    depends_on:
+      - redis
+  worker:
+    container_name: event_management_worker_container
+    build:
+      context: .
+      dockerfile: worker/Dockerfile.dev
+      args:
+        DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:myStrongPostgresPassword@postgres:5432/event_management}
+    env_file:
+      - ./worker/.env
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: myStrongRedisPassword
+      DATABASE_URL: postgresql://postgres:myStrongPostgresPassword@postgres:5432/event_management
+      NODE_ENV: development
+      PRISMA_CONFIG_PATH: ./prisma.config.ts
+    volumes:
+      - ./worker/src:/app/src
+      - ./worker/nodemon.json:/app/nodemon.json
+      - ./prisma:/app/prisma
+      - ./prisma.config.ts:/app/prisma.config.ts
+      - /app/node_modules
+      - ./worker/logs:/app/logs
+      - ./packages:/packages
+      - ./server/src:/app/server/src
+      - ./worker/tsconfig.json:/app/tsconfig.json
+    networks:
+      - nowor_backend_network
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "ps -ef | grep -q '[n]odemon' || ps -ef | grep -q '[n]ode .*dist/index.js'",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+  corn:
+    container_name: event_management_corn_container
+    build:
+      context: .
+      dockerfile: corn/Dockerfile.dev
+      args:
+        DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:myStrongPostgresPassword@postgres:5432/event_management}
+    env_file:
+      - ./corn/.env
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: myStrongRedisPassword
+      DATABASE_URL: postgresql://postgres:myStrongPostgresPassword@postgres:5432/event_management
+      NODE_ENV: development
+      PRISMA_CONFIG_PATH: ./prisma.config.ts
+    volumes:
+      - ./corn/src:/app/src
+      - ./corn/nodemon.json:/app/nodemon.json
+      - ./prisma:/app/prisma
+      - ./prisma.config.ts:/app/prisma.config.ts
+      - /app/node_modules
+      - ./corn/logs:/app/logs
+    networks:
+      - nowor_backend_network
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "ps -ef | grep -q '[n]odemon' || ps -ef | grep -q '[n]ode .*dist/index.js'",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+  server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile.dev
+      args:
+        DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:myStrongPostgresPassword@postgres:5432/event_management}
+    container_name: event_management_server_container
+    ports:
+      - 5001:5000
+    networks:
+      - nowor_backend_network
+    volumes:
+      - ./server/src:/usr/src/app/src
+      - ./server/package.json:/usr/src/app/package.json
+      - ./server/tsconfig.json:/usr/src/app/tsconfig.json
+      - ./server/nodemon.json:/usr/src/app/nodemon.json
+      - ./server/scripts:/usr/src/app/scripts
+      - ./server/public:/usr/src/app/public
+      - ./server/logs:/usr/src/app/logs
+      - ./packages:/usr/src/packages
+      - ./prisma:/usr/src/app/prisma
+      - ./prisma.config.ts:/usr/src/app/prisma.config.ts
+      - /usr/src/app/node_modules
+    env_file:
+      - ./server/.env
+    environment:
+      # Explicitly override so server always uses THIS compose's Redis —
+      # not whatever is in .env (which may point to localhost or the other project's Redis)
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: myStrongRedisPassword
+      DATABASE_URL: postgresql://postgres:myStrongPostgresPassword@postgres:5432/event_management
+      PRISMA_CONFIG_PATH: ./prisma.config.ts
+    healthcheck:
+      test: ["CMD-SHELL", "ps -ef | grep -q '[n]odemon' || ps -ef | grep -q '[n]ode .*dist/server.js' || curl -f http://localhost:5000/api/v1/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    stop_grace_period: 8s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      worker:
+        condition: service_healthy
+      corn:
+        condition: service_healthy
+    restart: unless-stopped
+
+  developer-panel:
+    container_name: event_management_developer_panel_container
+    build:
+      context: ./developer-panel
+      dockerfile: Dockerfile.dev
+    ports:
+      - 5179:5173
+    networks:
+      - nowor_backend_network
+    volumes:
+      - ./developer-panel/src:/app/src
+      - ./developer-panel/.env:/app/.env
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+    depends_on:
+      server:
+        condition: service_healthy
+    restart: unless-stopped
+
+networks:
+  nowor_backend_network:
+    name: nowor_backend_network
+    driver: bridge
+
+volumes:
+  nowor_redis_volume:
+  nowor_postgres_volume:

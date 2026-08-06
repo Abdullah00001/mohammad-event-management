@@ -1,0 +1,35 @@
+name: DEPLOY DEVELOPMENT
+
+on:
+  push:
+    branches:
+      - development
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # - name: Deploy to VPS
+      #   uses: appleboy/ssh-action@v1.0.3
+      #   with:
+      #     host: ${{ secrets.SERVER_HOST }}
+      #     username: ${{ secrets.SERVER_USER }}
+      #     password: ${{ secrets.SERVER_PASSWORD }}
+      #     script: |
+      #       export NVM_DIR="$HOME/.nvm"
+      #       [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+            
+      #       cd /root/abdullah_projects/mohammad-event-management
+      #       git fetch origin
+      #       git switch development || git checkout development
+      #       git reset --hard origin/development
+      #       npm install
+      #       (cd packages/revenuecat && npm install && npm run build)
+      #       docker compose down
+      #       docker compose up -d --build -V
+      #       export CI=true
+      #       npm run migrate:generate

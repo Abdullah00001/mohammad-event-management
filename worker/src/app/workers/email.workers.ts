@@ -1,0 +1,194 @@
+import { Job, Worker } from 'bullmq';
+import { compile } from 'handlebars';
+
+import logger from '@/app/configs/logger.configs';
+import mailTransporter from '@/app/configs/nodemailer.config';
+import { getRedisClient } from '@/app/configs/redis.config';
+import { requestContext } from '@/app/configs/requestContext.configs';
+import { passwordResetSuccessEmailTemplate } from '@/app/templates/passwordResetSuccessEmail.template';
+import { recoverUserOtpEmailTemplate } from '@/app/templates/recoverUserOtpEmail.template';
+import { signupSuccessfulEmailTemplate } from '@/app/templates/signupSuccessfulEmail.template';
+import { signupUserVerifyOtpEmailTemplate } from '@/app/templates/signupUserVerifyOtpEmail.template';
+import { nearbyEventEmailTemplate } from '@/app/templates/nearbyEventEmail.template';
+import { eventReminderEmailTemplate } from '@/app/templates/eventReminderEmail.template';
+import { unreadMessagesEmailTemplate } from '@/app/templates/unreadMessagesEmail.template';
+import { inactivityEmailTemplate } from '@/app/templates/inactivityEmail.template';
+import { accountStatusUpdateEmailTemplate } from '@/app/templates/accountStatusUpdateEmail.template';
+import { mailOption } from '@/app/utils/system.utils';
+import { otpExpireAt } from '@/const';
+
+export const createEmailWorker = (): Worker => {
+  const EmailWorker = new Worker(
+    'email-queue',
+    async (job: Job) => {
+      const { id, name, data } = job;
+      const traceId = (job.data as any)?.traceId ?? 'NO_TRACE_ID';
+      return requestContext.run({ traceId }, async () => {
+        try {
+          switch (name) {
+            case 'send-signup-user-verify-otp-email': {
+              const { email, otp } = data as {
+                email: string;
+                otp: string;
+              };
+              const template = compile(signupUserVerifyOtpEmailTemplate);
+              const personalizedTemplate = template({
+                email,
+                otp,
+                otpExpireAt,
+              });
+              await mailTransporter.sendMail(
+                mailOption(
+                  email,
+                  'Action Required: Verify Your Email Address',
+                  personalizedTemplate
+                )
+              );
+              return;
+            }
+            case 'send-signup-success-email': {
+              const { email } = data as { email: string };
+              const template = compile(signupSuccessfulEmailTemplate);
+              const personalizedTemplate = template({ email });
+              await mailTransporter.sendMail(
+                mailOption(
+                  email,
+                  `Welcome to NowOr! We're glad you're here.`,
+                  personalizedTemplate
+                )
+              );
+              return;
+            }
+            case 'send-find-recover-user-email-otp': {
+              const { email, otp } = data as {
+                email: string;
+                otp: string;
+              };
+              const template = compile(recoverUserOtpEmailTemplate);
+              const personalizedTemplate = template({
+                email,
+                otp,
+                otpExpireAt,
+              });
+              await mailTransporter.sendMail(
+                mailOption(
+                  email,
+                  'Security: Password reset requested for NowOR',
+                  personalizedTemplate
+                )
+              );
+              return;
+            }
+            case 'send-reset-successful-recover-user-email': {
+              const { email } = data as {
+                email: string;
+              };
+              const template = compile(passwordResetSuccessEmailTemplate);
+              const personalizedTemplate = template({
+                email,
+              });
+              await mailTransporter.sendMail(
+                mailOption(
+                  email,
+                  'Security Alert: Your password was changed',
+                  personalizedTemplate
+                )
+              );
+              return;
+            }
+            case 'send-nearby-event-email': {
+              const { email, eventName } = data as { email: string; eventName: string };
+              const template = compile(nearbyEventEmailTemplate);
+              const personalizedTemplate = template({ eventName });
+              await mailTransporter.sendMail(
+                mailOption(email, 'New Event Nearby!', personalizedTemplate)
+              );
+              return;
+            }
+            case 'send-event-reminder-email': {
+              const { email, eventName } = data as { email: string; eventName: string };
+              const template = compile(eventReminderEmailTemplate);
+              const personalizedTemplate = template({ eventName });
+              await mailTransporter.sendMail(
+                mailOption(email, 'Event Starting Soon!', personalizedTemplate)
+              );
+              return;
+            }
+            case 'send-unread-messages-email': {
+              const { email, unreadCount } = data as { email: string; unreadCount: number };
+              const template = compile(unreadMessagesEmailTemplate);
+              const personalizedTemplate = template({ unreadCount });
+              await mailTransporter.sendMail(
+                mailOption(email, 'You have unread messages!', personalizedTemplate)
+              );
+              return;
+            }
+            case 'send-account-status-update-email': {
+              const { email, accountStatus } = data as {
+                email: string;
+                accountStatus: string;
+              };
+              const template = compile(accountStatusUpdateEmailTemplate);
+              const isBlocked = accountStatus === 'BLOCKED';
+              const personalizedTemplate = template({
+                email,
+                status: accountStatus,
+                isBlocked,
+              });
+              await mailTransporter.sendMail(
+                mailOption(
+                  email,
+                  isBlocked ? 'Important: Your Account Has Been Suspended' : 'Your Account Has Been Reactivated',
+                  personalizedTemplate
+                )
+              );
+              return;
+            }
+            case 'send-inactivity-email': {
+              const { email } = data as { email: string };
+              const template = compile(inactivityEmailTemplate);
+              const personalizedTemplate = template({});
+              await mailTransporter.sendMail(
+                mailOption(email, 'We Miss You!', personalizedTemplate)
+              );
+              return;
+            }
+            default:
+              throw new Error(`Unhandled email job: ${name}`);
+          }
+        } catch (error) {
+          logger.error('Worker job failed', {
+            jobName: name,
+            jobId: id,
+            error,
+          });
+          throw error;
+        }
+      });
+    },
+    { connection: getRedisClient() as any }
+  );
+
+  EmailWorker.on('completed', (job: Job) => {
+    const traceId = (job.data as any)?.traceId ?? 'NO_TRACE_ID';
+    requestContext.run({ traceId }, () => {
+      logger.info(`Job Name : ${job.name} Job Id : ${job.id} Completed`);
+    });
+  });
+
+  EmailWorker.on('failed', (job: Job | undefined, error: Error) => {
+    if (!job) {
+      logger.error(
+        `A job failed but the job data is undefined.\nError:\n${error}`
+      );
+      return;
+    }
+    const traceId = (job.data as any)?.traceId ?? 'NO_TRACE_ID';
+    requestContext.run({ traceId }, () => {
+      logger.error(
+        `Job Name : ${job.name} Job Id : ${job.id} Failed\nError:\n${error}`
+      );
+    });
+  });
+  return EmailWorker;
+};

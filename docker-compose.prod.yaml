@@ -1,0 +1,18 @@
+services:
+  developer-panel:
+    container_name: event_management_developer_panel_prod
+    build:
+      context: ./developer-panel
+      dockerfile: Dockerfile
+    ports:
+      - 8080:80
+    networks:
+      - nowor_backend_network
+    restart: unless-stopped
+    depends_on:
+      server:
+        condition: service_healthy
+
+networks:
+  nowor_backend_network:
+    external: true

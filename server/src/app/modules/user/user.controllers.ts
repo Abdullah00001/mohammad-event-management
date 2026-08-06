@@ -1,0 +1,274 @@
+import { User } from '@prisma/client';
+import { Request, Response } from 'express';
+import { JwtPayload } from 'jsonwebtoken';
+
+import { getTraceId } from '@/app/configs/requestContext.configs';
+import {
+  TChangeUserAccountStatusPayload,
+  TCheckAccessTokenPayload,
+  TLoginPayload,
+  TSignupPayload,
+  TSocialLoginPayload,
+} from '@/app/modules/user/user.schemas';
+import {
+  adminRefreshToken,
+  loginService,
+  resendSignupUserOtp,
+  signupService,
+  verifySignupUserOtp,
+  retrieveUserList,
+  retrieveSingleUser,
+  changeUserAccountStatusService,
+  checkAccessTokenService,
+  socialLoginService,
+} from '@/app/modules/user/user.services';
+import { cookieOption } from '@/app/utils/cookie.utils';
+import { extractToken } from '@/app/utils/jwt.utils';
+import { asyncHandler } from '@/app/utils/system.utils';
+import {
+  adminAccessTokenExpiresIn,
+  refreshTokenExpiresInWithOutRememberMe,
+  refreshTokenExpiresInWithRememberMe,
+} from '@/const';
+
+export const signupController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const traceId = getTraceId();
+    const { email, password, gpsPayloadSchema, fcmToken, platform } =
+      req.body as TSignupPayload;
+    const data = await signupService({
+      email,
+      password,
+      gpsPayloadSchema,
+      fcmToken,
+      platform,
+    });
+    res
+      .status(200)
+      .json({ success: true, message: 'Signup successful', data, traceId });
+    return;
+  }
+);
+
+export const verifySignupUserController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const traceId = getTraceId();
+    const token = extractToken(req) as string;
+    const user = req.user;
+    const { accessToken } = await verifySignupUserOtp({ token, user });
+    res.status(200).json({
+      success: true,
+      message: 'Otp verification successful',
+      data: { accessToken },
+      traceId,
+    });
+    return;
+  }
+);
+
+export const resendSignupUserOtpController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const traceId = getTraceId();
+    const user = req.user;
+    const data = await resendSignupUserOtp({ user });
+    res.status(200).json({
+      success: true,
+      message: 'Otp resend successful',
+      data,
+      traceId,
+    });
+    return;
+  }
+);
+
+export const loginController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const { rememberMe, location, fcmToken, platform } =
+      req.body as TLoginPayload;
+    const path = req.path;
+    const isAdminLogin = path.includes('/admin/auth/login');
+    const traceId = getTraceId();
+    const user = req.user as User;
+    const { accessToken, refreshToken } = await loginService({
+      isAdmin: isAdminLogin,
+      user,
+      rememberMe,
+      gpsLocationPayload: location,
+      fcmToken,
+      platform,
+    });
+    if (isAdminLogin && refreshToken) {
+      const refreshTokenExpireIn = rememberMe
+        ? refreshTokenExpiresInWithRememberMe
+        : refreshTokenExpiresInWithOutRememberMe;
+      res.cookie(
+        'accesstoken',
+        accessToken,
+        cookieOption(adminAccessTokenExpiresIn)
+      );
+      res.cookie(
+        'refreshtoken',
+        refreshToken,
+        cookieOption(refreshTokenExpireIn)
+      );
+      res.status(200).json({
+        success: true,
+        message: 'Login successful',
+        data: { accessToken, refreshToken },
+        traceId,
+      });
+      return;
+    }
+    res.status(200).json({
+      success: true,
+      message: 'Login successful',
+      data: { accessToken, isProfileSetup: user.isProfileSetup },
+      traceId,
+    });
+    return;
+  }
+);
+
+export const socialLoginController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const traceId = getTraceId();
+    const { email, location, fcmToken, platform, provider } = req.body as TSocialLoginPayload;
+
+    const { accessToken, isProfileSetup } = await socialLoginService({
+      email,
+      location,
+      fcmToken,
+      platform,
+      provider,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Social login successful',
+      data: { accessToken, isProfileSetup },
+      traceId,
+    });
+    return;
+  }
+);
+
+export const checkAccessTokenController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const traceId = getTraceId();
+    const user = req.user as User;
+    const { fcmToken, location, platform } =
+      req.body as TCheckAccessTokenPayload;
+    await checkAccessTokenService({ user, fcmToken, location, platform });
+    res.status(200).json({
+      success: true,
+      message: 'User Is Authenticated',
+      data: {
+        isProfileSetup: user.isProfileSetup,
+        isPremium:user.isPremium,
+        userId:user.id
+      },
+      traceId,
+    });
+    return;
+  }
+);
+
+export const adminRefreshTokenController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const traceId = getTraceId();
+    const user = req.user as JwtPayload;
+    const { jwt } = await adminRefreshToken({ user });
+    res.cookie('accesstoken', jwt, cookieOption(adminAccessTokenExpiresIn));
+    res.status(200).json({
+      success: true,
+      message: 'Token refresh successful',
+      data: { accessToken: jwt },
+      traceId,
+    });
+    return;
+  }
+);
+
+export const retrieveUserListController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const traceId = getTraceId();
+    const { page, limit, sortBy } = req.query as {
+      page: string;
+      limit: string;
+      sortBy: string;
+    };
+    const user = req.user as JwtPayload;
+    const path = req.path;
+    const data = await retrieveUserList({ page, limit, sortBy, user, path });
+    res.status(200).json({
+      success: true,
+      message: 'Users retrieved successful',
+      ...data,
+      traceId,
+    });
+    return;
+  }
+);
+
+export const retrieveSingleUserController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const traceId = getTraceId();
+    const { id } = req.params;
+    const data = await retrieveSingleUser(id as string);
+    if (!data) {
+      res.status(404).json({
+        success: false,
+        message: `User with this ${id} not found`,
+        traceId,
+      });
+      return;
+    }
+    res.status(200).json({
+      success: true,
+      message: 'User retrieved successful',
+      data,
+      traceId,
+    });
+    return;
+  }
+);
+
+export const changeUserAccountStatusController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const traceId = getTraceId();
+    const { id } = req.params;
+    const { accountStatus } = req.body as TChangeUserAccountStatusPayload;
+
+    const data = await changeUserAccountStatusService({
+      id: id as string,
+      accountStatus,
+    });
+
+    if (!data) {
+      res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'User account status updated successfully',
+      data,
+      traceId
+    });
+  }
+);
+
+export const checkAdminAccessTokenController = asyncHandler(
+  (_req: Request, res: Response) => {
+    const traceId = getTraceId();
+    res.status(200).json({
+      success: true,
+      message: 'Admin Is Authenticated',
+      traceId,
+    });
+    return;
+  }
+);
