@@ -194,11 +194,6 @@ export const getEventListingService = async ({
     } = query;
 
     // ── 1. Resolve the reference coordinates ──────────────────────
-    //
-    // Priority:
-    //   a) Query params (lat + lng) — user explicitly scoped the search
-    //   b) Cached live location   — fallback for Case 1
-    //
     let refLat: number;
     let refLng: number;
 
@@ -217,10 +212,6 @@ export const getEventListingService = async ({
     }
 
     // ── 2. Determine whether this is a "bare" request (Case 1) ────
-    //
-    // A bare request has NO optional filter params. In that case we
-    // apply a 5 km radius and country-scoping automatically.
-    //
     const hasFilters = Boolean(
       startDate ||
       distance !== undefined ||
@@ -244,70 +235,77 @@ export const getEventListingService = async ({
     // ── 5. Build offset ───────────────────────────────────────────
     const offset = (page - 1) * limit;
 
-    // ── 6. Fetch nearby event IDs via raw Haversine SQL ───────────
+    // ── 6. Fetch candidate event IDs ─────────────────────────────
     //
-    // Prisma does not support computed/geo columns natively so we use
-    // a raw query for the distance filter and hand the IDs back to the
-    // ORM for the rest of the filtering.
+    // FIXED: when `search` is provided without an explicit `distance`,
+    // skip the Haversine radius filter entirely — search should be
+    // global, not capped at 5 km. Distance filter only applies when
+    // the user explicitly passes a `distance` param.
     //
-    const haversinePredicate = buildHaversineFragment(refLat, refLng, radiusKm);
-    const distanceRows = await prisma.$queryRaw<{ id: string }[]>(
-      Prisma.sql`
-        SELECT e.id::text
-        FROM "Event" e
-        WHERE ${haversinePredicate}
-          AND e."eventStatus"::text IN ('UPCOMING', 'ONGOING')
-      `
-    );
+    let filteredIds: string[];
 
-    const nearbyEventIds = distanceRows.map((r) => r.id);
+    const useDistanceFilter = distance !== undefined || !search;
 
-    if (nearbyEventIds.length === 0) {
-      return buildEmptyResult(page, limit);
+    if (useDistanceFilter) {
+      // Use Haversine SQL to get nearby event IDs
+      const haversinePredicate = buildHaversineFragment(refLat, refLng, radiusKm);
+      const distanceRows = await prisma.$queryRaw<{ id: string }[]>(
+        Prisma.sql`
+          SELECT e.id::text
+          FROM "Event" e
+          WHERE ${haversinePredicate}
+            AND e."eventStatus"::text IN ('UPCOMING', 'ONGOING')
+        `
+      );
+
+      filteredIds = distanceRows.map((r) => r.id);
+
+      if (filteredIds.length === 0) {
+        return buildEmptyResult(page, limit);
+      }
+    } else {
+      // Search mode — fetch all non-deleted UPCOMING/ONGOING event IDs
+      // without distance constraint
+      const allRows = await prisma.event.findMany({
+        where: {
+          eventStatus: { in: [EventStatus.UPCOMING, EventStatus.ONGOING] },
+        },
+        select: { id: true },
+      });
+
+      filteredIds = allRows.map((r) => r.id);
+
+      if (filteredIds.length === 0) {
+        return buildEmptyResult(page, limit);
+      }
     }
 
     // ── 7. ORM-level filters ──────────────────────────────────────
 
-    // startDate filter — frontend sends a combined ISO UTC datetime string
-    // (date + time picker merged). We use it as gte so events starting
-    // at or after that exact moment are returned.
     let startDateFilter: { gte: Date } | undefined;
     if (startDate) {
       startDateFilter = { gte: new Date(startDate) };
     }
 
-    // EventType filter — resolve matching event IDs from junction table
+    // EventType filter
     let eventTypeEventIds: string[] | undefined;
     if (eventType) {
       const typeRows = await prisma.eventEventType.findMany({
         where: {
           eventTypeId: eventType,
-          eventId: { in: nearbyEventIds },
+          eventId: { in: filteredIds },
         },
         select: { eventId: true },
       });
       eventTypeEventIds = typeRows.map((r) => r.eventId);
-    }
-
-    // Intersect all filter ID sets
-    let filteredIds = nearbyEventIds;
-    if (eventTypeEventIds)
       filteredIds = filteredIds.filter((id) => eventTypeEventIds!.includes(id));
+    }
 
     if (filteredIds.length === 0) {
       return buildEmptyResult(page, limit);
     }
 
     // ── 8. Fetch events with full relations ───────────────────────
-    //
-    // Rules applied in sharedWhere:
-    //   1. `isPrivate: false`          — only public events
-    //   2. startDate gte filter        — events at or after selected datetime
-    //   3. search on eventName         — case-insensitive contains
-    //   4. AND[0] — exclude blocked hosts
-    //   5. AND[1] — exclude events user has ACTIVE presence in
-    //               FIXED: leftAt: null — events user left reappear in wild
-    //
     const sharedWhere = {
       id: { in: filteredIds },
       eventStatus: { in: [EventStatus.UPCOMING, EventStatus.ONGOING] },
@@ -331,9 +329,7 @@ export const getEventListingService = async ({
             },
           },
         },
-        // FIXED: exclude only ACTIVE presence — leftAt: null
-        // once a user leaves an event, leftAt is set and event
-        // reappears in the wild feed as joinable again
+        // Exclude events where the logged-in user has an ACTIVE presence
         {
           eventParticipants: {
             none: {
@@ -342,7 +338,7 @@ export const getEventListingService = async ({
             },
           },
         },
-        // ADDED: exclude events where the user is on the waitlist
+        // Exclude events where the user is on the waitlist
         {
           waitLists: {
             none: {
@@ -392,15 +388,17 @@ export const getEventListingService = async ({
     ]);
 
     // ── 9. Post-fetch processing ───────────────────────────────────
-    const distanceMap = await buildDistanceMap(filteredIds, refLat, refLng);
+    //
+    // Distance map only built when distance filter was applied
+    //
+    const distanceMap = useDistanceFilter
+      ? await buildDistanceMap(filteredIds, refLat, refLng)
+      : {};
 
     let events: EventItem[] = rawEvents.map((event) => {
       const participants = event.eventParticipants;
       const participantCount = participants.length;
-      const spotsLeft = Math.max(
-        0,
-        event?.maxParticipantsCount - participantCount
-      );
+      const spotsLeft = Math.max(0, event.maxParticipantsCount - participantCount);
       const isJoined = participants.some((p) => p.participantId === user.id);
       const isOnWaitList = event.waitLists.length > 0;
 
@@ -413,7 +411,7 @@ export const getEventListingService = async ({
         lat: event.lat,
         lng: event.lng,
         isPrivate: event.isPrivate,
-        distanceKm: distanceMap[event.id] ?? 0,
+        distanceKm: distanceMap[event.id] ?? null,
         participantCount,
         spotsLeft,
         isJoined,
