@@ -1,0 +1,5 @@
+-- CreateEnum
+CREATE TYPE "KycStatus" AS ENUM ('VERIFIED', 'PENDING', 'REJECTED', 'UNVERIFIED');
+
+-- AlterTable
+ALTER TABLE "User" ADD COLUMN     "kycStatus" "KycStatus" NOT NULL DEFAULT 'UNVERIFIED';

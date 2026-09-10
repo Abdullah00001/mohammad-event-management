@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "KycAttempt" ALTER COLUMN "status" SET DEFAULT 'INITIATED';
