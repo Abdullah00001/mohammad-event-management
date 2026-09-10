@@ -168,7 +168,11 @@ services:
       DATABASE_URL: postgresql://postgres:myStrongPostgresPassword@postgres:5432/event_management
       PRISMA_CONFIG_PATH: ./prisma.config.ts
     healthcheck:
-      test: ["CMD-SHELL", "ps -ef | grep -q '[n]odemon' || ps -ef | grep -q '[n]ode .*dist/server.js' || curl -f http://localhost:5000/api/v1/health || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "ps -ef | grep -q '[n]odemon' || ps -ef | grep -q '[n]ode .*dist/server.js' || curl -f http://localhost:5000/api/v1/health || exit 1",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5

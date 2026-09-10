@@ -159,6 +159,29 @@ export const checkAccessTokenController = asyncHandler(
     const { fcmToken, location, platform } =
       req.body as TCheckAccessTokenPayload;
     await checkAccessTokenService({ user, fcmToken, location, platform });
+    const jwtPayload = req.user as JwtPayload;
+    
+    const { fcmToken, location, platform } = req.body as TCheckAccessTokenPayload;
+    
+    // Delegate database logic to the service
+    const dbUser = await checkAccessTokenService({ 
+      userId: jwtPayload.sub as string, 
+      fcmToken, 
+      location, 
+      platform 
+    });
+
+    if (!dbUser) {
+      res.status(404).json({
+        success: false,
+        message: 'User not found',
+        traceId,
+      });
+      return;
+    }
+
+    const kycStatus = await getKycStatusService({ userId: dbUser.id });
+
     res.status(200).json({
       success: true,
       message: 'User Is Authenticated',
@@ -166,6 +189,10 @@ export const checkAccessTokenController = asyncHandler(
         isProfileSetup: user.isProfileSetup,
         isPremium:user.isPremium,
         userId:user.id
+        isProfileSetup: dbUser.isProfileSetup,
+        isPremium: dbUser.isPremium,
+        userId: dbUser.id,
+        kycStatus,
       },
       traceId,
     });

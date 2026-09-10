@@ -1,6 +1,6 @@
 export const corsWhiteList = [
   'http://localhost:5173',
-   'http://localhost:5179',
+  'http://localhost:5179',
   'http://localhost:3000',
   'http://localhost:3001',
   'http://localhost:3002',
@@ -13,7 +13,9 @@ export const corsWhiteList = [
   'http://10.10.10.26:3008',
   'http://10.10.10.26:3000',
   'http://10.10.10.27:3008',
-  "http://10.10.10.27:3001"
+  'http://10.10.10.27:3001',
+  'http://10.10.10.27:3000',
+  'https://orca-dashboard-sepia.vercel.app',
 ];
 export const saltRound = 10;
 export const emailRegex = /^[\w.-]+@[a-zA-Z\d.-]+\.[a-zA-Z]{2,}$/;

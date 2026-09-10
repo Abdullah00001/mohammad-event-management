@@ -10,12 +10,16 @@ export const uploadAttachmentToS3Service = async (
       const extension = file.originalname.split('.').pop();
       const key = `attachments/${uuidv4()}-${Date.now()}.${extension}`;
 
-      const url = await singleUploadToS3({ filePath: file.path, key, mimeType: file.mimetype });
-      
+      const url = await singleUploadToS3({
+        filePath: file.path,
+        key,
+        mimeType: file.mimetype,
+      });
+
       return {
         originalName: file.originalname,
         url,
-        key: key
+        key: key,
       };
     });
 
