@@ -104,7 +104,7 @@ export const diditCreateSessionService = async ({ user }: { user: User }) => {
 };
 
 export const diditSubmitKycService = async ({
-  user,
+  user: _user,
   attempt,
 }: {
   user: User;
@@ -142,7 +142,7 @@ export const processKycWebhookService = async ({
 }: {
   payload: DiditWebhookPayload;
 }) => {
-  const { session_id, status, vendor_data, rejection_reason, data } = payload;
+  const { session_id, status, vendor_data: _vendor_data, rejection_reason, data } = payload;
 
   // 1. Find the attempt
   const attempt = await prisma.kycAttempt.findUnique({

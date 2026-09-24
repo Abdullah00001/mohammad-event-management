@@ -201,7 +201,7 @@ export const handleMessageRead = async (
     return;
   }
 
-  const { conversationId, messageId } = validated.data as ReadMessagePayload;
+  const { conversationId, messageId: _messageId } = validated.data as ReadMessagePayload;
 
   const now = new Date();
   await prisma.conversationParticipant.update({

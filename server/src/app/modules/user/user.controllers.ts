@@ -30,6 +30,7 @@ import {
   refreshTokenExpiresInWithOutRememberMe,
   refreshTokenExpiresInWithRememberMe,
 } from '@/const';
+import { getKycStatusService } from '@/app/modules/kyc/kyc.services';
 
 export const signupController = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
@@ -155,10 +156,6 @@ export const socialLoginController = asyncHandler(
 export const checkAccessTokenController = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
     const traceId = getTraceId();
-    const user = req.user as User;
-    const { fcmToken, location, platform } =
-      req.body as TCheckAccessTokenPayload;
-    await checkAccessTokenService({ user, fcmToken, location, platform });
     const jwtPayload = req.user as JwtPayload;
     
     const { fcmToken, location, platform } = req.body as TCheckAccessTokenPayload;
@@ -186,9 +183,6 @@ export const checkAccessTokenController = asyncHandler(
       success: true,
       message: 'User Is Authenticated',
       data: {
-        isProfileSetup: user.isProfileSetup,
-        isPremium:user.isPremium,
-        userId:user.id
         isProfileSetup: dbUser.isProfileSetup,
         isPremium: dbUser.isPremium,
         userId: dbUser.id,
