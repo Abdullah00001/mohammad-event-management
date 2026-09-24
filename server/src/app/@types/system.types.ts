@@ -34,6 +34,10 @@ export type TEnv = {
   FIREBASE_CLIENT_EMAIL: string;
   REVENUECAT_API_KEY: string;
   REVENUECAT_WEBHOOK_SECRET: string;
+  DIDIT_API_URL: string;
+  DIDIT_API_KEY: string;
+  DIDIT_WORKFLOW_ID: string;
+  DIDIT_WEBHOOK_SECRET: string;
 };
 
 export type TMailOption = {

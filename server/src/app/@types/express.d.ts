@@ -18,6 +18,8 @@ declare global {
       eventType:EventType;
       plan:SubscriptionPlan;
       event:Event;
+      kycWebhookPayload?: unknown;
+      kycAttempt?: unknown;
     }
   }
 }
